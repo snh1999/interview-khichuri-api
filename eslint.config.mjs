@@ -1,6 +1,6 @@
-import core from "ultracite/eslint/core";
-import nestjs from "ultracite/eslint/nestjs";
-import jest from "ultracite/eslint/jest";
+import core from 'ultracite/eslint/core';
+import nestjs from 'ultracite/eslint/nestjs';
+import jest from 'ultracite/eslint/jest';
 
 export default [
   ...core,
@@ -9,6 +9,14 @@ export default [
   {
     rules: {
       'sonarjs/file-header': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+      'sonarjs/arrow-function-convention': [
+        'error',
+        {
+          // allows single parameter parenthesis
+          requireParameterParentheses: true,
+        },
+      ],
       'new-cap': [
         'error',
         {
@@ -39,9 +47,33 @@ export default [
           ],
         },
       ],
+      // allows constructor injection
+      '@typescript-eslint/parameter-properties': 'off',
+      'sonarjs/declarations-in-global-scope': 'off',
       '@typescript-eslint/no-extraneous-class': [
         'error',
         { allowWithDecorator: true },
+      ],
+      '@typescript-eslint/naming-convention': [
+        'error',
+        {
+          selector: 'variable',
+          format: ['camelCase', 'UPPER_CASE', 'PascalCase', 'snake_case'],
+        },
+        {
+          selector: 'objectLiteralProperty',
+          format: ['camelCase', 'UPPER_CASE', 'snake_case'],
+        },
+        {
+          selector: 'classProperty',
+          modifiers: ['readonly', 'static'],
+          format: ['UPPER_CASE', 'camelCase', 'snake_case'],
+        },
+        {
+          selector: 'parameter',
+          format: ['camelCase', 'snake_case', 'PascalCase'],
+          leadingUnderscore: 'allow',
+        },
       ],
     },
   },
