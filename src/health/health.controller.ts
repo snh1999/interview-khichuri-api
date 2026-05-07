@@ -1,0 +1,60 @@
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
+import { sql } from 'drizzle-orm';
+import { DatabaseService } from '../database/database.service';
+import { TDatabaseCheck, THealthReturn } from './health.types';
+
+@Controller('health')
+export class HealthController {
+  public constructor(private readonly dbService: DatabaseService) {}
+
+  @Get()
+  public async getHealth(): Promise<THealthReturn> {
+    const result = await this.runChecks();
+
+    if (result.status !== 'up') {
+      throw new ServiceUnavailableException(result);
+    }
+
+    return {
+      status: 'healthy',
+      message: 'All systems operational',
+      timestamp: result.timestamp,
+      checks: result.checks,
+    };
+  }
+
+  @Get('public')
+  @AllowAnonymous()
+  public async getPublicHealth(): Promise<THealthReturn> {
+    return this.getHealth();
+  }
+
+  private async runChecks() {
+    const timestamp = new Date().toISOString();
+    const dbCheck = await this.pingDatabase();
+
+    return {
+      timestamp,
+      status: dbCheck.status,
+      checks: { database: dbCheck },
+    };
+  }
+
+  private async pingDatabase(): Promise<TDatabaseCheck> {
+    const start = Date.now();
+    try {
+      await this.dbService.db.execute(sql`SELECT 1`);
+      return {
+        status: 'up' as const,
+        responseTimeMs: Date.now() - start,
+      };
+    } catch (error) {
+      return {
+        status: 'down' as const,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        error: error.message,
+      };
+    }
+  }
+}

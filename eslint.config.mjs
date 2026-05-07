@@ -44,12 +44,15 @@ export default [
             'ExceptionFilter',
             'NestModule',
             'MiddlewareConsumer',
+            'AllowAnonymous',
           ],
         },
       ],
       // allows constructor injection
       '@typescript-eslint/parameter-properties': 'off',
       'sonarjs/declarations-in-global-scope': 'off',
+      'class-methods-use-this': 'off',
+      '@typescript-eslint/class-methods-use-this': 'off',
       '@typescript-eslint/no-extraneous-class': [
         'error',
         { allowWithDecorator: true },
