@@ -1,12 +1,11 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { sql } from 'drizzle-orm';
-import { DatabaseService } from '../database/database.service';
+import { IDatabaseService } from '../database/database.types';
 import { TDatabaseCheck, THealthReturn } from './health.types';
 
 @Controller('health')
 export class HealthController {
-  public constructor(private readonly dbService: DatabaseService) {}
+  public constructor(private readonly dbService: IDatabaseService) {}
 
   @Get()
   public async getHealth(): Promise<THealthReturn> {
@@ -44,7 +43,7 @@ export class HealthController {
   private async pingDatabase(): Promise<TDatabaseCheck> {
     const start = Date.now();
     try {
-      await this.dbService.db.execute(sql`SELECT 1`);
+      await this.dbService.dbPing();
       return {
         status: 'up' as const,
         responseTimeMs: Date.now() - start,

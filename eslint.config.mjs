@@ -44,7 +44,9 @@ export default [
             'ExceptionFilter',
             'NestModule',
             'MiddlewareConsumer',
+            'All',
             'AllowAnonymous',
+            'SkipThrottle',
           ],
         },
       ],
@@ -53,6 +55,7 @@ export default [
       'sonarjs/declarations-in-global-scope': 'off',
       'class-methods-use-this': 'off',
       '@typescript-eslint/class-methods-use-this': 'off',
+      'promise/prefer-await-to-callbacks': 'off',
       '@typescript-eslint/no-extraneous-class': [
         'error',
         { allowWithDecorator: true },
@@ -65,7 +68,7 @@ export default [
         },
         {
           selector: 'objectLiteralProperty',
-          format: ['camelCase', 'UPPER_CASE', 'snake_case'],
+          format: [],
         },
         {
           selector: 'classProperty',

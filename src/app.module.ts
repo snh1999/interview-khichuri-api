@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { AuthGuard } from '@thallesp/nestjs-better-auth';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from './database/database.module';
 import { envSchema } from './config/utils/env.schema';
 import { CustomZodValidationPipe } from './config/pipes/zod.pipe';
@@ -19,6 +19,14 @@ const isApplicationMode = process.env.MODE === 'application';
       expandVariables: true,
       validate: (config) => envSchema.parse(config),
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60_000,
+          limit: 60,
+        },
+      ],
+    }),
     DatabaseModule,
     ...(isApplicationMode ? [] : [BetterAuthModule]),
     HealthModule,
@@ -28,10 +36,7 @@ const isApplicationMode = process.env.MODE === 'application';
       provide: APP_PIPE,
       useClass: CustomZodValidationPipe,
     },
-    {
-      provide: APP_GUARD,
-      useClass: isApplicationMode ? ApplicationGuard : AuthGuard,
-    },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseTransformInterceptor,
