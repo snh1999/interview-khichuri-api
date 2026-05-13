@@ -9,16 +9,34 @@ import { ConfigService } from '@nestjs/config';
 import { isValid } from 'mailchecker';
 import { DATABASE_CONNECTION } from '../database/database.constants';
 import { AppConfig } from '../config/utils/env.schema';
+import { EmailModule } from '../email/email.module';
+import { EmailService } from '../email/email.service';
 
 @Module({
   imports: [
     AuthModule.forRootAsync({
-      useFactory: (db: PostgresJsDatabase, config: AppConfig) => ({
+      imports: [EmailModule],
+      useFactory: (
+        db: PostgresJsDatabase,
+        config: AppConfig,
+        emailService: EmailService,
+      ) => ({
         auth: betterAuth({
           database: drizzleAdapter(db, { provider: 'pg' }),
           trustedOrigins: [config.get('FRONTEND_URL')],
           emailAndPassword: {
             enabled: true,
+            requireEmailVerification: true,
+            sendResetPassword: async ({ user, url }) => {
+              await emailService.sendPasswordResetEmail(user.email, url);
+            },
+          },
+          emailVerification: {
+            sendOnSignUp: true,
+            autoSignInAfterVerification: true,
+            sendVerificationEmail: async ({ user, url }) => {
+              await emailService.sendVerificationEmail(user.email, url);
+            },
           },
           socialProviders: {
             google: {
@@ -94,7 +112,7 @@ import { AppConfig } from '../config/utils/env.schema';
           },
         }),
       }),
-      inject: [DATABASE_CONNECTION, ConfigService],
+      inject: [DATABASE_CONNECTION, ConfigService, EmailService],
     }),
   ],
   exports: [AuthModule],

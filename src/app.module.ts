@@ -6,9 +6,9 @@ import { DatabaseModule } from './database/database.module';
 import { envSchema } from './config/utils/env.schema';
 import { CustomZodValidationPipe } from './config/pipes/zod.pipe';
 import { BetterAuthModule } from './better-auth/better-auth.module';
-import { ApplicationGuard } from './config/guards/application.guard';
 import { HealthModule } from './health/health.module';
 import { ResponseTransformInterceptor } from './config/interceptors/response.interceptor';
+import { EmailModule } from './email/email.module';
 
 const isApplicationMode = process.env.MODE === 'application';
 
@@ -30,6 +30,7 @@ const isApplicationMode = process.env.MODE === 'application';
     DatabaseModule,
     ...(isApplicationMode ? [] : [BetterAuthModule]),
     HealthModule,
+    EmailModule,
   ],
   providers: [
     {
