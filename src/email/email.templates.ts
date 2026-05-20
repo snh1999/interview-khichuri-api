@@ -19,7 +19,7 @@ const btn = `
 const footer = `margin-top: 32px; font-size: 12px; color: #9ca3af; line-height: 1.6;`;
 
 export const verificationEmailTemplate = (url: string): string => `
-<!DOCTYPE html><html><body style="${base}">
+<!DOCTYPE html><html lang="en"><body style="${base}">
   <div style="${card}">
     <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Verify your email</h1>
     <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 4px;">
@@ -36,18 +36,52 @@ export const verificationEmailTemplate = (url: string): string => `
 `;
 
 export const passwordResetEmailTemplate = (url: string): string => `
-<!DOCTYPE html><html><body style="${base}">
+  <!DOCTYPE html><html lang="en"><body style="${base}">
+    <div style="${card}">
+      <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Reset your password</h1>
+      <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 4px;">
+        We received a request to reset your Interview Khichuri password.
+      </p>
+      <a href="${url}" style="${btn}">Reset Password</a>
+      <p style="color:#9ca3af;font-size:13px;">
+        Or copy this link:<br/>
+        <span style="color:#6b7280;word-break:break-all;">${url}</span>
+      </p>
+      <div style="${footer}">Link expires in 1 hour. Ignore this if you didn't request a reset.</div>
+    </div>
+  </body></html>
+  `;
+
+export const changeEmailTemplate = (url: string): string => `
+<!DOCTYPE html><html lang="en"><body style="${base}">
   <div style="${card}">
-    <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Reset your password</h1>
+    <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Confirm your new email</h1>
     <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 4px;">
-      We received a request to reset your Interview Khichuri password.
+      You requested to change your email address for Interview Khichuri. Click below to confirm this change.
     </p>
-    <a href="${url}" style="${btn}">Reset Password</a>
+    <a href="${url}" style="${btn}">Confirm Email</a>
     <p style="color:#9ca3af;font-size:13px;">
       Or copy this link:<br/>
       <span style="color:#6b7280;word-break:break-all;">${url}</span>
     </p>
-    <div style="${footer}">Link expires in 1 hour. Ignore this if you didn't request a reset.</div>
+    <div style="${footer}">Link expires in 1 hour. Ignore this if you didn't request this change.</div>
+  </div>
+</body></html>
+`;
+
+export const deleteAccountTemplate = (url: string): string => `
+<!DOCTYPE html><html lang="en"><body style="${base}">
+  <div style="${card}">
+    <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Delete your account</h1>
+    <p style="color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 4px;">
+      We received a request to permanently delete your Interview Khichuri account and all associated data. This action cannot be undone.
+    </p>
+    <a href="${url}" style="${btn}">Delete Account</a>
+    <p style="color:#9ca3af;font-size:13px;">
+      Or copy this link:<br/>
+      <span style="color:#6b7280;word-break:break-all;">${url}</span>
+    </p>
+    <div style="${footer}">Link expires in 1 hour. Ignore this if you didn't request deletion.</div>
   </div>
 </body></html>
 `;
