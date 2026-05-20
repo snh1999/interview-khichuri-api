@@ -1,17 +1,17 @@
 /* eslint-disable sonarjs/no-wildcard-import */
 
-import { Global, Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import postgres from 'postgres';
-import { drizzle as pgDrizzle } from 'drizzle-orm/postgres-js';
-import Database from 'better-sqlite3';
-import { drizzle as sqliteDrizzle } from 'drizzle-orm/better-sqlite3';
-import * as pgSchema from './postgres/schemas';
-import * as sqliteSchema from './sqlite/schemas';
-import { DATABASE_CONNECTION } from './database.constants';
-import { IDatabaseService } from './database.types';
-import { SqliteService } from './sqlite/sqlite.service';
-import { PostgresService } from './postgres/postgres.service';
+import { Global, Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import postgres from "postgres";
+import { drizzle as pgDrizzle } from "drizzle-orm/postgres-js";
+import Database from "better-sqlite3";
+import { drizzle as sqliteDrizzle } from "drizzle-orm/better-sqlite3";
+import * as pgSchema from "./postgres/schemas";
+import * as sqliteSchema from "./sqlite/schemas";
+import { DATABASE_CONNECTION } from "./database.constants";
+import { IDatabaseService } from "./database.types";
+import { SqliteService } from "./sqlite/sqlite.service";
+import { PostgresService } from "./postgres/postgres.service";
 
 /**
  * The repository pattern (IDatabaseService) handles all feature-level database access.
@@ -19,17 +19,17 @@ import { PostgresService } from './postgres/postgres.service';
  * as better-auth's drizzleAdapter would require direct access to the Drizzle `db` instance to call internal Drizzle APIs that are not exposed through
  * IDatabaseService. Encapsulating `db` inside PostgresService/SqliteService would make it unreachable to better-auth without an extra getter.
  */
-const isApplicationMode = process.env.MODE === 'application';
+const isApplicationMode = process.env.MODE === "application";
 @Global()
 @Module({
   providers: [
     {
       provide: DATABASE_CONNECTION,
       useFactory: (configService: ConfigService) => {
-        const databaseUrl = configService.getOrThrow<string>('DATABASE_URL');
+        const databaseUrl = configService.getOrThrow<string>("DATABASE_URL");
 
         if (isApplicationMode) {
-          const sqlite = new Database('sqlite.db');
+          const sqlite = new Database("sqlite.db");
           return sqliteDrizzle({ client: sqlite, schema: sqliteSchema });
         }
 

@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import type { ConfigService } from '@nestjs/config';
+import { z } from "zod";
+import type { ConfigService } from "@nestjs/config";
 
 export const envSchema = z.object({
   DATABASE_URL: z.url(),
@@ -10,7 +10,7 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z
     .string()
     .length(72)
-    .endsWith('.apps.googleusercontent.com'),
+    .endsWith(".apps.googleusercontent.com"),
   GOOGLE_CLIENT_SECRET: z.string().length(35),
   GITLAB_CLIENT_ID: z.string().length(64),
   GITLAB_CLIENT_SECRET: z.string().length(70),

@@ -1,9 +1,9 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
-import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
-import { IDatabaseService } from '../database/database.types';
-import { TDatabaseCheck, THealthReturn } from './health.types';
+import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
+import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
+import { IDatabaseService } from "../database/database.types";
+import { TDatabaseCheck, THealthReturn } from "./health.types";
 
-@Controller('health')
+@Controller("health")
 export class HealthController {
   public constructor(private readonly dbService: IDatabaseService) {}
 
@@ -11,19 +11,19 @@ export class HealthController {
   public async getHealth(): Promise<THealthReturn> {
     const result = await this.runChecks();
 
-    if (result.status !== 'up') {
+    if (result.status !== "up") {
       throw new ServiceUnavailableException(result);
     }
 
     return {
-      status: 'healthy',
-      message: 'All systems operational',
+      status: "healthy",
+      message: "All systems operational",
       timestamp: result.timestamp,
       checks: result.checks,
     };
   }
 
-  @Get('public')
+  @Get("public")
   @AllowAnonymous()
   public async getPublicHealth(): Promise<THealthReturn> {
     return this.getHealth();
@@ -45,12 +45,12 @@ export class HealthController {
     try {
       await this.dbService.dbPing();
       return {
-        status: 'up' as const,
+        status: "up" as const,
         responseTimeMs: Date.now() - start,
       };
     } catch (error) {
       return {
-        status: 'down' as const,
+        status: "down" as const,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error: error.message,
       };

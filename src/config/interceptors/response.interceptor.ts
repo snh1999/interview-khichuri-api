@@ -4,8 +4,8 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
-} from '@nestjs/common';
-import { Observable, map } from 'rxjs';
+} from "@nestjs/common";
+import { Observable, map } from "rxjs";
 
 type WithMessage<T> = T & { message?: string };
 
@@ -22,16 +22,16 @@ export class ResponseTransformInterceptor<T> implements NestInterceptor<
 > {
   public intercept(
     context: ExecutionContext,
-    next: CallHandler<WithMessage<T>>,
+    next: CallHandler<WithMessage<T>>
   ): Observable<ApiResponse<WithMessage<T>>> {
     const res = context.switchToHttp().getResponse<{ statusCode: number }>();
 
     return next.handle().pipe(
       map((data) => ({
         statusCode: res.statusCode,
-        message: data.message ?? '',
+        message: data.message ?? "",
         data,
-      })),
+      }))
     );
   }
 }

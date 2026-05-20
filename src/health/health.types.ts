@@ -6,7 +6,7 @@ export type THealthReturn = {
 };
 
 export type TDatabaseCheck = {
-  status: 'up' | 'down';
+  status: "up" | "down";
   responseTimeMs?: number;
   error?: unknown;
 };

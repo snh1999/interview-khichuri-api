@@ -1,41 +1,41 @@
-import { Logger } from '@nestjs/common';
-import type { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
+import { Logger } from "@nestjs/common";
+import type { CorsOptions } from "@nestjs/common/interfaces/external/cors-options.interface";
 
 /* eslint-disable sonarjs/no-clear-text-protocols */
 const LOCAL_ALLOWED_URLS_WILDCARDS = [
-  'http://localhost:*',
-  'http://127.0.0.1:*',
+  "http://localhost:*",
+  "http://127.0.0.1:*",
 ];
 
 const ALLOWED_HEADERS = [
-  'host',
-  'user-agent',
-  'accept',
-  'accept-language',
-  'accept-encoding',
-  'content-type',
-  'authorization',
-  'content-length',
-  'origin',
-  'connection',
-  'referer',
-  'sec-fetch-dest',
-  'sec-fetch-mode',
-  'sec-fetch-site',
-  'pragma',
-  'cache-control',
-  'access-control-request-headers',
-  'access-control-request-method',
+  "host",
+  "user-agent",
+  "accept",
+  "accept-language",
+  "accept-encoding",
+  "content-type",
+  "authorization",
+  "content-length",
+  "origin",
+  "connection",
+  "referer",
+  "sec-fetch-dest",
+  "sec-fetch-mode",
+  "sec-fetch-site",
+  "pragma",
+  "cache-control",
+  "access-control-request-headers",
+  "access-control-request-method",
 ];
 
 const ALLOWED_METHODS = [
-  'GET',
-  'HEAD',
-  'PUT',
-  'POST',
-  'PATCH',
-  'DELETE',
-  'OPTIONS',
+  "GET",
+  "HEAD",
+  "PUT",
+  "POST",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
 ];
 
 export const getAllowedOriginWildcards = (): string[] => {
@@ -44,7 +44,7 @@ export const getAllowedOriginWildcards = (): string[] => {
 
   const baseUrls = siteUrl ? [siteUrl] : [];
 
-  if (envStage === 'local' || envStage === 'development') {
+  if (envStage === "local" || envStage === "development") {
     return [...LOCAL_ALLOWED_URLS_WILDCARDS, ...baseUrls];
   }
   return baseUrls;
@@ -52,14 +52,14 @@ export const getAllowedOriginWildcards = (): string[] => {
 
 export const getAllowedHeaders = (): string[] => ALLOWED_HEADERS;
 
-export const getAllowedMethods = (): string => ALLOWED_METHODS.join(',');
+export const getAllowedMethods = (): string => ALLOWED_METHODS.join(",");
 
 export const getAllowedOrigins = (): ((
   origin: string | undefined,
-  callback: (err: Error | null, allow?: boolean) => void,
+  callback: (err: Error | null, allow?: boolean) => void
 ) => void) => {
   const envStage = process.env.NODE_ENV;
-  const isDev = envStage === 'local' || envStage === 'development';
+  const isDev = envStage === "local" || envStage === "development";
   const allowedOriginWildcards = getAllowedOriginWildcards();
 
   return (origin, callback) => {
@@ -75,15 +75,15 @@ export const getAllowedOrigins = (): ((
 
     for (const allowedOriginWildcard of allowedOriginWildcards) {
       const regexPattern = new RegExp(
-        `^${allowedOriginWildcard.replaceAll('*', '.*')}$`,
-        'u',
+        `^${allowedOriginWildcard.replaceAll("*", ".*")}$`,
+        "u"
       );
       if (regexPattern.test(origin)) {
         callback(null, true);
         return;
       }
     }
-    const logger = new Logger('CORS');
+    const logger = new Logger("CORS");
     logger.warn(`CORS blocked origin: ${origin}`);
 
     callback(null, false);

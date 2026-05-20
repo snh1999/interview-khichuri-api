@@ -1,8 +1,8 @@
-import { NestFactory } from '@nestjs/core';
-import { VersioningType } from '@nestjs/common';
-import helmet from 'helmet';
-import { AppModule } from './app.module';
-import { getAllowedMethods, getCorsConfig } from './config/utils/cors.config';
+import { NestFactory } from "@nestjs/core";
+import { VersioningType } from "@nestjs/common";
+import helmet from "helmet";
+import { AppModule } from "./app.module";
+import { getAllowedMethods, getCorsConfig } from "./config/utils/cors.config";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -10,8 +10,8 @@ async function bootstrap() {
   });
   app.enableVersioning({
     type: VersioningType.URI,
-    defaultVersion: '1',
-    prefix: 'api/v',
+    defaultVersion: "1",
+    prefix: "api/v",
   });
 
   app.enableCors({
