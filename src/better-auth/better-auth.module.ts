@@ -8,7 +8,11 @@ import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { ConfigService } from "@nestjs/config";
 import { isValid } from "mailchecker";
 import { admin } from "better-auth/plugins/admin";
-import { haveIBeenPwned, lastLoginMethod } from "better-auth/plugins";
+import { twoFactor } from "better-auth/plugins/two-factor";
+import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
+import { lastLoginMethod } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
+
 import { DATABASE_CONNECTION } from "../database/database.constants";
 import { AppConfig } from "../config/utils/env.schema";
 import { EmailModule } from "../email/email.module";
@@ -26,7 +30,13 @@ import { EmailService } from "../email/email.service";
         auth: betterAuth({
           database: drizzleAdapter(db, { provider: "pg" }),
           trustedOrigins: [config.get("FRONTEND_URL")],
-          plugins: [admin(), lastLoginMethod(), haveIBeenPwned()],
+          plugins: [
+            admin(),
+            lastLoginMethod(),
+            haveIBeenPwned(),
+            twoFactor(),
+            passkey(),
+          ],
           account: {
             accountLinking: {
               enabled: true,

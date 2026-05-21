@@ -15,6 +15,20 @@
       "when": 1779267780091,
       "tag": "0001_little_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779312375269,
+      "tag": "0002_ambitious_inertia",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779346755472,
+      "tag": "0003_pale_madame_hydra",
+      "breakpoints": true
     }
   ]
 }
