@@ -29,7 +29,7 @@ export class EmailService {
       to,
       subject: "Verify your Interview Khichuri account",
       html: verificationEmailTemplate(url),
-      text: `Welcome to Interview Khichuri. Verify your email: ${url}\n\nLink expires in 24 hours.`,
+      text: `Welcome to Interview Khichuri. Verify your email: ${url}\n\nLink expires in 1 hour.`,
     });
   }
 
@@ -38,7 +38,7 @@ export class EmailService {
       to,
       subject: "Reset your Interview Khichuri password",
       html: passwordResetEmailTemplate(url),
-      text: `We received a request to reset your Interview Khichuri password. Follow this link and reset your password: ${url}\n\nLink expires in 24 hours.`,
+      text: `We received a request to reset your Interview Khichuri password. Follow this link and reset your password: ${url}\n\nLink expires in 1 hour.`,
     });
   }
 

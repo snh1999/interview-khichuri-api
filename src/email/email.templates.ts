@@ -30,7 +30,7 @@ export const verificationEmailTemplate = (url: string): string => `
       Or copy this link:<br/>
       <span style="color:#6b7280;word-break:break-all;">${url}</span>
     </p>
-    <div style="${footer}">Link expires in 24 hours. Ignore this if you didn't register.</div>
+    <div style="${footer}">Link expires in 1 hour. Ignore this if you didn't register.</div>
   </div>
 </body></html>
 `;

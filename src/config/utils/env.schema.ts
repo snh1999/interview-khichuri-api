@@ -1,9 +1,12 @@
 import { z } from "zod";
 import type { ConfigService } from "@nestjs/config";
 
-export const envSchema = z.object({
+export const basicSchema = z.object({
   DATABASE_URL: z.url(),
   FRONTEND_URL: z.url(),
+});
+
+export const envSchema = basicSchema.extend({
   BETTER_AUTH_SECRET: z.string().length(32),
   GITHUB_CLIENT_ID: z.string().length(20),
   GITHUB_CLIENT_SECRET: z.string().length(40),

@@ -3,7 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./database/database.module";
-import { envSchema } from "./config/utils/env.schema";
+import { basicSchema, envSchema } from "./config/utils/env.schema";
 import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
 import { BetterAuthModule } from "./better-auth/better-auth.module";
 import { HealthModule } from "./health/health.module";
@@ -17,7 +17,8 @@ const isApplicationMode = process.env.MODE === "application";
     ConfigModule.forRoot({
       isGlobal: true,
       expandVariables: true,
-      validate: (config) => envSchema.parse(config),
+      validate: (config) =>
+        isApplicationMode ? basicSchema.parse(config) : envSchema.parse(config),
     }),
     ThrottlerModule.forRoot({
       throttlers: [
@@ -28,9 +29,8 @@ const isApplicationMode = process.env.MODE === "application";
       ],
     }),
     DatabaseModule,
-    ...(isApplicationMode ? [] : [BetterAuthModule]),
+    ...(isApplicationMode ? [] : [BetterAuthModule, EmailModule]),
     HealthModule,
-    EmailModule,
   ],
   providers: [
     {

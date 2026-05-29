@@ -40,7 +40,7 @@ const ALLOWED_METHODS = [
 
 export const getAllowedOriginWildcards = (): string[] => {
   const envStage = process.env.NODE_ENV;
-  const siteUrl = process.env.SITE_URL;
+  const siteUrl = process.env.FRONTEND_URL;
 
   const baseUrls = siteUrl ? [siteUrl] : [];
 
@@ -74,10 +74,11 @@ export const getAllowedOrigins = (): ((
     }
 
     for (const allowedOriginWildcard of allowedOriginWildcards) {
-      const regexPattern = new RegExp(
-        `^${allowedOriginWildcard.replaceAll("*", ".*")}$`,
-        "u"
-      );
+      const escaped = allowedOriginWildcard
+        .replaceAll(/[.+^${}()|[\]\\]/gu, String.raw`\$&`)
+        .replaceAll("*", ".*");
+      const regexPattern = new RegExp(`^${escaped}$`, "u");
+
       if (regexPattern.test(origin)) {
         callback(null, true);
         return;

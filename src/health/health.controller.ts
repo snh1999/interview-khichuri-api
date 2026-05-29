@@ -51,8 +51,7 @@ export class HealthController {
     } catch (error) {
       return {
         status: "down" as const,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
