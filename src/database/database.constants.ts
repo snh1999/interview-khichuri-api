@@ -1,1 +1,2 @@
-export const DATABASE_CONNECTION = "database_connection";
+export const RAW_DATABASE_CLIENT = Symbol("RAW_DATABASE_CLIENT");
+export const DATABASE_CONNECTION = Symbol("DATABASE_CONNECTION");

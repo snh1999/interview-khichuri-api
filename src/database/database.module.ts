@@ -2,16 +2,26 @@
 
 import { Global, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import postgres from "postgres";
-import { drizzle as pgDrizzle } from "drizzle-orm/postgres-js";
+import postgres, { Sql } from "postgres";
+import {
+  drizzle as pgDrizzle,
+  PostgresJsDatabase,
+} from "drizzle-orm/postgres-js";
 import Database from "better-sqlite3";
-import { drizzle as sqliteDrizzle } from "drizzle-orm/better-sqlite3";
+import {
+  drizzle as sqliteDrizzle,
+  BetterSQLite3Database,
+} from "drizzle-orm/better-sqlite3";
 import * as pgSchema from "./postgres/schemas";
 import * as sqliteSchema from "./sqlite/schemas";
-import { DATABASE_CONNECTION } from "./database.constants";
+import { DATABASE_CONNECTION, RAW_DATABASE_CLIENT } from "./database.constants";
 import { IDatabaseService } from "./database.types";
 import { SqliteService } from "./sqlite/sqlite.service";
 import { PostgresService } from "./postgres/postgres.service";
+import {
+  DatabaseLifecycleService,
+  TDBRawClient,
+} from "./database-lifecycle.service";
 
 /**
  * The repository pattern (IDatabaseService) handles all feature-level database access.
@@ -24,24 +34,35 @@ const isApplicationMode = process.env.MODE === "application";
 @Module({
   providers: [
     {
-      provide: DATABASE_CONNECTION,
-      useFactory: (configService: ConfigService) => {
-        const databaseUrl = configService.getOrThrow<string>("DATABASE_URL");
-
+      provide: RAW_DATABASE_CLIENT,
+      useFactory: (config: ConfigService): TDBRawClient => {
+        const databaseUrl = config.getOrThrow<string>("DATABASE_URL");
         if (isApplicationMode) {
-          const sqlite = new Database("sqlite.db");
-          return sqliteDrizzle({ client: sqlite, schema: sqliteSchema });
+          return new Database(databaseUrl);
         }
-
-        const queryClient = postgres(databaseUrl);
-        return pgDrizzle({ client: queryClient, schema: pgSchema });
+        return postgres(databaseUrl);
       },
       inject: [ConfigService],
+    },
+    {
+      provide: DATABASE_CONNECTION,
+      useFactory: (
+        raw: TDBRawClient
+      ):
+        | BetterSQLite3Database<typeof sqliteSchema>
+        | PostgresJsDatabase<typeof pgSchema> => {
+        if (raw instanceof Database) {
+          return sqliteDrizzle({ client: raw, schema: sqliteSchema });
+        }
+        return pgDrizzle({ client: raw as Sql, schema: pgSchema });
+      },
+      inject: [RAW_DATABASE_CLIENT],
     },
     {
       provide: IDatabaseService,
       useClass: isApplicationMode ? SqliteService : PostgresService,
     },
+    DatabaseLifecycleService,
   ],
   exports: [DATABASE_CONNECTION, IDatabaseService],
 })
