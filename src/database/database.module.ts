@@ -1,27 +1,26 @@
-/* eslint-disable sonarjs/no-wildcard-import */
-
 import { Global, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import postgres, { Sql } from "postgres";
-import {
-  drizzle as pgDrizzle,
-  PostgresJsDatabase,
-} from "drizzle-orm/postgres-js";
 import Database from "better-sqlite3";
 import {
   drizzle as sqliteDrizzle,
   BetterSQLite3Database,
 } from "drizzle-orm/better-sqlite3";
-import * as pgSchema from "./postgres/schemas";
-import * as sqliteSchema from "./sqlite/schemas";
-import { DATABASE_CONNECTION, RAW_DATABASE_CLIENT } from "./database.constants";
-import { IDatabaseService } from "./database.types";
-import { SqliteService } from "./sqlite/sqlite.service";
-import { PostgresService } from "./postgres/postgres.service";
+import {
+  drizzle as pgDrizzle,
+  PostgresJsDatabase,
+} from "drizzle-orm/postgres-js";
+import postgres, { Sql } from "postgres";
+
 import {
   DatabaseLifecycleService,
   TDBRawClient,
 } from "./database-lifecycle.service";
+import { DATABASE_CONNECTION, RAW_DATABASE_CLIENT } from "./database.constants";
+import { IDatabaseService } from "./database.types";
+import { PostgresService } from "./postgres/postgres.service";
+import * as pgSchema from "./postgres/schemas";
+import * as sqliteSchema from "./sqlite/schemas";
+import { SqliteService } from "./sqlite/sqlite.service";
 
 /**
  * The repository pattern (IDatabaseService) handles all feature-level database access.
@@ -36,8 +35,11 @@ const isApplicationMode = process.env.MODE === "application";
     {
       provide: RAW_DATABASE_CLIENT,
       useFactory: (config: ConfigService): TDBRawClient => {
-        const databaseUrl = config.getOrThrow<string>("DATABASE_URL");
+        let databaseUrl = config.getOrThrow<string>("DATABASE_URL");
         if (isApplicationMode) {
+          if (databaseUrl.startsWith("file://")) {
+            databaseUrl = databaseUrl.slice(7);
+          }
           return new Database(databaseUrl);
         }
         return postgres(databaseUrl);
@@ -47,7 +49,7 @@ const isApplicationMode = process.env.MODE === "application";
     {
       provide: DATABASE_CONNECTION,
       useFactory: (
-        raw: TDBRawClient
+        raw: TDBRawClient,
       ):
         | BetterSQLite3Database<typeof sqliteSchema>
         | PostgresJsDatabase<typeof pgSchema> => {

@@ -1,6 +1,7 @@
-import config from 'ultracite/prettier';
-
 export default {
-  ...config,
-  plugins: ['prettier-plugin-tailwindcss'],
+  singleQuote: false,
+  trailingComma: "all",
+  printWidth: 80,
+  semi: true,
+  tabWidth: 2,
 };

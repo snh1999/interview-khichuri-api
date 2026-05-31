@@ -2,13 +2,14 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
-import { DatabaseModule } from "./database/database.module";
-import { basicSchema, envSchema } from "./config/utils/env.schema";
-import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
+
 import { BetterAuthModule } from "./better-auth/better-auth.module";
-import { HealthModule } from "./health/health.module";
 import { ResponseTransformInterceptor } from "./config/interceptors/response.interceptor";
+import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
+import { basicSchema, envSchema } from "./config/utils/env.schema";
+import { DatabaseModule } from "./database/database.module";
 import { EmailModule } from "./email/email.module";
+import { HealthModule } from "./health/health.module";
 
 const isApplicationMode = process.env.MODE === "application";
 

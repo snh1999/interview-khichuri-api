@@ -1,86 +1,127 @@
-import core from 'ultracite/eslint/core';
-import nestjs from 'ultracite/eslint/nestjs';
-import jest from 'ultracite/eslint/jest';
+import tseslint from "typescript-eslint";
+import nestjsTyped from "@darraghor/eslint-plugin-nestjs-typed";
+import unicorn from "eslint-plugin-unicorn";
+import sonarjs from "eslint-plugin-sonarjs";
+import importX from "eslint-plugin-import-x";
+import unusedImports from "eslint-plugin-unused-imports";
+import promise from "eslint-plugin-promise";
+import n from "eslint-plugin-n";
+import vitest from "@vitest/eslint-plugin";
 
-export default [
-  ...core,
-  ...nestjs,
-  ...jest,
+import prettier from "eslint-plugin-prettier/recommended";
+
+export default tseslint.config(
   {
+    ignores: ["dist/**", "node_modules/**", "coverage/**", "**/*.js"],
+  },
+
+  tseslint.configs.strictTypeChecked,
+  tseslint.configs.stylisticTypeChecked,
+
+  nestjsTyped.configs.flatRecommended,
+
+  {
+    plugins: {
+      unicorn,
+      sonarjs,
+      "import-x": importX,
+      "unused-imports": unusedImports,
+      promise,
+      n,
+      vitest,
+    },
+
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+
+    settings: {
+      "import-x/resolver": {
+        typescript: true,
+        node: true,
+      },
+    },
+
     rules: {
-      'sonarjs/file-header': 'off',
-      'unicorn/prevent-abbreviations': 'off',
-      'sonarjs/arrow-function-convention': [
-        'error',
+      "@typescript-eslint/no-extraneous-class": "warn",
+      "@typescript-eslint/explicit-module-boundary-types": "error",
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/await-thenable": "error",
+      "@typescript-eslint/no-unnecessary-condition": "warn",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      ],
+      "@typescript-eslint/consistent-type-exports": "error",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+
+      "@typescript-eslint/no-unused-vars": "off",
+      "unused-imports/no-unused-imports": "error",
+      "unused-imports/no-unused-vars": [
+        "warn",
         {
-          // allows single parameter parenthesis
-          requireParameterParentheses: true,
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
         },
       ],
-      'new-cap': [
-        'error',
+
+      "import-x/order": [
+        "error",
         {
-          capIsNewExceptions: [
-            'Module',
-            'Controller',
-            'Injectable',
-            'Inject',
-            'Global',
-            'Get',
-            'Post',
-            'Put',
-            'Patch',
-            'Delete',
-            'Body',
-            'Param',
-            'Query',
-            'Headers',
-            'Req',
-            'Res',
-            'UsePipes',
-            'UseGuards',
-            'UseInterceptors',
-            'Catch',
-            'ExceptionFilter',
-            'NestModule',
-            'MiddlewareConsumer',
-            'All',
-            'AllowAnonymous',
-            'SkipThrottle',
-          ],
+          groups: ["builtin", "external", "internal", ["parent", "sibling", "index"]],
+          "newlines-between": "always",
+          alphabetize: { order: "asc", caseInsensitive: true },
         },
       ],
-      // allows constructor injection
-      '@typescript-eslint/parameter-properties': 'off',
-      'sonarjs/declarations-in-global-scope': 'off',
-      'class-methods-use-this': 'off',
-      '@typescript-eslint/class-methods-use-this': 'off',
-      'promise/prefer-await-to-callbacks': 'off',
-      '@typescript-eslint/no-extraneous-class': [
-        'error',
-        { allowWithDecorator: true },
-      ],
-      '@typescript-eslint/naming-convention': [
-        'error',
-        {
-          selector: 'variable',
-          format: ['camelCase', 'UPPER_CASE', 'PascalCase', 'snake_case'],
-        },
-        {
-          selector: 'objectLiteralProperty',
-          format: [],
-        },
-        {
-          selector: 'classProperty',
-          modifiers: ['readonly', 'static'],
-          format: ['UPPER_CASE', 'camelCase', 'snake_case'],
-        },
-        {
-          selector: 'parameter',
-          format: ['camelCase', 'snake_case', 'PascalCase'],
-          leadingUnderscore: 'allow',
-        },
-      ],
+      "import-x/no-duplicates": "error",
+      "import-x/no-cycle": "warn",
+
+      "promise/always-return": "error",
+      "promise/no-return-wrap": "error",
+      "promise/param-names": "error",
+      "promise/catch-or-return": ["error", { allowFinally: true }],
+
+      "n/no-process-exit": "error",
+      "n/prefer-node-protocol": "error",
+
+      "unicorn/prefer-node-protocol": "off", // covered by n/
+      "unicorn/no-array-for-each": "error",
+      "unicorn/no-for-loop": "error",
+      "unicorn/prefer-includes": "error",
+      "unicorn/prefer-string-slice": "error",
+      "unicorn/throw-new-error": "error",
+      "unicorn/no-useless-undefined": "error",
+      "unicorn/prefer-optional-catch-binding": "error",
+      "unicorn/no-lonely-if": "error",
+
+      "sonarjs/no-duplicate-string": ["warn", { threshold: 4 }],
+      "sonarjs/no-identical-functions": "error",
+      "sonarjs/cognitive-complexity": ["warn", 15],
+
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+      eqeqeq: ["error", "always"],
+      curly: ["error", "all"],
+      "no-return-await": "off", // use @typescript-eslint version
+      "@typescript-eslint/return-await": ["error", "in-try-catch"],
+      "@darraghor/nestjs-typed/controllers-should-supply-api-tags": "off",
+      "@darraghor/nestjs-typed/api-method-should-specify-api-response": "off",
     },
   },
-];
+  {
+    files: ["**/*.spec.ts", "**/*.e2e-spec.ts", "test/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "sonarjs/no-duplicate-string": "off",
+    },
+  },
+  prettier,
+);

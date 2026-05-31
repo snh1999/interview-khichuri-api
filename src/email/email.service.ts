@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Resend } from "resend";
+
 import {
   verificationEmailTemplate,
   passwordResetEmailTemplate,
@@ -44,7 +45,7 @@ export class EmailService {
 
   public async sendDeleteAccountVerification(
     to: string,
-    url: string
+    url: string,
   ): Promise<void> {
     await this.sendEmail({
       to,
