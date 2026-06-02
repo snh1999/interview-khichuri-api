@@ -1,7 +1,6 @@
 import { Logger } from "@nestjs/common";
 import type { CorsOptions } from "@nestjs/common/interfaces/external/cors-options.interface";
 
-/* eslint-disable sonarjs/no-clear-text-protocols */
 const LOCAL_ALLOWED_URLS_WILDCARDS = [
   "http://localhost:*",
   "http://127.0.0.1:*",
@@ -56,7 +55,7 @@ export const getAllowedMethods = (): string => ALLOWED_METHODS.join(",");
 
 export const getAllowedOrigins = (): ((
   origin: string | undefined,
-  callback: (err: Error | null, allow?: boolean) => void
+  callback: (err: Error | null, allow?: boolean) => void,
 ) => void) => {
   const envStage = process.env.NODE_ENV;
   const isDev = envStage === "local" || envStage === "development";
