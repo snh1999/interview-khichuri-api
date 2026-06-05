@@ -2,7 +2,7 @@ import { Controller, Get, ServiceUnavailableException } from "@nestjs/common";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 
 import { TDatabaseCheck, THealthReturn } from "./health.types";
-import { IDatabaseService } from "../database/database.types";
+import { IDatabaseService } from "../database/database.service";
 
 @Controller("health")
 export class HealthController {

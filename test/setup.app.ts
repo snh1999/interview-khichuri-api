@@ -1,8 +1,7 @@
 import "reflect-metadata";
 
-Object.assign(process.env, {
-  MODE: "application",
-  NODE_ENV: "test",
-  DATABASE_URL: "file:///tmp/test-interview-khichuri.db",
-  FRONTEND_URL: "http://localhost:3000",
-});
+import { resolve } from "node:path";
+
+import { config } from "dotenv";
+
+config({ path: resolve(process.cwd(), ".env.test.app") });

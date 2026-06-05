@@ -10,8 +10,9 @@ import { basicSchema, envSchema } from "./config/utils/env.schema";
 import { DatabaseModule } from "./database/database.module";
 import { EmailModule } from "./email/email.module";
 import { HealthModule } from "./health/health.module";
+import { JobsModule } from "./jobs/jobs.module";
 
-const isApplicationMode = process.env.MODE === "application";
+const isApplicationMode = Boolean(process.env.IS_APP_MODE);
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ const isApplicationMode = process.env.MODE === "application";
     DatabaseModule,
     ...(isApplicationMode ? [] : [BetterAuthModule, EmailModule]),
     HealthModule,
+    JobsModule,
   ],
   providers: [
     {

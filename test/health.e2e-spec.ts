@@ -2,12 +2,12 @@ import type { INestApplication } from "@nestjs/common";
 import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import type { IDatabaseService } from "@/src/database/database.types";
+import type { IDatabaseService } from "@/src/database/database.service";
 
 import { getTestAuthHeader } from "./utils/auth-helpers";
 import { bootstrapTestServer } from "./utils/bootstrap";
 
-const isAppMode = process.env.MODE === "application";
+const isAppMode = Boolean(process.env.IS_APP_MODE);
 
 describe("Health (e2e)", () => {
   let app: INestApplication;
@@ -35,7 +35,7 @@ describe("Health (e2e)", () => {
       httpServer.get("/health").expect(isAppMode ? 200 : 401));
 
     it("should return with OK(200) with authentication header", async () => {
-      const cookie = await getTestAuthHeader(app, dbService.database());
+      const { cookie } = await getTestAuthHeader(app, dbService.database());
       await httpServer
         .get("/health")
         .set("Cookie", cookie)

@@ -7,7 +7,7 @@ import request from "supertest";
 import { vi } from "vitest";
 
 import { AppModule } from "@/src/app.module";
-import { IDatabaseService } from "@/src/database/database.types";
+import { IDatabaseService } from "@/src/database/database.service";
 import { EmailService } from "@/src/email/email.service";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types

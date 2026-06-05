@@ -13,7 +13,7 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { isValid } from "mailchecker";
 
-import { AppConfig } from "../config/utils/env.schema";
+import { TEnvSchema } from "../config/utils/env.schema";
 import { DATABASE_CONNECTION } from "../database/database.constants";
 import { EmailModule } from "../email/email.module";
 import { EmailService } from "../email/email.service";
@@ -24,7 +24,7 @@ import { EmailService } from "../email/email.service";
       imports: [EmailModule],
       useFactory: (
         db: PostgresJsDatabase,
-        config: AppConfig,
+        config: ConfigService<TEnvSchema, true>,
         emailService: EmailService,
       ) => ({
         auth: betterAuth({

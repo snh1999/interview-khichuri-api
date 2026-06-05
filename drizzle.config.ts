@@ -1,6 +1,6 @@
 import { defineConfig } from "drizzle-kit";
 
-const isApplicationMode = process.env.MODE === "application";
+const isApplicationMode = Boolean(process.env.IS_APP_MODE);
 const dirPath = isApplicationMode ? "sqlite" : "postgres";
 
 const databaseUrl = process.env.DATABASE_URL;

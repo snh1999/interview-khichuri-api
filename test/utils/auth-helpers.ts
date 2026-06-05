@@ -19,21 +19,24 @@ interface CreateTestUserOptions {
 export interface AuthSession {
   cookie: string;
   token: string;
-  userId: string;
+  userId?: string;
 }
 
 export async function getTestAuthHeader(
   app: INestApplication,
   db: TDatabase,
   options: CreateTestUserOptions = {},
-): Promise<string> {
+): Promise<AuthSession> {
   const config = app.get<ConfigService>(ConfigService);
 
   if (is(db, PgDatabase)) {
-    const { cookie } = await createTestUser(db as TdbPostgres, config, options);
-    return cookie;
+    return createTestUser(db as TdbPostgres, config, options);
   }
-  return "";
+  return {
+    cookie: "",
+    token: "",
+    userId: undefined,
+  };
 }
 
 export async function createTestUser(

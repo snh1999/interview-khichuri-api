@@ -16,7 +16,7 @@ import {
   TDBRawClient,
 } from "./database-lifecycle.service";
 import { DATABASE_CONNECTION, RAW_DATABASE_CLIENT } from "./database.constants";
-import { IDatabaseService } from "./database.types";
+import { IDatabaseService } from "./database.service";
 import { PostgresService } from "./postgres/postgres.service";
 import * as pgSchema from "./postgres/schemas";
 import * as sqliteSchema from "./sqlite/schemas";
@@ -28,7 +28,6 @@ import { SqliteService } from "./sqlite/sqlite.service";
  * as better-auth's drizzleAdapter would require direct access to the Drizzle `db` instance to call internal Drizzle APIs that are not exposed through
  * IDatabaseService. Encapsulating `db` inside PostgresService/SqliteService would make it unreachable to better-auth without an extra getter.
  */
-const isApplicationMode = process.env.MODE === "application";
 @Global()
 @Module({
   providers: [
@@ -36,6 +35,7 @@ const isApplicationMode = process.env.MODE === "application";
       provide: RAW_DATABASE_CLIENT,
       useFactory: (config: ConfigService): TDBRawClient => {
         let databaseUrl = config.getOrThrow<string>("DATABASE_URL");
+        const isApplicationMode = config.get<boolean>("IS_APP_MODE");
         if (isApplicationMode) {
           if (databaseUrl.startsWith("file://")) {
             databaseUrl = databaseUrl.slice(7);
@@ -62,7 +62,7 @@ const isApplicationMode = process.env.MODE === "application";
     },
     {
       provide: IDatabaseService,
-      useClass: isApplicationMode ? SqliteService : PostgresService,
+      useClass: process.env.IS_APP_MODE ? SqliteService : PostgresService,
     },
     DatabaseLifecycleService,
   ],

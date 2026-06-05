@@ -1,0 +1,402 @@
+import type { INestApplication } from "@nestjs/common";
+import type supertest from "supertest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import type { IDatabaseService } from "@/src/database/database.service";
+import type { TJob } from "@/src/database/database.types";
+
+import { expectedJobStructure, getJobPayload } from "./job.test-data";
+import { getTestAuthHeader } from "../utils/auth-helpers";
+import { bootstrapTestServer } from "../utils/bootstrap";
+
+const isAppMode = Boolean(process.env.IS_APP_MODE);
+
+describe("Jobs (e2e)", () => {
+  let app: INestApplication;
+  let httpServer: ReturnType<typeof supertest>;
+  let dbService: IDatabaseService;
+  let authCookie: string;
+  let userId: string | undefined;
+  let jobPayload: TJob;
+
+  beforeAll(async () => {
+    const { appInstance, httpServerInstance, dbServiceInstance } =
+      await bootstrapTestServer();
+    app = appInstance;
+    httpServer = httpServerInstance;
+    dbService = dbServiceInstance;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await dbService.dbClear();
+    jobPayload = getJobPayload();
+    if (!isAppMode) {
+      const { cookie, userId: userid } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+      authCookie = cookie;
+      userId = userid;
+    }
+  });
+
+  const auth = (req: supertest.Test, userCookie?: string): supertest.Test => {
+    if (isAppMode) return req;
+    return req.set("Cookie", userCookie ?? authCookie);
+  };
+
+  const createJob = (
+    payload: Record<string, unknown> = getJobPayload(),
+    userCookie?: string,
+  ) => auth(httpServer.post("/jobs"), userCookie).send(payload).expect(201);
+
+  describe("POST /jobs", () => {
+    it("should create a job with defaults", async () => {
+      const jobPayload = getJobPayload();
+      const { body } = await createJob(jobPayload);
+
+      expect(body.statusCode).toBe(201);
+      expect(body.message).toBe("");
+      expect(body.data).toMatchObject({
+        title: jobPayload.title,
+        description: jobPayload.description,
+        status: "saved",
+      });
+      expect(body.data.id).toEqual(expect.any(String));
+      expect(body.data.roleId).toBeNull();
+      if (!isAppMode) expect(body.data.userId).toEqual(expect.any(String));
+    });
+
+    it("should return 400 when title is missing", async () =>
+      auth(httpServer.post("/jobs")).send({ description: "desc" }).expect(400));
+
+    it("should return 400 when description is missing", async () => {
+      await auth(httpServer.post("/jobs")).send({ title: "t" }).expect(400);
+    });
+
+    it("should return 400 when title is empty", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ title: "", description: "desc" })
+        .expect(400);
+    });
+
+    it("should return 400 for invalid status value", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, status: "invalid" })
+        .expect(400);
+    });
+
+    it("should return 400 for non-integer roleId", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, roleId: "abc" })
+        .expect(400);
+    });
+
+    it("should create a job with non default status", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, status: "scheduled" })
+        .expect(201)
+        .expect(({ body: { data } }) => {
+          expect(data.status).toBe("scheduled");
+        });
+    });
+
+    it("should return 400 for roleId of 0 (non-positive)", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, roleId: 0 })
+        .expect(400);
+    });
+
+    it("should return 400 for whitespace-only title", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ title: "   ", description: "desc" })
+        .expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+      await httpServer.post("/jobs").send(jobPayload).expect(401);
+    });
+  });
+
+  describe("GET /jobs", () => {
+    it("should return empty list when no jobs exist", async () => {
+      const { body } = await auth(httpServer.get("/jobs")).expect(200);
+
+      expect(body.data).toEqual([]);
+    });
+
+    it("should return all jobs for the authenticated user", async () => {
+      await createJob();
+      await createJob();
+
+      await auth(httpServer.get("/jobs"))
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data).toHaveLength(2);
+          expect(data[0]).toMatchObject(expectedJobStructure());
+          expect(data[1]).toMatchObject(expectedJobStructure());
+        });
+    });
+
+    it("should not return jobs belonging to other users in web mode", async () => {
+      await createJob();
+
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      await httpServer
+        .get("/jobs")
+        .set("Cookie", otherCookie)
+        .expect(200)
+        .expect(({ body: { data: userJob } }) => {
+          expect(userJob).toHaveLength(isAppMode ? 1 : 0);
+        });
+    });
+
+    it("should return only jobs belonging to other user in web mode", async () => {
+      await createJob();
+
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      await createJob(getJobPayload(), otherCookie);
+      await createJob(getJobPayload(), otherCookie);
+
+      await httpServer
+        .get("/jobs")
+        .set("Cookie", otherCookie)
+        .expect(200)
+        .expect(({ body: { data: otherUserJob } }) => {
+          expect(otherUserJob).toHaveLength(isAppMode ? 3 : 2);
+        });
+
+      await auth(httpServer.get("/jobs"))
+        .expect(200)
+        .expect(({ body: { data: userJob } }) => {
+          expect(userJob).toHaveLength(isAppMode ? 3 : 1);
+        });
+    });
+
+    it("should return jobs with all expected fields", async () => {
+      const jobDto = getJobPayload();
+      const {
+        body: { data: createdPost },
+      } = await createJob(jobDto);
+
+      const { body } = await auth(httpServer.get("/jobs")).expect(200);
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]).toMatchObject({
+        ...createdPost,
+      });
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+      await httpServer.get("/jobs").expect(401);
+    });
+  });
+
+  describe("GET /jobs/:id", () => {
+    it("should return a job by id", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.get(`/jobs/${jobId}`)).expect(200);
+
+      expect(body.data).toMatchObject({ ...created });
+      expect(body.data).toMatchObject(expectedJobStructure());
+    });
+
+    it("should return 404 trying to access other user's job by id in web mode", async () => {
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+      const {
+        body: { data },
+      } = await createJob(getJobPayload(), otherCookie);
+
+      const jobId: string = data.id;
+
+      await auth(httpServer.get(`/jobs/${jobId}`)).expect(
+        isAppMode ? 200 : 404,
+      );
+    });
+
+    it("should return 404 for non-existent id", async () => {
+      const fakeId = "invalid-id";
+
+      await auth(httpServer.get(`/jobs/${fakeId}`)).expect(404);
+    });
+  });
+
+  describe("PATCH /jobs/:id", () => {
+    it("should update title", async () => {
+      const jobDto = getJobPayload();
+      const { body: created } = await createJob(jobDto);
+      const jobId: string = created.data.id;
+
+      const newTitle = "New Job Title";
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ title: newTitle })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.title).toBe(newTitle);
+          expect(data).toMatchObject({
+            ...jobDto,
+            title: newTitle,
+          });
+        });
+    });
+
+    it("should update multiple fields", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const title = "New Job Title";
+      const description = "New Job Description";
+      const status = "applied";
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ title, description, status })
+        .expect(200);
+
+      expect(body.data).toMatchObject({ title, description, status });
+    });
+
+    it("should return 400 when patching with invalid status", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ status: "invalid" })
+        .expect(400);
+    });
+
+    it("should return 400 when patching with non-integer roleId", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ roleId: "abc" })
+        .expect(400);
+    });
+
+    it("should return 400 when patching with empty title", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ title: "" })
+        .expect(400);
+    });
+
+    it("should return 404 when patching non-existent job", async () => {
+      const fakeId = "invalid-id";
+
+      await auth(httpServer.patch(`/jobs/${fakeId}`))
+        .send({ title: "Nope" })
+        .expect(404);
+    });
+
+    it("should return 404 when patching another user's job", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+      await httpServer
+        .patch(`/jobs/${jobId}`)
+        .set("Cookie", otherCookie)
+        .send({ title: "Hacked" })
+        .expect(isAppMode ? 200 : 404);
+    });
+  });
+
+  describe("DELETE /jobs/:id", () => {
+    it("should delete a job and return 204", async () => {
+      const { body: created } = await createJob();
+      const jobId: string = created.data.id;
+
+      await auth(httpServer.delete(`/jobs/${jobId}`)).expect(204);
+    });
+
+    it("should remove the job from the list after deletion", async () => {
+      const { body: created } = await createJob();
+      const jobId: string = created.data.id;
+      await createJob();
+      await createJob();
+
+      await auth(httpServer.delete(`/jobs/${jobId}`)).expect(204);
+
+      const { body } = await auth(httpServer.get("/jobs")).expect(200);
+      const ids = (body.data as { id: string }[]).map((j) => j.id);
+      expect(ids).not.toContain(jobId);
+    });
+
+    it("should not affect other jobs when deleting one", async () => {
+      const { body: job1 } = await createJob();
+      const job1Id: string = job1.data.id;
+      await createJob();
+      await createJob();
+
+      await auth(httpServer.delete(`/jobs/${job1Id}`)).expect(204);
+
+      const { body } = await auth(httpServer.get("/jobs")).expect(200);
+      expect(body.data).toHaveLength(2);
+    });
+
+    it("should return 404 when deleting non-existent job", async () => {
+      const fakeId = "invalid_id";
+
+      const { body } = await auth(httpServer.delete(`/jobs/${fakeId}`)).expect(
+        404,
+      );
+
+      expect(body.statusCode).toBe(404);
+    });
+
+    it("should return 404 when deleting another user's job", async () => {
+      if (isAppMode) return;
+
+      const { body: created } = await createJob();
+      const jobId: string = created.data.id;
+
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+      const { body } = await httpServer
+        .delete(`/jobs/${jobId}`)
+        .set("Cookie", otherCookie)
+        .expect(404);
+
+      expect(body.statusCode).toBe(404);
+    });
+  });
+});
