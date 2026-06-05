@@ -1,10 +1,4 @@
-import {
-  integer,
-  primaryKey,
-  sqliteTable,
-  text,
-  index,
-} from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // SQLite has no native enum — use text with runtime validation
 export const jobSchema = sqliteTable("jobs", {
@@ -16,7 +10,7 @@ export const jobSchema = sqliteTable("jobs", {
   status: text("status", { enum: ["applied", "saved", "scheduled"] })
     .notNull()
     .default("saved"),
-  roleId: integer("role_id").references(() => roles.id, {
+  roleId: integer("role_id").references(() => roleSchema.id, {
     onDelete: "set null",
   }),
   deadline: integer("deadline", { mode: "timestamp" }),
@@ -27,4 +21,9 @@ export const jobSchema = sqliteTable("jobs", {
     .$defaultFn(() => new Date())
     .$onUpdate(() => new Date())
     .notNull(),
+});
+
+export const roleSchema = sqliteTable("roles", {
+  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
 });

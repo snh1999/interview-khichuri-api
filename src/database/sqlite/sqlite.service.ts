@@ -26,6 +26,7 @@ import * as schemas from "./schemas";
 
 const sqliteTableRegistry = {
   [getTableName(schemas.jobSchema)]: schemas.jobSchema,
+  [getTableName(schemas.roleSchema)]: schemas.roleSchema,
 } as const;
 
 export type TdbSqlite = BetterSQLite3Database<typeof schemas>;
@@ -72,7 +73,7 @@ export class SqliteService implements IDatabaseService {
     schemaName: K,
     columns?: TColumnFilter<K>[],
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
-    const schema = sqliteTableRegistry[schemaName as TsqliteTableKey];
+    const schema = sqliteTableRegistry[schemaName];
 
     if (!columns || columns.length === 0) {
       return this.db.select().from(schema).all() as InferSelectModel<
@@ -135,7 +136,7 @@ export class SqliteService implements IDatabaseService {
     id: string,
     columns?: TColumnFilter<K>[],
   ): InferSelectModel<TsqliteTableRegistry[K]> {
-    const schema = sqliteTableRegistry[schemaName as TsqliteTableKey];
+    const schema = sqliteTableRegistry[schemaName];
     const conditions = columns
       ? this._buildConditions(
           schema,

@@ -2,7 +2,7 @@ import { ServiceUnavailableException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IDatabaseService } from "../../database/database.types";
+import { IDatabaseService } from "../../database/database.service";
 import { HealthController } from "../health.controller";
 
 describe("HealthController", () => {

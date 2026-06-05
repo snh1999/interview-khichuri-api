@@ -1,9 +1,7 @@
 import {
-  boolean,
   index,
   integer,
   pgTable,
-  primaryKey,
   serial,
   text,
   timestamp,
@@ -23,7 +21,7 @@ export const jobSchema = pgTable(
     title: text("title").notNull(),
     description: text("description").notNull(),
     status: statusEnum("status").notNull().default("saved"),
-    roleId: integer("role_id").references(() => roles.id, {
+    roleId: integer("role_id").references(() => roleSchema.id, {
       onDelete: "set null",
     }),
     deadline: timestamp("deadline"),
@@ -35,3 +33,8 @@ export const jobSchema = pgTable(
   },
   (table) => [index("job_creator_index").on(table.userId)],
 );
+
+export const roleSchema = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+});

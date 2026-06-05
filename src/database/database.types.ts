@@ -8,7 +8,7 @@ import type {
   TpgTableKey,
   TpgTableRegistry,
 } from "@/src/database/postgres/postgres.service";
-import type { jobSchema } from "@/src/database/postgres/schemas";
+import type { jobSchema, roleSchema } from "@/src/database/postgres/schemas";
 import type {
   TdbSqlite,
   TSqliteCols,
@@ -19,6 +19,7 @@ export type TReturn<T> = Promise<T> | T;
 export type TDatabase = TdbPostgres | TdbSqlite;
 // postgres schema get precedence over sqlite extra userId (optional) field,
 export type TJob = InferInsertModel<typeof jobSchema>;
+export type TRole = InferInsertModel<typeof roleSchema>;
 
 export type TInsert<K extends TpgTableKey> =
   | InferInsertModel<TpgTableRegistry[K]>

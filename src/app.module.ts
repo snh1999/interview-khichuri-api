@@ -11,6 +11,7 @@ import { DatabaseModule } from "./database/database.module";
 import { EmailModule } from "./email/email.module";
 import { HealthModule } from "./health/health.module";
 import { JobsModule } from "./jobs/jobs.module";
+import { LookupsModule } from './lookups/lookups.module';
 
 const isApplicationMode = Boolean(process.env.IS_APP_MODE);
 
@@ -34,6 +35,7 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     ...(isApplicationMode ? [] : [BetterAuthModule, EmailModule]),
     HealthModule,
     JobsModule,
+    LookupsModule,
   ],
   providers: [
     {

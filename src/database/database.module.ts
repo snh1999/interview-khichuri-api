@@ -1,14 +1,8 @@
 import { Global, Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Database from "better-sqlite3";
-import {
-  drizzle as sqliteDrizzle,
-  BetterSQLite3Database,
-} from "drizzle-orm/better-sqlite3";
-import {
-  drizzle as pgDrizzle,
-  PostgresJsDatabase,
-} from "drizzle-orm/postgres-js";
+import { drizzle as sqliteDrizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle as pgDrizzle } from "drizzle-orm/postgres-js";
 import postgres, { Sql } from "postgres";
 
 import {
@@ -17,10 +11,10 @@ import {
 } from "./database-lifecycle.service";
 import { DATABASE_CONNECTION, RAW_DATABASE_CLIENT } from "./database.constants";
 import { IDatabaseService } from "./database.service";
-import { PostgresService } from "./postgres/postgres.service";
+import { PostgresService, TdbPostgres } from "./postgres/postgres.service";
 import * as pgSchema from "./postgres/schemas";
 import * as sqliteSchema from "./sqlite/schemas";
-import { SqliteService } from "./sqlite/sqlite.service";
+import { SqliteService, TdbSqlite } from "./sqlite/sqlite.service";
 
 /**
  * The repository pattern (IDatabaseService) handles all feature-level database access.
@@ -48,11 +42,7 @@ import { SqliteService } from "./sqlite/sqlite.service";
     },
     {
       provide: DATABASE_CONNECTION,
-      useFactory: (
-        raw: TDBRawClient,
-      ):
-        | BetterSQLite3Database<typeof sqliteSchema>
-        | PostgresJsDatabase<typeof pgSchema> => {
+      useFactory: (raw: TDBRawClient): TdbSqlite | TdbPostgres => {
         if (raw instanceof Database) {
           return sqliteDrizzle({ client: raw, schema: sqliteSchema });
         }
@@ -62,7 +52,11 @@ import { SqliteService } from "./sqlite/sqlite.service";
     },
     {
       provide: IDatabaseService,
-      useClass: process.env.IS_APP_MODE ? SqliteService : PostgresService,
+      useFactory: (config: ConfigService, db: TdbSqlite | TdbPostgres) =>
+        config.get<boolean>("IS_APP_MODE")
+          ? new SqliteService(db as TdbSqlite)
+          : new PostgresService(db as TdbPostgres),
+      inject: [ConfigService, DATABASE_CONNECTION],
     },
     DatabaseLifecycleService,
   ],

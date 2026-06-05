@@ -28,6 +28,7 @@ export type TdbPostgres = PostgresJsDatabase<typeof schemas>;
 
 const postgresTableRegistry = {
   [getTableName(schemas.jobSchema)]: schemas.jobSchema,
+  [getTableName(schemas.roleSchema)]: schemas.roleSchema,
 } as const;
 
 export type TpgTableRegistry = typeof postgresTableRegistry;
@@ -70,12 +71,17 @@ export class PostgresService implements IDatabaseService {
     schemaName: K,
     columns?: TColumnFilter<K>[],
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
-    const schema = postgresTableRegistry[schemaName as TpgTableKey];
+    const schema = postgresTableRegistry[schemaName];
 
     if (!columns || columns.length === 0) {
-      return (await this.db
-        .select()
-        .from(schema)) as unknown as InferSelectModel<TpgTableRegistry[K]>[];
+      return (
+        (await this.db
+          .select()
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+          .from(schema as AnyPgTable)) as unknown as InferSelectModel<
+          TpgTableRegistry[K]
+        >[]
+      );
     }
 
     const conditions = this._buildConditions(
@@ -84,12 +90,15 @@ export class PostgresService implements IDatabaseService {
       getTableName(schema),
     );
 
-    return (await this.db
-      .select()
-      .from(schema)
-      .where(and(...conditions))) as unknown as InferSelectModel<
-      TpgTableRegistry[K]
-    >[];
+    return (
+      (await this.db
+        .select()
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        .from(schema as AnyPgTable)
+        .where(and(...conditions))) as unknown as InferSelectModel<
+        TpgTableRegistry[K]
+      >[]
+    );
   }
 
   public async update<K extends TpgTableKey>(
@@ -144,7 +153,11 @@ export class PostgresService implements IDatabaseService {
     columns?: TColumnFilter<K>[],
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
     const schema = postgresTableRegistry[schemaName];
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    ) {
       throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
     }
     const conditions = columns
@@ -180,12 +193,13 @@ export class PostgresService implements IDatabaseService {
       getTableName(schema),
     );
 
-    let result: InferSelectModel<TpgTableRegistry[K]>[];
+    let affectedRows = 0;
     try {
-      result = await this.db
+      const result = await this.db
         .delete(schema)
         .where(and(...conditions))
         .returning();
+      affectedRows = result.length;
     } catch (error) {
       if (error instanceof DrizzleQueryError) {
         throw new NotFoundException(
@@ -194,7 +208,7 @@ export class PostgresService implements IDatabaseService {
       }
       throw error;
     }
-    if (result.length === 0)
+    if (affectedRows === 0)
       throw new NotFoundException(
         `Nothing to delete in ${getTableName(schema)}`,
       );
