@@ -18,8 +18,15 @@ import type {
 export type TReturn<T> = Promise<T> | T;
 export type TDatabase = TdbPostgres | TdbSqlite;
 // postgres schema get precedence over sqlite extra userId (optional) field,
-export type TJob = InferInsertModel<typeof jobSchema>;
-export type TRole = InferInsertModel<typeof roleSchema>;
+export type TJob = InferSelectModel<typeof jobSchema>;
+export type TJobInsert = InferInsertModel<typeof jobSchema>;
+export type TRole = InferSelectModel<typeof roleSchema>;
+export type TRoleInsert = InferInsertModel<typeof roleSchema>;
+
+export interface TPagination {
+  limit: number;
+  offset: number;
+}
 
 export type TInsert<K extends TpgTableKey> =
   | InferInsertModel<TpgTableRegistry[K]>
@@ -42,7 +49,7 @@ type TColumnValue<K extends TpgTableKey, C extends TColumnNames<K>> =
 export type TColumnFilter<K extends TpgTableKey> = {
   [C in TColumnNames<K>]: {
     columnName: C;
-    value: TColumnValue<K, C>;
+    value: TColumnValue<K, C> | TColumnValue<K, C>[];
   };
 }[TColumnNames<K>];
 

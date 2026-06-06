@@ -3,7 +3,7 @@ import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
-import type { TJob } from "@/src/database/database.types";
+import type { TJobInsert } from "@/src/database/database.types";
 
 import { expectedJobStructure, getJobPayload } from "./job.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
@@ -16,8 +16,7 @@ describe("Jobs (e2e)", () => {
   let httpServer: ReturnType<typeof supertest>;
   let dbService: IDatabaseService;
   let authCookie: string;
-  let userId: string | undefined;
-  let jobPayload: TJob;
+  let jobPayload: TJobInsert;
 
   beforeAll(async () => {
     const { appInstance, httpServerInstance, dbServiceInstance } =
@@ -35,12 +34,8 @@ describe("Jobs (e2e)", () => {
     await dbService.dbClear();
     jobPayload = getJobPayload();
     if (!isAppMode) {
-      const { cookie, userId: userid } = await getTestAuthHeader(
-        app,
-        dbService.database(),
-      );
+      const { cookie } = await getTestAuthHeader(app, dbService.database());
       authCookie = cookie;
-      userId = userid;
     }
   });
 
@@ -109,6 +104,20 @@ describe("Jobs (e2e)", () => {
       await auth(httpServer.post("/jobs"))
         .send({ ...jobPayload, roleId: 0 })
         .expect(400);
+    });
+
+    it("should create a job with a valid roleId", async () => {
+      const { body: roleBody } = await auth(httpServer.post("/lookups/role"))
+        .send({ name: "Engineer" })
+        .expect(201);
+
+      const roleId: number = roleBody.data.id;
+
+      const { body } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, roleId })
+        .expect(201);
+
+      expect(body.data.roleId).toBe(roleId);
     });
 
     it("should return 400 for whitespace-only title", async () => {
@@ -288,6 +297,26 @@ describe("Jobs (e2e)", () => {
       await auth(httpServer.patch(`/jobs/${jobId}`))
         .send({ status: "invalid" })
         .expect(400);
+    });
+
+    it("should update roleId", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const { body: roleBody } = await auth(httpServer.post("/lookups/role"))
+        .send({ name: "Manager" })
+        .expect(201);
+
+      const roleId: number = roleBody.data.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ roleId })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.roleId).toBe(roleId);
+        });
     });
 
     it("should return 400 when patching with non-integer roleId", async () => {

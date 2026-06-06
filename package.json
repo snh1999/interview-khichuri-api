@@ -88,7 +88,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/vitest --runInBand",
     "test:e2e:web": "npm run db:test:up && sleep 1 && npm run db:test:push && sleep 1 && vitest run --config vitest.e2e.config.ts --project web",
     "test:e2e:app": "npm run db:test:push:app && vitest run --config vitest.e2e.config.ts --project app",
-    "test:e2e": "npm run db:test:up && sleep 1 && npm run db:test:push && sleep 1 && vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "npm run db:test:up && sleep 1 && npm run db:test:push && npm run db:test:push:app && sleep 1 && vitest run --config vitest.e2e.config.ts"
   },
   "version": "0.0.1",
   "description": "",

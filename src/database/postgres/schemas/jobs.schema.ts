@@ -7,6 +7,7 @@ import {
   timestamp,
   uuid,
   pgEnum,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth.schema";
@@ -37,4 +38,5 @@ export const jobSchema = pgTable(
 export const roleSchema = pgTable("roles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  isApproved: boolean("isApproved"),
 });

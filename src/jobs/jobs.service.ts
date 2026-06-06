@@ -39,10 +39,12 @@ export class JobsService {
     dto: UpdateJobDto,
     userId?: string,
   ): Promise<TJob> {
-    return this.db.update("jobs", dto, [
+    const result = await this.db.update("jobs", dto, [
       { columnName: "id", value: id },
       ...(userId ? [{ columnName: "userId", value: userId } as const] : []),
     ]);
+
+    return result[0];
   }
 
   public async delete(id: string, userId?: string): Promise<void> {

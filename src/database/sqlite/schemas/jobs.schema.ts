@@ -1,11 +1,11 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-// SQLite has no native enum — use text with runtime validation
 export const jobSchema = sqliteTable("jobs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   title: text("title").notNull(),
+  userId: text("user_id"),
   description: text("description").notNull(),
   status: text("status", { enum: ["applied", "saved", "scheduled"] })
     .notNull()
@@ -24,6 +24,7 @@ export const jobSchema = sqliteTable("jobs", {
 });
 
 export const roleSchema = sqliteTable("roles", {
-  id: integer("id", { mode: "number" }).primaryKey({ autoIncrement: true }),
+  id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
+  isApproved: integer({ mode: "boolean" }),
 });

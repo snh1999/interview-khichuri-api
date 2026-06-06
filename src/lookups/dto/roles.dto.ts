@@ -6,3 +6,10 @@ export const CreateRoleSchema = z.object({
 });
 
 export class CreateRoleDto extends createZodDto(CreateRoleSchema) {}
+
+export const UpdateRoleSchema = z.object({
+  name: z.string().trim().min(2).optional(),
+  isApproved: z.boolean().optional(),
+});
+
+export class UpdateRoleDto extends createZodDto(UpdateRoleSchema) {}
