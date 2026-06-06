@@ -1,9 +1,11 @@
 import type {
   TColumnFilter,
+  TColumnNames,
   TDatabase,
   TInsert,
   TPagination,
   TReturn,
+  TSearchResult,
   TSelect,
 } from "@/src/database/database.types";
 import type { TpgTableKey } from "@/src/database/postgres/postgres.service";
@@ -45,6 +47,14 @@ export abstract class IDatabaseService {
     column?: TColumnFilter<K>[],
     pagination?: TPagination,
   ): TReturn<TSelect<K>[]>;
+
+  abstract search<K extends TpgTableKey>(
+    schemaName: K,
+    columnName: TColumnNames<K>[],
+    value: string,
+    columns?: TColumnFilter<K>[],
+    pagination?: TPagination,
+  ): TReturn<TSearchResult<K>>;
 
   abstract findById<K extends TpgTableKey>(
     schemaName: K,

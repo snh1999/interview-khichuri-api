@@ -12,10 +12,16 @@ import {
   InferInsertModel,
   InferSelectModel,
   is,
+  like,
+  or,
   sql,
 } from "drizzle-orm";
 import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
+import {
+  AnySQLiteColumn,
+  SQLiteColumn,
+  SQLiteTable,
+} from "drizzle-orm/sqlite-core";
 
 import { IDatabaseService } from "@/src/database/database.service";
 import { TpgTableKey } from "@/src/database/postgres/postgres.service";
@@ -25,12 +31,14 @@ import {
   TColumnFilter,
   type TPagination,
   TSchemaColumn,
+  TSearchResult,
 } from "../database.types";
 import * as schemas from "./schemas";
 
 const sqliteTableRegistry = {
   [getTableName(schemas.jobSchema)]: schemas.jobSchema,
   [getTableName(schemas.roleSchema)]: schemas.roleSchema,
+  [getTableName(schemas.topicsSchema)]: schemas.topicsSchema,
 } as const;
 
 export type TdbSqlite = BetterSQLite3Database<typeof schemas>;
@@ -96,6 +104,63 @@ export class SqliteService implements IDatabaseService {
     }
 
     return query.all() as InferSelectModel<TsqliteTableRegistry[K]>[];
+  }
+
+  public search<K extends TsqliteTableKey>(
+    schemaName: K,
+    columnNames: TSqliteCols<K>[],
+    value: string,
+    columns?: TColumnFilter<K>[],
+    pagination?: TPagination,
+  ): TSearchResult<K> {
+    const schema = sqliteTableRegistry[schemaName];
+    const schemaColumns = getTableColumns(schema);
+    const tableName = getTableName(schema);
+
+    const likeConditions = columnNames.map((col) => {
+      const colName = String(col);
+      if (!(colName in schemaColumns)) {
+        throw new BadRequestException(
+          `Column "${colName}" not supported by ${tableName}`,
+        );
+      }
+      return like(schemaColumns[colName] as AnySQLiteColumn, `%${value}%`);
+    });
+
+    const exactConditions = columns?.length
+      ? this._buildConditions(
+          schema,
+          columns as TSchemaColumn<typeof schema>[],
+          tableName,
+        )
+      : [];
+
+    const whereClause = and(
+      ...(likeConditions.length ? [or(...likeConditions)] : []),
+      ...exactConditions,
+    );
+
+    const query = this.db.select().from(schema).where(whereClause);
+
+    if (pagination) {
+      query.limit(pagination.limit).offset(pagination.offset);
+    }
+
+    const data = query.all() as InferSelectModel<TsqliteTableRegistry[K]>[];
+
+    const isFirstPage = !pagination || pagination.offset === 0;
+    const countResult = isFirstPage
+      ? this.db
+          .select({ count: sql<number>`count(*)` })
+          .from(schema)
+          .where(whereClause)
+          .get()
+      : undefined;
+
+    return {
+      data,
+      total: countResult?.count ?? 0,
+    };
   }
 
   public findById<K extends TsqliteTableKey>(

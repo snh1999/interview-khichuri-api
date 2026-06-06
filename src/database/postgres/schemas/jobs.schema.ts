@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -25,6 +26,9 @@ export const jobSchema = pgTable(
     roleId: integer("role_id").references(() => roleSchema.id, {
       onDelete: "set null",
     }),
+    topicId: integer("topic_id").references(() => topicSchema.id, {
+      onDelete: "set null",
+    }),
     deadline: timestamp("deadline"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -32,11 +36,45 @@ export const jobSchema = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("job_creator_index").on(table.userId)],
+  (table) => [
+    index("job_creator_index").on(table.userId),
+    index("idx_jobs_title_fts").using(
+      "gist",
+      sql`to_tsvector('english', ${table.title})`,
+    ),
+    index("idx_jobs_full_fts").using(
+      "gist",
+      sql`to_tsvector('english', coalesce(${table.title},'') || ' ' || coalesce(${table.description},''))`,
+    ),
+  ],
 );
 
-export const roleSchema = pgTable("roles", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  isApproved: boolean("isApproved"),
-});
+export const roleSchema = pgTable(
+  "roles",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    isApproved: boolean("isApproved"),
+  },
+  (table) => [
+    index("idx_roles_title_fts").using(
+      "gin",
+      sql`to_tsvector('english', ${table.name})`,
+    ),
+  ],
+);
+
+export const topicSchema = pgTable(
+  "topics",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    isApproved: boolean("isApproved"),
+  },
+  (table) => [
+    index("idx_topics_title_fts").using(
+      "gin",
+      sql`to_tsvector('english', ${table.name})`,
+    ),
+  ],
+);

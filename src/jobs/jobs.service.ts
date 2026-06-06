@@ -10,7 +10,7 @@ export class JobsService {
   public constructor(private readonly db: IDatabaseService) {}
 
   public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
-    const { title, description, status, roleId, deadline } = dto;
+    const { title, description, status, roleId, topicId, deadline } = dto;
 
     return this.db.create("jobs", {
       userId,
@@ -18,14 +18,22 @@ export class JobsService {
       description,
       status,
       roleId: roleId ?? null,
+      topicId: topicId ?? null,
       deadline: deadline ? new Date(deadline) : null,
     });
   }
 
-  public async findAll(userId?: string): Promise<TJob[]> {
-    return this.db.findAllByColumn("jobs", [
-      ...(userId ? [{ columnName: "userId", value: userId } as const] : []),
-    ]);
+  public async findAll(userId?: string, search?: string): Promise<TJob[]> {
+    const filters = userId
+      ? [{ columnName: "userId" as const, value: userId }]
+      : [];
+
+    if (search) {
+      const result = await this.db.search("jobs", ["title", "description"], search, filters);
+      return result.data;
+    }
+
+    return this.db.findAllByColumn("jobs", filters);
   }
 
   public async findOne(id: string, userId?: string): Promise<TJob> {

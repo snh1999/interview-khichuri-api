@@ -26,6 +26,7 @@ import {
   TColumnFilter,
   type TPagination,
   TSchemaColumn,
+  TSearchResult,
 } from "../database.types";
 import * as schemas from "./schemas";
 
@@ -34,6 +35,7 @@ export type TdbPostgres = PostgresJsDatabase<typeof schemas>;
 const postgresTableRegistry = {
   [getTableName(schemas.jobSchema)]: schemas.jobSchema,
   [getTableName(schemas.roleSchema)]: schemas.roleSchema,
+  [getTableName(schemas.topicSchema)]: schemas.topicSchema,
 } as const;
 
 export type TpgTableRegistry = typeof postgresTableRegistry;
@@ -104,6 +106,78 @@ export class PostgresService implements IDatabaseService {
     }
 
     return (await query) as unknown as InferSelectModel<TpgTableRegistry[K]>[];
+  }
+
+  public async search<K extends TpgTableKey>(
+    schemaName: K,
+    columnNames: TpgCols<K>[],
+    value: string,
+    columns?: TColumnFilter<K>[],
+    pagination?: TPagination,
+  ): Promise<TSearchResult<K>> {
+    const schema = postgresTableRegistry[schemaName];
+    const schemaColumns = getTableColumns(schema);
+
+    const cols = columnNames.map((colName) => {
+      const col = schemaColumns[colName];
+      if (!col) {
+        throw new BadRequestException(
+          `Column "${String(colName)}" not supported by ${getTableName(schema)}`,
+        );
+      }
+      return col;
+    });
+
+    const vectorExpr =
+      cols.length === 1
+        ? sql`to_tsvector('english', ${cols[0]}::text)`
+        : sql`to_tsvector('english', ${sql.join(
+            cols.map((c) => sql`coalesce(${c}::text, '')`),
+            sql` || ' ' || `,
+          )})`;
+
+    const queryExpr = sql`plainto_tsquery('english', ${value})`;
+
+    const ftsWhere = sql`${vectorExpr} @@ ${queryExpr}`;
+
+    const conditions = columns?.length
+      ? this._buildConditions(
+          schema,
+          columns as TSchemaColumn<typeof schema>[],
+          getTableName(schema),
+        )
+      : [];
+
+    const whereClause = conditions.length
+      ? and(ftsWhere, ...conditions)
+      : ftsWhere;
+
+    const baseQuery = this.db
+      .select()
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      .from(schema as AnyPgTable)
+      .where(whereClause)
+      .orderBy(sql`ts_rank(${vectorExpr}, ${queryExpr}) DESC`);
+
+    if (pagination) {
+      baseQuery.limit(pagination.limit).offset(pagination.offset);
+    }
+
+    const isFirstPage = !pagination || pagination.offset === 0;
+    const [data, countResult] = await Promise.all([
+      baseQuery,
+      isFirstPage
+        ? this.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(schema as AnyPgTable)
+            .where(whereClause)
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      data: data as InferSelectModel<TpgTableRegistry[K]>[],
+      total: countResult ? countResult[0].count : undefined,
+    };
   }
 
   public async findById<K extends TpgTableKey>(

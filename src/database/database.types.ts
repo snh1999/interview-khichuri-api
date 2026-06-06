@@ -8,7 +8,11 @@ import type {
   TpgTableKey,
   TpgTableRegistry,
 } from "@/src/database/postgres/postgres.service";
-import type { jobSchema, roleSchema } from "@/src/database/postgres/schemas";
+import type {
+  jobSchema,
+  roleSchema,
+  topicSchema,
+} from "@/src/database/postgres/schemas";
 import type {
   TdbSqlite,
   TSqliteCols,
@@ -20,8 +24,12 @@ export type TDatabase = TdbPostgres | TdbSqlite;
 // postgres schema get precedence over sqlite extra userId (optional) field,
 export type TJob = InferSelectModel<typeof jobSchema>;
 export type TJobInsert = InferInsertModel<typeof jobSchema>;
+
 export type TRole = InferSelectModel<typeof roleSchema>;
 export type TRoleInsert = InferInsertModel<typeof roleSchema>;
+
+export type TTopics = InferSelectModel<typeof topicSchema>;
+export type TTopicsInsert = InferInsertModel<typeof topicSchema>;
 
 export interface TPagination {
   limit: number;
@@ -35,6 +43,11 @@ export type TInsert<K extends TpgTableKey> =
 export type TSelect<K extends TpgTableKey> =
   | InferSelectModel<TpgTableRegistry[K]>
   | InferSelectModel<TsqliteTableRegistry[K]>;
+
+export interface TSearchResult<K extends TpgTableKey> {
+  data: TSelect<K>[];
+  total?: number;
+}
 
 export type TColumnNames<K extends TpgTableKey> = TpgCols<K> | TSqliteCols<K>;
 

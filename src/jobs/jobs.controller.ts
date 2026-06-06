@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from "@nestjs/common";
 
 import { UserId } from "@/src/config/guards/user-id.decorator";
@@ -29,8 +30,11 @@ export class JobsController {
   }
 
   @Get()
-  public findAll(@UserId() userId?: string): Promise<TJob[]> {
-    return this.jobsService.findAll(userId);
+  public findAll(
+    @Query("search") search?: string,
+    @UserId() userId?: string,
+  ): Promise<TJob[]> {
+    return this.jobsService.findAll(userId, search);
   }
 
   @Get(":id")

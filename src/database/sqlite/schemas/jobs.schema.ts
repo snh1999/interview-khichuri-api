@@ -13,6 +13,9 @@ export const jobSchema = sqliteTable("jobs", {
   roleId: integer("role_id").references(() => roleSchema.id, {
     onDelete: "set null",
   }),
+  topicId: integer("topic_id").references(() => topicsSchema.id, {
+    onDelete: "set null",
+  }),
   deadline: integer("deadline", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
@@ -24,6 +27,12 @@ export const jobSchema = sqliteTable("jobs", {
 });
 
 export const roleSchema = sqliteTable("roles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  isApproved: integer({ mode: "boolean" }),
+});
+
+export const topicsSchema = sqliteTable("topics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   isApproved: integer({ mode: "boolean" }),

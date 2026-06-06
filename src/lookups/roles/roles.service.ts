@@ -2,21 +2,26 @@ import { Injectable } from "@nestjs/common";
 
 import { IDatabaseService } from "@/src/database/database.service";
 import { TRole } from "@/src/database/database.types";
-import { CreateRoleDto, UpdateRoleDto } from "@/src/lookups/dto/roles.dto";
+
+import { CreateLookupDto, UpdateLookupDto } from "@/src/lookups/lookups.dto";
 
 @Injectable()
-export class LookupsService {
+export class RolesService {
   public constructor(private readonly db: IDatabaseService) {}
 
-  async createRole(dto: CreateRoleDto): Promise<TRole> {
+  async createRole(dto: CreateLookupDto): Promise<TRole> {
     return this.db.create("roles", dto);
   }
 
-  async findAll(): Promise<TRole[]> {
+  async findAll(name?: string): Promise<TRole[]> {
+    if (name) {
+      const result = await this.db.search("roles", ["name"], name);
+      return result.data;
+    }
     return this.db.findAllByColumn("roles");
   }
 
-  async updateRole(id: number, dto: UpdateRoleDto): Promise<TRole> {
+  async updateRole(id: number, dto: UpdateLookupDto): Promise<TRole> {
     const result = await this.db.update("roles", dto, [
       { columnName: "id", value: id },
     ]);

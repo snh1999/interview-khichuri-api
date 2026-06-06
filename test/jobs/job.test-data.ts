@@ -23,6 +23,7 @@ export const expectedJobStructure = () =>
     description: expect.any(String),
     status: expectEnum(statusEnum.enumValues),
     roleId: expectNullableNumber,
+    topicId: expectNullableNumber,
     deadline: expectNullableString,
     createdAt: expect.any(String),
     updatedAt: expect.any(String),
