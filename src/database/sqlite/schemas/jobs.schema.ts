@@ -1,6 +1,7 @@
+import { relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const jobSchema = sqliteTable("jobs", {
+export const jobs = sqliteTable("jobs", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -10,12 +11,11 @@ export const jobSchema = sqliteTable("jobs", {
   status: text("status", { enum: ["applied", "saved", "scheduled"] })
     .notNull()
     .default("saved"),
-  roleId: integer("role_id").references(() => roleSchema.id, {
+  roleId: integer("role_id").references(() => roles.id, {
     onDelete: "set null",
   }),
-  topicId: integer("topic_id").references(() => topicsSchema.id, {
-    onDelete: "set null",
-  }),
+  links: text("links"),
+  notes: text("notes"),
   deadline: integer("deadline", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .$defaultFn(() => new Date())
@@ -26,14 +26,43 @@ export const jobSchema = sqliteTable("jobs", {
     .notNull(),
 });
 
-export const roleSchema = sqliteTable("roles", {
+export const roles = sqliteTable("roles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   isApproved: integer({ mode: "boolean" }),
 });
 
-export const topicsSchema = sqliteTable("topics", {
+export const job_topics = sqliteTable("job_topics", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  jobId: text("job_id")
+    .notNull()
+    .references(() => jobs.id, { onDelete: "cascade" }),
+  topicId: integer("topic_id")
+    .notNull()
+    .references(() => topics.id, { onDelete: "cascade" }),
+});
+
+export const topics = sqliteTable("topics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   isApproved: integer({ mode: "boolean" }),
 });
+
+export const jobRelations = relations(jobs, ({ many }) => ({
+  jobTopics: many(job_topics),
+}));
+
+export const jobTopicRelations = relations(job_topics, ({ one }) => ({
+  job: one(jobs, {
+    fields: [job_topics.jobId],
+    references: [jobs.id],
+  }),
+  topic: one(topics, {
+    fields: [job_topics.topicId],
+    references: [topics.id],
+  }),
+}));
+
+export const topicRelations = relations(topics, ({ many }) => ({
+  jobTopics: many(job_topics),
+}));

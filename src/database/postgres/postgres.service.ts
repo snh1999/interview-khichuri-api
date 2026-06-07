@@ -33,10 +33,20 @@ import * as schemas from "./schemas";
 export type TdbPostgres = PostgresJsDatabase<typeof schemas>;
 
 const postgresTableRegistry = {
-  [getTableName(schemas.jobSchema)]: schemas.jobSchema,
-  [getTableName(schemas.roleSchema)]: schemas.roleSchema,
-  [getTableName(schemas.topicSchema)]: schemas.topicSchema,
+  [getTableName(schemas.jobs)]: schemas.jobs,
+  [getTableName(schemas.roles)]: schemas.roles,
+  [getTableName(schemas.topics)]: schemas.topics,
+  [getTableName(schemas.job_topics)]: schemas.job_topics,
 } as const;
+
+type TdbQuery = TdbPostgres extends { query: infer Q } ? Q : never;
+export type TpgWithRelations<K extends TpgTableKey> = K extends keyof TdbQuery
+  ? TdbQuery[K] extends { findMany: (args?: infer A) => unknown }
+    ? Exclude<A, undefined> extends { with?: infer W }
+      ? W
+      : never
+    : never
+  : never;
 
 export type TpgTableRegistry = typeof postgresTableRegistry;
 export type TpgTableKey = keyof TpgTableRegistry;
@@ -81,10 +91,24 @@ export class PostgresService implements IDatabaseService {
     return result as InferSelectModel<TpgTableRegistry[K]>;
   }
 
+  public async createMany<K extends TpgTableKey>(
+    schemaName: K,
+    data: InferInsertModel<TpgTableRegistry[K]>[],
+    db: TdbPostgres = this.db,
+  ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
+    if ("userId" in data && !data.userId) {
+      throw new BadRequestException("User id is required");
+    }
+    const schema = postgresTableRegistry[schemaName];
+    const result = await db.insert(schema).values(data).returning();
+    return result as InferSelectModel<TpgTableRegistry[K]>[];
+  }
+
   public async findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
     columns?: TColumnFilter<K>[],
     pagination?: TPagination,
+    relations?: TpgWithRelations<K>,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const schema = postgresTableRegistry[schemaName];
     const conditions = columns?.length
@@ -94,6 +118,17 @@ export class PostgresService implements IDatabaseService {
           getTableName(schema),
         )
       : [];
+
+    if (relations && Object.keys(relations).length > 0) {
+      return this.db.query[schemaName].findMany({
+        where: conditions.length ? and(...conditions) : undefined,
+        with: relations,
+        ...(pagination && {
+          limit: pagination.limit,
+          offset: pagination.offset,
+        }),
+      }) as Promise<InferSelectModel<TpgTableRegistry[K]>[]>;
+    }
 
     const query = this.db
       .select()
@@ -106,6 +141,55 @@ export class PostgresService implements IDatabaseService {
     }
 
     return (await query) as unknown as InferSelectModel<TpgTableRegistry[K]>[];
+  }
+
+  public async findById<K extends TpgTableKey>(
+    schemaName: K,
+    id: string | number,
+    columns?: TColumnFilter<K>[],
+    relations?: TpgWithRelations<K>,
+  ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
+    const schema = postgresTableRegistry[schemaName];
+    if (
+      typeof id === "string" &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    ) {
+      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
+    }
+    const conditions = columns
+      ? this._buildConditions(
+          schema,
+          columns as TSchemaColumn<typeof schema>[],
+          getTableName(schema),
+        )
+      : [];
+
+    const allConditions = [...conditions, eq((schema as PgTableWithId).id, id)];
+
+    if (relations && Object.keys(relations).length > 0) {
+      const result = await this.db.query[schemaName].findFirst({
+        where: and(...allConditions),
+        with: relations,
+      });
+      if (!result)
+        throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
+      return result as InferSelectModel<TpgTableRegistry[K]>;
+    }
+
+    const result = await this.db
+      .select()
+      // Drizzle #4367: generic indexed table types fail TableLikeHasEmptySelection.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      .from(schema as PgTableWithId)
+      .where(and(...[...conditions, eq(schema.id, id)]));
+
+    if (result.length === 0) {
+      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
+    }
+
+    return result[0] as InferSelectModel<TpgTableRegistry[K]>;
   }
 
   public async search<K extends TpgTableKey>(
@@ -180,42 +264,6 @@ export class PostgresService implements IDatabaseService {
     };
   }
 
-  public async findById<K extends TpgTableKey>(
-    schemaName: K,
-    id: string | number,
-    columns?: TColumnFilter<K>[],
-  ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
-    const schema = postgresTableRegistry[schemaName];
-    if (
-      typeof id === "string" &&
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        id,
-      )
-    ) {
-      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
-    }
-    const conditions = columns
-      ? this._buildConditions(
-          schema,
-          columns as TSchemaColumn<typeof schema>[],
-          getTableName(schema),
-        )
-      : [];
-
-    const result = await this.db
-      .select()
-      // Drizzle #4367: generic indexed table types fail TableLikeHasEmptySelection.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-      .from(schema as PgTableWithId)
-      .where(and(...[...conditions, eq(schema.id, id)]));
-
-    if (result.length === 0) {
-      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
-    }
-
-    return result[0] as InferSelectModel<TpgTableRegistry[K]>;
-  }
-
   public async update<K extends TpgTableKey>(
     schemaName: K,
     data: Partial<InferInsertModel<TpgTableRegistry[K]>>,
@@ -268,6 +316,7 @@ export class PostgresService implements IDatabaseService {
   public async delete<K extends TpgTableKey>(
     schemaName: K,
     columns: TColumnFilter<K>[],
+    silent = false,
     db: TdbPostgres = this.db,
   ): Promise<void> {
     const schema = postgresTableRegistry[schemaName];
@@ -282,7 +331,7 @@ export class PostgresService implements IDatabaseService {
         .delete(schema)
         .where(and(...conditions))
         .returning();
-      if (result.length === 0) throw new NotFoundException();
+      if (result.length === 0 && !silent) throw new NotFoundException();
     } catch (error) {
       if (error instanceof DrizzleQueryError) {
         throw new NotFoundException(

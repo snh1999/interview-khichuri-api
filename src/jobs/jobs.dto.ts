@@ -6,7 +6,9 @@ export const CreateJobSchema = z.object({
   description: z.string().trim().min(1),
   status: z.enum(["applied", "saved", "scheduled"]).default("saved"),
   roleId: z.number().int().positive().optional(),
-  topicId: z.number().int().positive().optional(),
+  topicIds: z.array(z.number().int().positive()).optional(),
+  links: z.string().optional(),
+  notes: z.string().optional(),
   deadline: z.coerce.date().optional(),
 });
 

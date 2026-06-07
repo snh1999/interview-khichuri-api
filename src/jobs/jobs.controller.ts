@@ -12,7 +12,7 @@ import {
 } from "@nestjs/common";
 
 import { UserId } from "@/src/config/guards/user-id.decorator";
-import { TJob } from "@/src/database/database.types";
+import { TJob, TJobWithTopics } from "@/src/database/database.types";
 
 import { CreateJobDto, UpdateJobDto } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
@@ -41,7 +41,7 @@ export class JobsController {
   public findOne(
     @Param("id") id: string,
     @UserId() userId?: string,
-  ): Promise<TJob> {
+  ): Promise<TJobWithTopics> {
     return this.jobsService.findOne(id, userId);
   }
 
@@ -50,7 +50,7 @@ export class JobsController {
     @Param("id") id: string,
     @Body() dto: UpdateJobDto,
     @UserId() userId?: string,
-  ): Promise<TJob> {
+  ): Promise<TJobWithTopics> {
     return this.jobsService.update(id, dto, userId);
   }
 

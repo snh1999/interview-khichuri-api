@@ -7,29 +7,43 @@ import type {
   TpgCols,
   TpgTableKey,
   TpgTableRegistry,
+  TpgWithRelations,
 } from "@/src/database/postgres/postgres.service";
-import type {
-  jobSchema,
-  roleSchema,
-  topicSchema,
-} from "@/src/database/postgres/schemas";
+import type { jobs, roles, topics } from "@/src/database/postgres/schemas";
 import type {
   TdbSqlite,
   TSqliteCols,
   TsqliteTableRegistry,
+  TsqliteWithRelations,
 } from "@/src/database/sqlite/sqlite.service";
 
 export type TReturn<T> = Promise<T> | T;
 export type TDatabase = TdbPostgres | TdbSqlite;
-// postgres schema get precedence over sqlite extra userId (optional) field,
-export type TJob = InferSelectModel<typeof jobSchema>;
-export type TJobInsert = InferInsertModel<typeof jobSchema>;
 
-export type TRole = InferSelectModel<typeof roleSchema>;
-export type TRoleInsert = InferInsertModel<typeof roleSchema>;
+export type TdbWithRelations<K extends TpgTableKey> =
+  | TsqliteWithRelations<K>
+  | TpgWithRelations<K>;
 
-export type TTopics = InferSelectModel<typeof topicSchema>;
-export type TTopicsInsert = InferInsertModel<typeof topicSchema>;
+// postgres schema get precedence over sqlite for extra FK userId (optional),
+export type TJob = InferSelectModel<typeof jobs>;
+export type TJobInsert = InferInsertModel<typeof jobs>;
+
+export type TRole = InferSelectModel<typeof roles>;
+export type TRoleInsert = InferInsertModel<typeof roles>;
+
+export type TTopics = InferSelectModel<typeof topics>;
+export type TTopicsInsert = InferInsertModel<typeof topics>;
+
+type TJobTopicRelation = {
+  id: number;
+  jobId: string;
+  topicId: number;
+  topic: InferSelectModel<typeof topics>;
+};
+
+export type TJobWithTopics = InferSelectModel<typeof jobs> & {
+  jobTopics: TJobTopicRelation[];
+};
 
 export interface TPagination {
   limit: number;

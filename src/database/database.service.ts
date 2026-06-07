@@ -2,6 +2,7 @@ import type {
   TColumnFilter,
   TColumnNames,
   TDatabase,
+  TdbWithRelations,
   TInsert,
   TPagination,
   TReturn,
@@ -42,10 +43,17 @@ export abstract class IDatabaseService {
     db?: TDatabase,
   ): TReturn<TSelect<K>>;
 
+  abstract createMany<K extends TpgTableKey>(
+    schemaName: K,
+    data: TInsert<K>[],
+    db?: TDatabase,
+  ): TReturn<TSelect<K>[]>;
+
   abstract findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
     column?: TColumnFilter<K>[],
     pagination?: TPagination,
+    relation?: TdbWithRelations<K>,
   ): TReturn<TSelect<K>[]>;
 
   abstract search<K extends TpgTableKey>(
@@ -60,6 +68,7 @@ export abstract class IDatabaseService {
     schemaName: K,
     id: string | number,
     columns?: TColumnFilter<K>[],
+    relation?: TdbWithRelations<K>,
   ): TReturn<TSelect<K>>;
 
   abstract update<K extends TpgTableKey>(
@@ -72,6 +81,7 @@ export abstract class IDatabaseService {
   public abstract delete<K extends TpgTableKey>(
     schemaName: K,
     columns: TColumnFilter<K>[],
+    silent?: boolean,
     db?: TDatabase,
   ): TReturn<void>;
 }

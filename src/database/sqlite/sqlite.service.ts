@@ -36,14 +36,25 @@ import {
 import * as schemas from "./schemas";
 
 const sqliteTableRegistry = {
-  [getTableName(schemas.jobSchema)]: schemas.jobSchema,
-  [getTableName(schemas.roleSchema)]: schemas.roleSchema,
-  [getTableName(schemas.topicsSchema)]: schemas.topicsSchema,
+  [getTableName(schemas.jobs)]: schemas.jobs,
+  [getTableName(schemas.roles)]: schemas.roles,
+  [getTableName(schemas.topics)]: schemas.topics,
+  [getTableName(schemas.job_topics)]: schemas.job_topics,
 } as const;
 
 export type TdbSqlite = BetterSQLite3Database<typeof schemas>;
 export type TsqliteTableRegistry = typeof sqliteTableRegistry;
 export type TsqliteTableKey = keyof TsqliteTableRegistry;
+
+type TdbQuery = TdbSqlite extends { query: infer Q } ? Q : never;
+export type TsqliteWithRelations<K extends TsqliteTableKey> =
+  K extends keyof TdbQuery
+    ? TdbQuery[K] extends { findMany: (args?: infer A) => unknown }
+      ? Exclude<A, undefined> extends { with?: infer W }
+        ? W
+        : never
+      : never
+    : never;
 
 export type TSqliteTableWithId = SQLiteTable & { id: SQLiteColumn };
 
@@ -65,7 +76,16 @@ export class SqliteService implements IDatabaseService {
   public async withTransaction<T>(
     fn: (tx: TdbSqlite) => Promise<T>,
   ): Promise<T> {
-    return this.db.transaction(fn);
+    this.db.run(sql`BEGIN`);
+    return fn(this.db)
+      .then((result) => {
+        this.db.run(sql`COMMIT`);
+        return result;
+      })
+      .catch((err: unknown) => {
+        this.db.run(sql`ROLLBACK`);
+        throw err;
+      });
   }
 
   public create<K extends TsqliteTableKey>(
@@ -79,10 +99,22 @@ export class SqliteService implements IDatabaseService {
     >;
   }
 
+  public createMany<K extends TsqliteTableKey>(
+    schemaName: K,
+    data: InferInsertModel<TsqliteTableRegistry[K]>[],
+    db: TdbSqlite = this.db,
+  ): InferSelectModel<TsqliteTableRegistry[K]>[] {
+    const schema = sqliteTableRegistry[schemaName] as SQLiteTable;
+    return db.insert(schema).values(data).returning().get() as InferSelectModel<
+      TsqliteTableRegistry[K]
+    >[];
+  }
+
   public findAllByColumn<K extends TsqliteTableKey>(
     schemaName: K,
     columns?: TColumnFilter<K>[],
     pagination?: TPagination,
+    relations?: TsqliteWithRelations<K>,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName];
 
@@ -93,6 +125,18 @@ export class SqliteService implements IDatabaseService {
           getTableName(schema),
         )
       : [];
+
+    if (relations && Object.keys(relations).length > 0) {
+      return this.db.query[schemaName].findMany({
+        where: conditions.length ? and(...conditions) : undefined,
+        with: relations,
+        ...(pagination && {
+          limit: pagination.limit,
+          offset: pagination.offset,
+        }),
+        // returns SQLiteSyncRelationalQuery,
+      }) as unknown as InferSelectModel<TsqliteTableRegistry[K]>[];
+    }
 
     const query = this.db
       .select()
@@ -167,8 +211,17 @@ export class SqliteService implements IDatabaseService {
     schemaName: K,
     id: string | number,
     columns?: TColumnFilter<K>[],
+    relations?: TsqliteWithRelations<K>,
   ): InferSelectModel<TsqliteTableRegistry[K]> {
     const schema = sqliteTableRegistry[schemaName];
+    if (
+      typeof id === "string" &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    ) {
+      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
+    }
     const conditions = columns
       ? this._buildConditions(
           schema,
@@ -177,10 +230,24 @@ export class SqliteService implements IDatabaseService {
         )
       : [];
 
+    const allConditions = [...conditions, eq(schema.id, id)];
+
+    const queryWithRelations = relations && Object.keys(relations).length > 0;
+
+    if (queryWithRelations) {
+      const data = this.db.query[schemaName].findFirst({
+        where: conditions.length ? and(...allConditions) : eq(schema.id, id),
+        with: relations,
+      });
+      if (!data)
+        throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
+      return data as InferSelectModel<TsqliteTableRegistry[K]>;
+    }
+
     const data = this.db
       .select()
       .from(schema)
-      .where(and(...[...conditions, eq(schema.id, id)]))
+      .where(and(...allConditions))
       .get();
     if (!data)
       throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
@@ -231,6 +298,7 @@ export class SqliteService implements IDatabaseService {
   public delete<K extends TsqliteTableKey>(
     schemaName: K,
     columns: TColumnFilter<K>[],
+    silent = false,
     db: TdbSqlite = this.db,
   ): void {
     const schema = sqliteTableRegistry[schemaName];
@@ -245,7 +313,7 @@ export class SqliteService implements IDatabaseService {
       .where(and(...conditions))
       .run();
 
-    if (result.changes === 0) {
+    if (result.changes === 0 && !silent) {
       throw new NotFoundException(
         `Nothing to delete in ${getTableName(schema)}`,
       );

@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -9,13 +9,14 @@ import {
   uuid,
   pgEnum,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth.schema";
 
 export const statusEnum = pgEnum("status", ["applied", "saved", "scheduled"]);
 
-export const jobSchema = pgTable(
+export const jobs = pgTable(
   "jobs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -23,12 +24,11 @@ export const jobSchema = pgTable(
     title: text("title").notNull(),
     description: text("description").notNull(),
     status: statusEnum("status").notNull().default("saved"),
-    roleId: integer("role_id").references(() => roleSchema.id, {
+    roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),
-    topicId: integer("topic_id").references(() => topicSchema.id, {
-      onDelete: "set null",
-    }),
+    links: text("links"), // TODO make array
+    notes: text("notes"),
     deadline: timestamp("deadline"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -49,7 +49,7 @@ export const jobSchema = pgTable(
   ],
 );
 
-export const roleSchema = pgTable(
+export const roles = pgTable(
   "roles",
   {
     id: serial("id").primaryKey(),
@@ -64,7 +64,24 @@ export const roleSchema = pgTable(
   ],
 );
 
-export const topicSchema = pgTable(
+export const job_topics = pgTable(
+  "job_topics",
+  {
+    id: serial("id").primaryKey(),
+    jobId: uuid("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    topicId: integer("topic_id")
+      .notNull()
+      .references(() => topics.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("idx_job_id").on(table.jobId),
+    unique("idx_job_topics_unique").on(table.jobId, table.topicId),
+  ],
+);
+
+export const topics = pgTable(
   "topics",
   {
     id: serial("id").primaryKey(),
@@ -78,3 +95,22 @@ export const topicSchema = pgTable(
     ),
   ],
 );
+
+export const jobRelations = relations(jobs, ({ many }) => ({
+  jobTopics: many(job_topics),
+}));
+
+export const jobTopicRelations = relations(job_topics, ({ one }) => ({
+  job: one(jobs, {
+    fields: [job_topics.jobId],
+    references: [jobs.id],
+  }),
+  topic: one(topics, {
+    fields: [job_topics.topicId],
+    references: [topics.id],
+  }),
+}));
+
+export const topicRelations = relations(topics, ({ many }) => ({
+  jobTopics: many(job_topics),
+}));
