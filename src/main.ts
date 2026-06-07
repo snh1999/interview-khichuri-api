@@ -1,10 +1,11 @@
-import { NestFactory } from "@nestjs/core";
 import { VersioningType } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
+
 import { AppModule } from "./app.module";
 import { getAllowedMethods, getCorsConfig } from "./config/utils/cors.config";
 
-async function bootstrap() {
+const bootstrap = async (): Promise<void> => {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
   });
@@ -22,5 +23,6 @@ async function bootstrap() {
   app.use(helmet());
 
   await app.listen(process.env.PORT ?? 3000);
-}
+};
+
 bootstrap();

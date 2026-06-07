@@ -1,20 +1,20 @@
-// eslint-disable-next-line import-x/no-nodejs-modules
 import { promises as dns } from "node:dns";
+
+import { passkey } from "@better-auth/passkey";
 import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AuthModule } from "@thallesp/nestjs-better-auth";
 import { APIError, betterAuth, User } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { ConfigService } from "@nestjs/config";
-import { isValid } from "mailchecker";
-import { admin } from "better-auth/plugins/admin";
-import { twoFactor } from "better-auth/plugins/two-factor";
-import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { lastLoginMethod } from "better-auth/plugins";
-import { passkey } from "@better-auth/passkey";
+import { admin } from "better-auth/plugins/admin";
+import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
+import { twoFactor } from "better-auth/plugins/two-factor";
+import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { isValid } from "mailchecker";
 
+import { TEnvSchema } from "../config/utils/env.schema";
 import { DATABASE_CONNECTION } from "../database/database.constants";
-import { AppConfig } from "../config/utils/env.schema";
 import { EmailModule } from "../email/email.module";
 import { EmailService } from "../email/email.service";
 
@@ -24,8 +24,8 @@ import { EmailService } from "../email/email.service";
       imports: [EmailModule],
       useFactory: (
         db: PostgresJsDatabase,
-        config: AppConfig,
-        emailService: EmailService
+        config: ConfigService<TEnvSchema, true>,
+        emailService: EmailService,
       ) => ({
         auth: betterAuth({
           database: drizzleAdapter(db, { provider: "pg" }),
@@ -55,7 +55,7 @@ import { EmailService } from "../email/email.service";
             requireEmailVerification: true,
             // onExistingUserSignUp: ()=>{} // add a notification/email for user
             sendResetPassword: async ({ user, token }) => {
-              const url = `${config.get("FRONTEND_URL")}/reset-password?token=${token}`;
+              const url = `${config.get<string>("FRONTEND_URL")}/reset-password?token=${token}`;
               await emailService.sendPasswordResetEmail(user.email, url);
             },
             customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
@@ -72,7 +72,7 @@ import { EmailService } from "../email/email.service";
             sendOnSignUp: true,
             autoSignInAfterVerification: true,
             sendVerificationEmail: async ({ user, token }) => {
-              const url = `${config.get("FRONTEND_URL")}/verify-email?token=${token}`;
+              const url = `${config.get<string>("FRONTEND_URL")}/verify-email?token=${token}`;
               await emailService.sendVerificationEmail(user.email, url);
             },
           },

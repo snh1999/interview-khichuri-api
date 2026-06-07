@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { ConfigService } from "@nestjs/config";
 
 export const basicSchema = z.object({
+  NODE_ENV: z.enum(["development", "production", "test", "local"]),
   DATABASE_URL: z.url(),
   FRONTEND_URL: z.url(),
 });
@@ -21,6 +21,5 @@ export const envSchema = basicSchema.extend({
   RESEND_FROM_EMAIL: z.email(),
 });
 
-type TEnv = z.infer<typeof envSchema>;
-
-export type AppConfig = ConfigService<TEnv, true>;
+export type TBasicSchema = z.infer<typeof basicSchema>;
+export type TEnvSchema = z.infer<typeof envSchema>;
