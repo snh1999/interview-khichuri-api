@@ -37,6 +37,9 @@ const postgresTableRegistry = {
   [getTableName(schemas.roles)]: schemas.roles,
   [getTableName(schemas.topics)]: schemas.topics,
   [getTableName(schemas.job_topics)]: schemas.job_topics,
+  [getTableName(schemas.prep_session)]: schemas.prep_session,
+  [getTableName(schemas.session_topics)]: schemas.session_topics,
+  [getTableName(schemas.questions)]: schemas.questions,
 } as const;
 
 type TdbQuery = TdbPostgres extends { query: infer Q } ? Q : never;

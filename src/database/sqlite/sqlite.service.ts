@@ -40,6 +40,9 @@ const sqliteTableRegistry = {
   [getTableName(schemas.roles)]: schemas.roles,
   [getTableName(schemas.topics)]: schemas.topics,
   [getTableName(schemas.job_topics)]: schemas.job_topics,
+  [getTableName(schemas.prep_session)]: schemas.prep_session,
+  [getTableName(schemas.session_topics)]: schemas.session_topics,
+  [getTableName(schemas.questions)]: schemas.questions,
 } as const;
 
 export type TdbSqlite = BetterSQLite3Database<typeof schemas>;
@@ -207,12 +210,12 @@ export class SqliteService implements IDatabaseService {
     };
   }
 
-  public findById<K extends TsqliteTableKey>(
+  public async findById<K extends TsqliteTableKey>(
     schemaName: K,
     id: string | number,
     columns?: TColumnFilter<K>[],
     relations?: TsqliteWithRelations<K>,
-  ): InferSelectModel<TsqliteTableRegistry[K]> {
+  ): Promise<InferSelectModel<TsqliteTableRegistry[K]>> {
     const schema = sqliteTableRegistry[schemaName];
     if (
       typeof id === "string" &&
@@ -235,7 +238,7 @@ export class SqliteService implements IDatabaseService {
     const queryWithRelations = relations && Object.keys(relations).length > 0;
 
     if (queryWithRelations) {
-      const data = this.db.query[schemaName].findFirst({
+      const data = await this.db.query[schemaName].findFirst({
         where: conditions.length ? and(...allConditions) : eq(schema.id, id),
         with: relations,
       });
@@ -336,11 +339,13 @@ export class SqliteService implements IDatabaseService {
 
     if (tableNames.length === 0) return;
 
+    this.db.run(sql.raw("PRAGMA foreign_keys = OFF"));
     this.db.transaction((tx) => {
       for (const table of tableNames) {
         tx.run(sql.raw(`DELETE FROM "${table}"`));
       }
     });
+    this.db.run(sql.raw("PRAGMA foreign_keys = ON"));
   }
 
   private _buildConditions<T extends SQLiteTable>(

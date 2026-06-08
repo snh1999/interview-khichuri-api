@@ -2,7 +2,6 @@ import { Injectable } from "@nestjs/common";
 
 import { IDatabaseService } from "@/src/database/database.service";
 import { TRole } from "@/src/database/database.types";
-
 import { CreateLookupDto, UpdateLookupDto } from "@/src/lookups/lookups.dto";
 
 @Injectable()

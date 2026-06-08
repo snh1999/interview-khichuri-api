@@ -9,7 +9,13 @@ import type {
   TpgTableRegistry,
   TpgWithRelations,
 } from "@/src/database/postgres/postgres.service";
-import type { jobs, roles, topics } from "@/src/database/postgres/schemas";
+import type {
+  jobs,
+  prep_session,
+  questions,
+  roles,
+  topics,
+} from "@/src/database/postgres/schemas";
 import type {
   TdbSqlite,
   TSqliteCols,
@@ -34,12 +40,23 @@ export type TRoleInsert = InferInsertModel<typeof roles>;
 export type TTopics = InferSelectModel<typeof topics>;
 export type TTopicsInsert = InferInsertModel<typeof topics>;
 
-type TJobTopicRelation = {
+export type TPrepSession = InferSelectModel<typeof prep_session>;
+export type TPrepSessionInsert = InferInsertModel<typeof prep_session>;
+export type TQuestion = InferSelectModel<typeof questions>;
+export type TQuestionInsert = InferInsertModel<typeof questions>;
+
+export type TPrepSessionWithQuestions = InferSelectModel<
+  typeof prep_session
+> & {
+  questions: TQuestion[];
+};
+
+interface TJobTopicRelation {
   id: number;
   jobId: string;
   topicId: number;
   topic: InferSelectModel<typeof topics>;
-};
+}
 
 export type TJobWithTopics = InferSelectModel<typeof jobs> & {
   jobTopics: TJobTopicRelation[];

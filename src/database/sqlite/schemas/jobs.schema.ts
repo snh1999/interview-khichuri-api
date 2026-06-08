@@ -1,5 +1,7 @@
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+import { session_topics } from "@/src/database/sqlite/schemas/prepSession.schema";
 
 export const jobs = sqliteTable("jobs", {
   id: text("id")
@@ -65,4 +67,5 @@ export const jobTopicRelations = relations(job_topics, ({ one }) => ({
 
 export const topicRelations = relations(topics, ({ many }) => ({
   jobTopics: many(job_topics),
+  sessionTopics: many(session_topics),
 }));

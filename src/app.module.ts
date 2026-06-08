@@ -12,6 +12,7 @@ import { EmailModule } from "./email/email.module";
 import { HealthModule } from "./health/health.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { LookupsModule } from "./lookups/lookups.module";
+import { PrepSessionModule } from "./prep-session/prep-session.module";
 
 const isApplicationMode = Boolean(process.env.IS_APP_MODE);
 
@@ -36,6 +37,7 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     HealthModule,
     JobsModule,
     LookupsModule,
+    PrepSessionModule,
   ],
   providers: [
     {

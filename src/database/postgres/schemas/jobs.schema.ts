@@ -12,6 +12,8 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
+import { session_topics } from "@/src/database/postgres/schemas/prepSession.schema";
+
 import { user } from "./auth.schema";
 
 export const statusEnum = pgEnum("status", ["applied", "saved", "scheduled"]);
@@ -113,4 +115,5 @@ export const jobTopicRelations = relations(job_topics, ({ one }) => ({
 
 export const topicRelations = relations(topics, ({ many }) => ({
   jobTopics: many(job_topics),
+  sessionTopics: many(session_topics),
 }));
