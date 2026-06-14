@@ -1,5 +1,13 @@
 import { relations } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  unique,
+} from "drizzle-orm/sqlite-core";
+
+import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
 
 import { topics, roles } from "./lookups.schema";
 
@@ -19,24 +27,25 @@ export const jobs = sqliteTable("jobs", {
   links: text("links"),
   notes: text("notes"),
   deadline: integer("deadline", { mode: "timestamp" }),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .$defaultFn(() => new Date())
-    .notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .$defaultFn(() => new Date())
-    .$onUpdate(() => new Date())
-    .notNull(),
+  ...defaultTimeStamps,
 });
 
-export const job_topics = sqliteTable("job_topics", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  jobId: text("job_id")
-    .notNull()
-    .references(() => jobs.id, { onDelete: "cascade" }),
-  topicId: integer("topic_id")
-    .notNull()
-    .references(() => topics.id, { onDelete: "cascade" }),
-});
+export const job_topics = sqliteTable(
+  "job_topics",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    topicId: integer("topic_id")
+      .notNull()
+      .references(() => topics.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("idx_job_id").on(table.jobId),
+    unique("idx_job_topics_unique").on(table.jobId, table.topicId),
+  ],
+);
 
 export const jobRelations = relations(jobs, ({ many }) => ({
   jobTopics: many(job_topics),

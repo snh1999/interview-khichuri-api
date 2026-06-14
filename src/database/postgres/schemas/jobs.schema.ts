@@ -11,6 +11,8 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
+import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
+
 import { user } from "./auth.schema";
 import { roles, topics } from "./lookups.schema";
 
@@ -30,11 +32,7 @@ export const jobs = pgTable(
     links: text("links"), // TODO make array
     notes: text("notes"),
     deadline: timestamp("deadline"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
+    ...defaultTimeStamps,
   },
   (table) => [
     index("job_creator_index").on(table.userId),

@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   Get,
   HttpCode,
@@ -20,7 +19,11 @@ import type {
   TQuestion,
 } from "@/src/database/database.types";
 
-import { QuestionDto, UpdateQuestionDto } from "./dto/question.dto";
+import {
+  FindQuestionsDto,
+  QuestionDto,
+  UpdateQuestionDto,
+} from "./dto/question.dto";
 import { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
 import { PrepSessionService } from "./prep-session.service";
 
@@ -79,15 +82,14 @@ export class PrepSessionController {
   @Get(":sessionId/questions")
   public findQuestions(
     @Param("sessionId") sessionId: string,
-    @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query("limit", new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query() query: FindQuestionsDto,
     @UserId() userId?: string,
   ): Promise<TQuestion[]> {
     return this.prepSessionService.findQuestions(
       sessionId,
       {
-        offset: (page - 1) * limit,
-        limit,
+        offset: (query.page - 1) * query.limit,
+        limit: query.limit,
       },
       userId,
     );

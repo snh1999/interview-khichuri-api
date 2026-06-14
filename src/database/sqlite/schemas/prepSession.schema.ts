@@ -1,4 +1,4 @@
-import { relations, sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import {
   index,
   integer,
@@ -6,6 +6,8 @@ import {
   text,
   unique,
 } from "drizzle-orm/sqlite-core";
+
+import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
 
 import { jobs } from "./jobs.schema";
 import { roles, topics } from "./lookups.schema";
@@ -17,19 +19,13 @@ export const prep_session = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     userId: text("user_id"),
-    jobId: text("job_id").references(() => jobs.id),
+    jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),
     experience: text("experience"),
     description: text("description"),
-    createdAt: integer("created_at", { mode: "timestamp" })
-      .notNull()
-      .default(sql`(unixepoch())`),
-    updatedAt: integer("updated_at", { mode: "timestamp" })
-      .notNull()
-      .default(sql`(unixepoch())`)
-      .$onUpdate(() => new Date()),
+    ...defaultTimeStamps,
   },
   (table) => [
     index("idx_session_user_id").on(table.userId),
@@ -58,17 +54,11 @@ export const questions = sqliteTable("questions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sessionId: text("session_id")
     .notNull()
-    .references(() => prep_session.id),
+    .references(() => prep_session.id, { onDelete: "cascade" }),
   answer: text("answer"),
   notes: text("notes"),
   isFavorite: integer("is_favorite", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`)
-    .$onUpdate(() => new Date()),
+  ...defaultTimeStamps,
 });
 
 export const sessionRelations = relations(prep_session, ({ many }) => ({

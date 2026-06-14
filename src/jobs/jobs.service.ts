@@ -34,7 +34,8 @@ export class JobsService {
     topicIds?: number[],
   ) {
     if (topicIds?.length) {
-      const jobTopics = topicIds.map((topicId) => ({
+      const uniqueTopicIds = [...new Set(topicIds)];
+      const jobTopics = uniqueTopicIds.map((topicId) => ({
         jobId: jobId,
         topicId,
       }));

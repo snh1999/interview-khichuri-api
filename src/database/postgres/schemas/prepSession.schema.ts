@@ -6,10 +6,11 @@ import {
   pgTable,
   serial,
   text,
-  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+
+import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
 
 import { user } from "./auth.schema";
 import { jobs } from "./jobs.schema";
@@ -20,17 +21,13 @@ export const prep_session = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
-    jobId: uuid("job_id").references(() => jobs.id),
+    jobId: uuid("job_id").references(() => jobs.id, { onDelete: "set null" }),
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),
     experience: text("experience"),
     description: text("description"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
+    ...defaultTimeStamps,
   },
   (table) => [
     index("idx_session_user_id").on(table.userId),
@@ -59,15 +56,11 @@ export const questions = pgTable("questions", {
   id: serial("id").primaryKey(),
   sessionId: uuid("session_id")
     .notNull()
-    .references(() => prep_session.id),
+    .references(() => prep_session.id, { onDelete: "cascade" }),
   answer: text("answer"),
   notes: text("notes"),
   isFavorite: boolean("is_favorite").default(false),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
+  ...defaultTimeStamps,
 });
 
 export const sessionRelations = relations(prep_session, ({ many }) => ({

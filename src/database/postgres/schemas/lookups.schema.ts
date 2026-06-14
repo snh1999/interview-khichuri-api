@@ -8,7 +8,7 @@ export const roles = pgTable(
   "roles",
   {
     id: serial("id").primaryKey(),
-    name: text("name").notNull(),
+    name: text("name").notNull().unique(),
     isApproved: boolean("isApproved"),
   },
   (table) => [
@@ -23,7 +23,7 @@ export const topics = pgTable(
   "topics",
   {
     id: serial("id").primaryKey(),
-    name: text("name").notNull(),
+    name: text("name").notNull().unique(),
     isApproved: boolean("isApproved"),
   },
   (table) => [

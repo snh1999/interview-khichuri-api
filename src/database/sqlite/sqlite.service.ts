@@ -339,12 +339,15 @@ export class SqliteService implements IDatabaseService {
     if (tableNames.length === 0) return;
 
     this.db.run(sql.raw("PRAGMA foreign_keys = OFF"));
-    this.db.transaction((tx) => {
-      for (const table of tableNames) {
-        tx.run(sql.raw(`DELETE FROM "${table}"`));
-      }
-    });
-    this.db.run(sql.raw("PRAGMA foreign_keys = ON"));
+    try {
+      this.db.transaction((tx) => {
+        for (const table of tableNames) {
+          tx.run(sql.raw(`DELETE FROM "${table}"`));
+        }
+      });
+    } finally {
+      this.db.run(sql.raw("PRAGMA foreign_keys = ON"));
+    }
   }
 
   private _buildConditions<T extends SQLiteTable>(
