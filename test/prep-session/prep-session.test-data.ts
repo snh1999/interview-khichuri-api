@@ -2,30 +2,29 @@
 import { faker } from "@faker-js/faker/locale/en";
 import { expect } from "vitest";
 
-import type { TJob, TJobInsert } from "@/src/database/database.types";
-import { statusEnum } from "@/src/database/postgres/schemas";
+import type {
+  TPrepSession,
+  TPrepSessionInsert,
+} from "@/src/database/database.types";
 
 import {
-  expectEnum,
   expectNullableNumber,
   expectNullableString,
 } from "../utils/data-helpers";
 
-export const getJobPayload = (data?: Partial<TJob>): TJobInsert => ({
-  title: faker.string.alphanumeric(10),
+export const getPrepSessionPayload = (
+  data?: Partial<TPrepSession>,
+): TPrepSessionInsert => ({
   description: faker.string.sample(15),
   ...data,
 });
 
-export const expectedJobStructure = () =>
+export const expectedPrepSessionStructure = () =>
   expect.objectContaining({
-    title: expect.any(String),
     description: expect.any(String),
-    status: expectEnum(statusEnum.enumValues),
+    experience: expectNullableString,
+    jobId: expectNullableString,
     roleId: expectNullableNumber,
-    deadline: expectNullableString,
-    links: expectNullableString,
-    notes: expectNullableString,
     createdAt: expect.any(String),
     updatedAt: expect.any(String),
   });

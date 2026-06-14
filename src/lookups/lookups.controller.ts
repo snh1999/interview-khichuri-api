@@ -1,49 +1,61 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
   Body,
-  Param,
-  ParseIntPipe,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
 } from "@nestjs/common";
 import { Roles } from "@thallesp/nestjs-better-auth";
 
-import { TRole } from "@/src/database/database.types";
-import { CreateRoleDto, UpdateRoleDto } from "@/src/lookups/dto/roles.dto";
+import { TLookupMap, LookupSchemaPipe } from "@/src/lookups/lookups.helpers";
 
+import { CreateLookupDto, UpdateLookupDto } from "./lookups.dto";
+import type { TLookupSchema } from "./lookups.helpers";
 import { LookupsService } from "./lookups.service";
 
-@Controller("lookups")
+@Controller("lookups/:schema")
 export class LookupsController {
   constructor(private readonly lookupsService: LookupsService) {}
 
-  @Post("role")
-  createRole(@Body() createRoleDto: CreateRoleDto): Promise<TRole> {
-    return this.lookupsService.createRole(createRoleDto);
+  @Post()
+  public create<T extends TLookupSchema>(
+    @Param("schema", LookupSchemaPipe) schema: T,
+    @Body() dto: CreateLookupDto,
+  ): Promise<TLookupMap[T]> {
+    return this.lookupsService.create(schema, dto);
   }
 
-  @Get("role")
-  findAllRoles(): Promise<TRole[]> {
-    return this.lookupsService.findAll();
+  @Get()
+  public findAll<T extends TLookupSchema>(
+    @Param("schema", LookupSchemaPipe) schema: T,
+    @Query("name") name?: string,
+  ): Promise<TLookupMap[T][]> {
+    return this.lookupsService.findAll(schema, name);
   }
 
-  @Patch("role/:id")
+  @Patch(":id")
   @Roles(["admin"])
-  updateRole(
+  public update<T extends TLookupSchema>(
+    @Param("schema", LookupSchemaPipe) schema: T,
     @Param("id", ParseIntPipe) id: number,
-    @Body() updateRoleDto: UpdateRoleDto,
-  ): Promise<TRole> {
-    return this.lookupsService.updateRole(id, updateRoleDto);
+    @Body() dto: UpdateLookupDto,
+  ): Promise<TLookupMap[T]> {
+    return this.lookupsService.update(schema, id, dto);
   }
 
-  @Delete("role/:id")
+  @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(["admin"])
-  deleteRole(@Param("id", ParseIntPipe) id: number): Promise<void> {
-    return this.lookupsService.deleteRole(id);
+  public delete(
+    @Param("schema", LookupSchemaPipe) schema: TLookupSchema,
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<void> {
+    return this.lookupsService.delete(schema, id);
   }
 }

@@ -7,21 +7,60 @@ import type {
   TpgCols,
   TpgTableKey,
   TpgTableRegistry,
+  TpgWithRelations,
 } from "@/src/database/postgres/postgres.service";
-import type { jobSchema, roleSchema } from "@/src/database/postgres/schemas";
+import type {
+  jobs,
+  prep_session,
+  questions,
+  roles,
+  topics,
+} from "@/src/database/postgres/schemas";
 import type {
   TdbSqlite,
   TSqliteCols,
   TsqliteTableRegistry,
+  TsqliteWithRelations,
 } from "@/src/database/sqlite/sqlite.service";
 
 export type TReturn<T> = Promise<T> | T;
 export type TDatabase = TdbPostgres | TdbSqlite;
-// postgres schema get precedence over sqlite extra userId (optional) field,
-export type TJob = InferSelectModel<typeof jobSchema>;
-export type TJobInsert = InferInsertModel<typeof jobSchema>;
-export type TRole = InferSelectModel<typeof roleSchema>;
-export type TRoleInsert = InferInsertModel<typeof roleSchema>;
+
+export type TdbWithRelations<K extends TpgTableKey> =
+  | TsqliteWithRelations<K>
+  | TpgWithRelations<K>;
+
+// postgres schema get precedence over sqlite for extra FK userId (optional),
+export type TJob = InferSelectModel<typeof jobs>;
+export type TJobInsert = InferInsertModel<typeof jobs>;
+
+export type TRole = InferSelectModel<typeof roles>;
+export type TRoleInsert = InferInsertModel<typeof roles>;
+
+export type TTopics = InferSelectModel<typeof topics>;
+export type TTopicsInsert = InferInsertModel<typeof topics>;
+
+export type TPrepSession = InferSelectModel<typeof prep_session>;
+export type TPrepSessionInsert = InferInsertModel<typeof prep_session>;
+export type TQuestion = InferSelectModel<typeof questions>;
+export type TQuestionInsert = InferInsertModel<typeof questions>;
+
+export type TPrepSessionWithQuestions = InferSelectModel<
+  typeof prep_session
+> & {
+  questions: TQuestion[];
+};
+
+interface TJobTopicRelation {
+  id: number;
+  jobId: string;
+  topicId: number;
+  topic: InferSelectModel<typeof topics>;
+}
+
+export type TJobWithTopics = InferSelectModel<typeof jobs> & {
+  jobTopics: TJobTopicRelation[];
+};
 
 export interface TPagination {
   limit: number;
@@ -35,6 +74,11 @@ export type TInsert<K extends TpgTableKey> =
 export type TSelect<K extends TpgTableKey> =
   | InferSelectModel<TpgTableRegistry[K]>
   | InferSelectModel<TsqliteTableRegistry[K]>;
+
+export interface TSearchResult<K extends TpgTableKey> {
+  data: TSelect<K>[];
+  total?: number;
+}
 
 export type TColumnNames<K extends TpgTableKey> = TpgCols<K> | TSqliteCols<K>;
 

@@ -8,6 +8,7 @@ import type { TJobInsert } from "@/src/database/database.types";
 import { expectedJobStructure, getJobPayload } from "./job.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
+import { createTestRole, createTestTopic } from "../utils/test-data";
 
 const isAppMode = Boolean(process.env.IS_APP_MODE);
 
@@ -107,17 +108,64 @@ describe("Jobs (e2e)", () => {
     });
 
     it("should create a job with a valid roleId", async () => {
-      const { body: roleBody } = await auth(httpServer.post("/lookups/role"))
-        .send({ name: "Engineer" })
-        .expect(201);
-
-      const roleId: number = roleBody.data.id;
+      const role = await createTestRole(httpServer, authCookie);
+      const roleId: number = role.id;
 
       const { body } = await auth(httpServer.post("/jobs"))
         .send({ ...jobPayload, roleId })
         .expect(201);
 
       expect(body.data.roleId).toBe(roleId);
+    });
+
+    it("should create a job with topicIds", async () => {
+      const topic1 = await createTestTopic(httpServer, authCookie);
+      const topic2 = await createTestTopic(httpServer, authCookie);
+
+      const topicIds = [topic1.id, topic2.id];
+
+      const { body } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, topicIds })
+        .expect(201);
+
+      expect(body.data.topicIds).toBeUndefined();
+    });
+
+    it("should create a job with links and notes", async () => {
+      const payload = {
+        ...jobPayload,
+        links: "https://example.com/job-posting",
+        notes: "Follow up with recruiter",
+      };
+
+      const { body } = await auth(httpServer.post("/jobs"))
+        .send(payload)
+        .expect(201);
+
+      expect(body.data.links).toBe(payload.links);
+      expect(body.data.notes).toBe(payload.notes);
+    });
+
+    it("should create a job with deadline", async () => {
+      const deadline = "2025-12-31T23:59:59.000Z";
+
+      const { body } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, deadline })
+        .expect(201);
+
+      expect(body.data.deadline).toEqual(expect.any(String));
+    });
+
+    it("should return 400 for non-integer topicIds", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, topicIds: ["abc"] })
+        .expect(400);
+    });
+
+    it("should return 400 for topicIds with non-positive values", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, topicIds: [0] })
+        .expect(400);
     });
 
     it("should return 400 for whitespace-only title", async () => {
@@ -213,6 +261,101 @@ describe("Jobs (e2e)", () => {
       if (isAppMode) return;
       await httpServer.get("/jobs").expect(401);
     });
+
+    it("should search jobs by title", async () => {
+      await createJob({
+        title: "React Developer",
+        description: "Frontend role",
+      });
+      await createJob({ title: "Backend Engineer", description: "API role" });
+
+      const { body } = await auth(httpServer.get("/jobs?search=react")).expect(
+        200,
+      );
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].title).toBe("React Developer");
+    });
+
+    it("should return empty list when search does not match", async () => {
+      await createJob({
+        title: "React Developer",
+        description: "Frontend role",
+      });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?search=nonexistent"),
+      ).expect(200);
+
+      expect(body.data).toEqual([]);
+    });
+
+    it("should return all jobs when no search query given", async () => {
+      await createJob({ title: "Job A", description: "Desc A" });
+      await createJob({ title: "Job B", description: "Desc B" });
+
+      const { body } = await auth(httpServer.get("/jobs")).expect(200);
+
+      expect(body.data).toHaveLength(2);
+    });
+
+    it("should search jobs by description", async () => {
+      await createJob({
+        title: "Frontend Dev",
+        description: "React and TypeScript",
+      });
+      await createJob({
+        title: "Backend Dev",
+        description: "Node and Postgres",
+      });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?search=typescript"),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].description).toBe("React and TypeScript");
+    });
+
+    it("should return multiple jobs when search matches several", async () => {
+      await createJob({
+        title: "Junior Developer",
+        description: "Entry level",
+      });
+      await createJob({ title: "Senior Developer", description: "Lead role" });
+      await createJob({ title: "DevOps Engineer", description: "Infra role" });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?search=developer"),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(2);
+    });
+
+    it("should scope search to the authenticated user in web mode", async () => {
+      if (isAppMode) return;
+
+      await createJob({
+        title: "My Job",
+        description: "Belongs to me",
+      });
+
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+      await createJob(
+        { title: "Other Job", description: "Not mine" },
+        otherCookie,
+      );
+
+      const { body } = await auth(httpServer.get("/jobs?search=job")).expect(
+        200,
+      );
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].title).toBe("My Job");
+    });
   });
 
   describe("GET /jobs/:id", () => {
@@ -226,6 +369,24 @@ describe("Jobs (e2e)", () => {
 
       expect(body.data).toMatchObject({ ...created });
       expect(body.data).toMatchObject(expectedJobStructure());
+      expect(body.data.jobTopics).toEqual([]);
+    });
+
+    it("should return populated jobTopics when job has topics", async () => {
+      const topic = await createTestTopic(httpServer, authCookie);
+      const topicIds = [topic.id];
+
+      const {
+        body: { data: created },
+      } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, topicIds })
+        .expect(201);
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.get(`/jobs/${jobId}`)).expect(200);
+
+      expect(body.data.jobTopics).toHaveLength(1);
+      expect(body.data.jobTopics[0].topic.id).toBe(topicIds[0]);
     });
 
     it("should return 404 trying to access other user's job by id in web mode", async () => {
@@ -305,11 +466,8 @@ describe("Jobs (e2e)", () => {
       } = await createJob();
       const jobId: string = created.id;
 
-      const { body: roleBody } = await auth(httpServer.post("/lookups/role"))
-        .send({ name: "Manager" })
-        .expect(201);
-
-      const roleId: number = roleBody.data.id;
+      const role = await createTestRole(httpServer, authCookie);
+      const roleId: number = role.id;
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
         .send({ roleId })
@@ -317,6 +475,90 @@ describe("Jobs (e2e)", () => {
         .expect(({ body: { data } }) => {
           expect(data.roleId).toBe(roleId);
         });
+    });
+
+    it("should update topicIds", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const topic = await createTestTopic(httpServer, authCookie);
+      const topicIds = [topic.id];
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ title: "Updated Job", topicIds })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.title).toBe("Updated Job");
+          expect(data.jobTopics).toHaveLength(1);
+          expect(data.jobTopics[0].topic.id).toBe(topicIds[0]);
+        });
+    });
+
+    it("should update links and notes", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const links = "https://example.com/updated";
+      const notes = "Updated notes about the job";
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ links, notes })
+        .expect(200);
+
+      expect(body.data.links).toBe(links);
+      expect(body.data.notes).toBe(notes);
+    });
+
+    it("should update deadline", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const deadline = "2025-06-15T00:00:00.000Z";
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ deadline })
+        .expect(200);
+
+      expect(body.data.deadline).toEqual(expect.any(String));
+    });
+
+    it("should update only topicIds", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const topic = await createTestTopic(httpServer, authCookie);
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ topicIds: [topic.id] })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.jobTopics).toHaveLength(1);
+          expect(data.jobTopics[0].topic.id).toBe(topic.id);
+        });
+    });
+
+    it("should clear topicIds when patching with empty array", async () => {
+      const topic = await createTestTopic(httpServer, authCookie);
+
+      const {
+        body: { data: created },
+      } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, topicIds: [topic.id] })
+        .expect(201);
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ topicIds: [] })
+        .expect(200);
+
+      expect(body.data.jobTopics).toHaveLength(0);
     });
 
     it("should return 400 when patching with non-integer roleId", async () => {
@@ -338,6 +580,17 @@ describe("Jobs (e2e)", () => {
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
         .send({ title: "" })
+        .expect(400);
+    });
+
+    it("should return 400 when patching with topicIds with non-positive values", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ topicIds: [0] })
         .expect(400);
     });
 

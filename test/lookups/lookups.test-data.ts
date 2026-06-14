@@ -5,14 +5,16 @@ import { expect } from "vitest";
 
 import type { TRole, TRoleInsert } from "@/src/database/database.types";
 
-export const getRolePayload = (data?: Partial<TRole>): TRoleInsert => ({
+import { expectNullableBoolean } from "../utils/data-helpers";
+
+export const getLookupPayload = (data?: Partial<TRole>): TRoleInsert => ({
   name: faker.string.alphanumeric(10),
   ...data,
 });
 
-export const expectedRoleStructure = () =>
+export const expectedLookupStructure = () =>
   expect.objectContaining({
     id: expect.any(Number),
     name: expect.any(String),
-    isApproved: null,
+    isApproved: expectNullableBoolean,
   });
