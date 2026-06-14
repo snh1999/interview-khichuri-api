@@ -98,7 +98,9 @@ export class PrepSessionService {
   public async addQuestion(
     sessionId: string,
     dto: QuestionDto,
+    userId?: string,
   ): Promise<TQuestion> {
+    await this.findOne(sessionId, userId);
     // eslint-disable-next-line @typescript-eslint/no-misused-spread
     return this.db.create("questions", { ...dto, sessionId });
   }
@@ -106,7 +108,9 @@ export class PrepSessionService {
   public async findQuestions(
     sessionId: string,
     pagination?: TPagination,
+    userId?: string,
   ): Promise<TQuestion[]> {
+    await this.findOne(sessionId, userId);
     return this.db.findAllByColumn(
       "questions",
       [{ columnName: "sessionId", value: sessionId }],
@@ -116,16 +120,29 @@ export class PrepSessionService {
 
   public async updateQuestion(
     id: number,
+    sessionId: string,
     dto: UpdateQuestionDto,
+    userId?: string,
   ): Promise<TQuestion> {
+    await this.findOne(sessionId, userId);
+
     const [result] = await this.db.update("questions", dto, [
       { columnName: "id", value: id },
+      { columnName: "sessionId", value: sessionId },
     ]);
     return result;
   }
 
-  public async deleteQuestion(id: number): Promise<void> {
-    return this.db.delete("questions", [{ columnName: "id", value: id }]);
+  public async deleteQuestion(
+    id: number,
+    sessionId: string,
+    userId?: string,
+  ): Promise<void> {
+    await this.findOne(sessionId, userId);
+    return this.db.delete("questions", [
+      { columnName: "sessionId", value: sessionId },
+      { columnName: "id", value: id },
+    ]);
   }
 
   private async _createSessionTopics(

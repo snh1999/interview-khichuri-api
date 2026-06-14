@@ -71,8 +71,9 @@ export class PrepSessionController {
   public addQuestion(
     @Param("sessionId") sessionId: string,
     @Body() dto: QuestionDto,
+    @UserId() userId?: string,
   ): Promise<TQuestion> {
-    return this.prepSessionService.addQuestion(sessionId, dto);
+    return this.prepSessionService.addQuestion(sessionId, dto, userId);
   }
 
   @Get(":sessionId/questions")
@@ -80,26 +81,35 @@ export class PrepSessionController {
     @Param("sessionId") sessionId: string,
     @Query("page", new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query("limit", new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @UserId() userId?: string,
   ): Promise<TQuestion[]> {
-    return this.prepSessionService.findQuestions(sessionId, {
-      offset: (page - 1) * limit,
-      limit,
-    });
+    return this.prepSessionService.findQuestions(
+      sessionId,
+      {
+        offset: (page - 1) * limit,
+        limit,
+      },
+      userId,
+    );
   }
 
-  @Patch("questions/:id")
+  @Patch(":sessionId/questions/:id")
   public updateQuestion(
+    @Param("sessionId") sessionId: string,
     @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateQuestionDto,
+    @UserId() userId?: string,
   ): Promise<TQuestion> {
-    return this.prepSessionService.updateQuestion(id, dto);
+    return this.prepSessionService.updateQuestion(id, sessionId, dto, userId);
   }
 
-  @Delete("questions/:id")
+  @Delete(":sessionId/questions/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async removeQuestion(
     @Param("id", ParseIntPipe) id: number,
+    @Param("sessionId") sessionId: string,
+    @UserId() userId?: string,
   ): Promise<void> {
-    await this.prepSessionService.deleteQuestion(id);
+    await this.prepSessionService.deleteQuestion(id, sessionId, userId);
   }
 }

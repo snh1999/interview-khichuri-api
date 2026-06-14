@@ -10,7 +10,7 @@ import { bootstrapTestServer } from "../utils/bootstrap";
 
 const isAppMode = Boolean(process.env.IS_APP_MODE);
 
-const entities = ["roles", "topics"] as const;
+const entities = ["roles", "topics", "industries"] as const;
 
 describe.each(entities)("Lookups - %s (e2e)", (entity) => {
   let app: INestApplication;
@@ -19,6 +19,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
   let authCookie: string;
   let adminAuthCookie: string;
 
+  const routePath = "/lookups/" + entity;
   const singular = entity === "roles" ? "role" : "topic";
   const updatedName = `Updated ${entity === "roles" ? "Role" : "Topic"} Name`;
 
@@ -57,10 +58,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
   const create = (
     payload: Record<string, unknown> = getLookupPayload(),
     userCookie?: string,
-  ) =>
-    auth(httpServer.post(`/${entity}`), userCookie)
-      .send(payload)
-      .expect(201);
+  ) => auth(httpServer.post(routePath), userCookie).send(payload).expect(201);
 
   describe(`POST /${entity}`, () => {
     it(`should create a ${singular}`, async () => {
@@ -77,34 +75,26 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
     });
 
     it("should return 400 when name is missing", async () =>
-      auth(httpServer.post(`/${entity}`))
-        .send({})
-        .expect(400));
+      auth(httpServer.post(routePath)).send({}).expect(400));
 
     it("should return 400 when name is empty", async () =>
-      auth(httpServer.post(`/${entity}`))
-        .send({ name: "" })
-        .expect(400));
+      auth(httpServer.post(routePath)).send({ name: "" }).expect(400));
 
     it("should return 400 when name is too short", async () =>
-      auth(httpServer.post(`/${entity}`))
-        .send({ name: "a" })
-        .expect(400));
+      auth(httpServer.post(routePath)).send({ name: "a" }).expect(400));
 
     it("should return 400 when name is whitespace only", async () =>
-      auth(httpServer.post(`/${entity}`))
-        .send({ name: "   " })
-        .expect(400));
+      auth(httpServer.post(routePath)).send({ name: "   " }).expect(400));
 
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
-      await httpServer.post(`/${entity}`).send(getLookupPayload()).expect(401);
+      await httpServer.post(routePath).send(getLookupPayload()).expect(401);
     });
   });
 
   describe(`GET /${entity}`, () => {
     it(`should return empty list when no ${entity} exist`, async () => {
-      const { body } = await auth(httpServer.get(`/${entity}`)).expect(200);
+      const { body } = await auth(httpServer.get(routePath)).expect(200);
 
       expect(body.data).toEqual([]);
     });
@@ -113,7 +103,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await create();
       await create();
 
-      await auth(httpServer.get(`/${entity}`))
+      await auth(httpServer.get(routePath))
         .expect(200)
         .expect(({ body: { data } }) => {
           expect(data).toHaveLength(2);
@@ -128,7 +118,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
         body: { data: created },
       } = await create(payload);
 
-      const { body } = await auth(httpServer.get(`/${entity}`)).expect(200);
+      const { body } = await auth(httpServer.get(routePath)).expect(200);
 
       expect(body.data).toHaveLength(1);
       expect(body.data[0]).toMatchObject({
@@ -138,7 +128,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
 
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
-      await httpServer.get(`/${entity}`).expect(401);
+      await httpServer.get(routePath).expect(401);
     });
 
     it(`should search ${entity} by name`, async () => {
@@ -146,7 +136,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await create({ name: "Backend Engineer" });
 
       const { body } = await auth(
-        httpServer.get(`/${entity}?name=developer`),
+        httpServer.get(`${routePath}?name=developer`),
       ).expect(200);
 
       expect(body.data).toHaveLength(1);
@@ -157,7 +147,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await create({ name: "Frontend Developer" });
 
       const { body } = await auth(
-        httpServer.get(`/${entity}?name=nonexistent`),
+        httpServer.get(`${routePath}?name=nonexistent`),
       ).expect(200);
 
       expect(body.data).toEqual([]);
@@ -167,7 +157,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await create({ name: "Alpha" });
       await create({ name: "Beta" });
 
-      const { body } = await auth(httpServer.get(`/${entity}`)).expect(200);
+      const { body } = await auth(httpServer.get(routePath)).expect(200);
 
       expect(body.data).toHaveLength(2);
     });
@@ -180,7 +170,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await auth(httpServer.patch(`/${entity}/${id}`), adminAuthCookie)
+      await auth(httpServer.patch(`${routePath}/${id}`), adminAuthCookie)
         .send({ name: updatedName })
         .expect(200)
         .expect(({ body: { data } }) => {
@@ -194,7 +184,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await auth(httpServer.patch(`/${entity}/${id}`), adminAuthCookie)
+      await auth(httpServer.patch(`${routePath}/${id}`), adminAuthCookie)
         .send({ isApproved: true })
         .expect(200)
         .expect(({ body: { data } }) => {
@@ -208,7 +198,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await auth(httpServer.patch(`/${entity}/${id}`), adminAuthCookie)
+      await auth(httpServer.patch(`${routePath}/${id}`), adminAuthCookie)
         .send({ name: "" })
         .expect(400);
     });
@@ -219,13 +209,13 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await auth(httpServer.patch(`/${entity}/${id}`))
+      await auth(httpServer.patch(`${routePath}/${id}`))
         .send({ name: "Hacked" })
         .expect(isAppMode ? 200 : 403);
     });
 
     it("should return 404 when patching non-existent entry", async () => {
-      await auth(httpServer.patch(`/${entity}/99999`), adminAuthCookie)
+      await auth(httpServer.patch(`${routePath}/99999`), adminAuthCookie)
         .send({ name: "Nope" })
         .expect(404);
     });
@@ -238,7 +228,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       const id: number = created.id;
 
       await httpServer
-        .patch(`/${entity}/${id}`)
+        .patch(`${routePath}/${id}`)
         .send({ name: "Nope" })
         .expect(401);
     });
@@ -251,9 +241,10 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await auth(httpServer.delete(`/${entity}/${id}`), adminAuthCookie).expect(
-        204,
-      );
+      await auth(
+        httpServer.delete(`${routePath}/${id}`),
+        adminAuthCookie,
+      ).expect(204);
     });
 
     it(`should remove the ${singular} from the list after deletion`, async () => {
@@ -264,11 +255,12 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await create();
       await create();
 
-      await auth(httpServer.delete(`/${entity}/${id}`), adminAuthCookie).expect(
-        204,
-      );
+      await auth(
+        httpServer.delete(`${routePath}/${id}`),
+        adminAuthCookie,
+      ).expect(204);
 
-      const { body } = await auth(httpServer.get(`/${entity}`)).expect(200);
+      const { body } = await auth(httpServer.get(routePath)).expect(200);
       const ids = (body.data as { id: number }[]).map((r) => r.id);
       expect(ids).not.toContain(id);
     });
@@ -281,11 +273,12 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await create();
       await create();
 
-      await auth(httpServer.delete(`/${entity}/${id}`), adminAuthCookie).expect(
-        204,
-      );
+      await auth(
+        httpServer.delete(`${routePath}/${id}`),
+        adminAuthCookie,
+      ).expect(204);
 
-      const { body } = await auth(httpServer.get(`/${entity}`)).expect(200);
+      const { body } = await auth(httpServer.get(routePath)).expect(200);
       expect(body.data).toHaveLength(2);
     });
 
@@ -295,14 +288,14 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await auth(httpServer.delete(`/${entity}/${id}`)).expect(
+      await auth(httpServer.delete(`${routePath}/${id}`)).expect(
         isAppMode ? 204 : 403,
       );
     });
 
     it("should return 404 when deleting non-existent entry", async () => {
       const { body } = await auth(
-        httpServer.delete(`/${entity}/99999`),
+        httpServer.delete(`${routePath}/99999`),
         adminAuthCookie,
       ).expect(404);
 
@@ -316,7 +309,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       } = await create();
       const id: number = created.id;
 
-      await httpServer.delete(`/${entity}/${id}`).expect(401);
+      await httpServer.delete(`${routePath}/${id}`).expect(401);
     });
   });
 });

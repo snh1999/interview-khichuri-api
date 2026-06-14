@@ -1,7 +1,7 @@
 import { relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { session_topics } from "@/src/database/sqlite/schemas/prepSession.schema";
+import { topics, roles } from "./lookups.schema";
 
 export const jobs = sqliteTable("jobs", {
   id: text("id")
@@ -28,12 +28,6 @@ export const jobs = sqliteTable("jobs", {
     .notNull(),
 });
 
-export const roles = sqliteTable("roles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull().unique(),
-  isApproved: integer({ mode: "boolean" }),
-});
-
 export const job_topics = sqliteTable("job_topics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   jobId: text("job_id")
@@ -42,12 +36,6 @@ export const job_topics = sqliteTable("job_topics", {
   topicId: integer("topic_id")
     .notNull()
     .references(() => topics.id, { onDelete: "cascade" }),
-});
-
-export const topics = sqliteTable("topics", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull().unique(),
-  isApproved: integer({ mode: "boolean" }),
 });
 
 export const jobRelations = relations(jobs, ({ many }) => ({
@@ -63,9 +51,4 @@ export const jobTopicRelations = relations(job_topics, ({ one }) => ({
     fields: [job_topics.topicId],
     references: [topics.id],
   }),
-}));
-
-export const topicRelations = relations(topics, ({ many }) => ({
-  jobTopics: many(job_topics),
-  sessionTopics: many(session_topics),
 }));

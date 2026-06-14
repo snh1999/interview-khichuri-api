@@ -7,7 +7,8 @@ import {
   unique,
 } from "drizzle-orm/sqlite-core";
 
-import { jobs, roles, topics } from "./jobs.schema";
+import { jobs } from "./jobs.schema";
+import { roles, topics } from "./lookups.schema";
 
 export const prep_session = sqliteTable(
   "prep_session",

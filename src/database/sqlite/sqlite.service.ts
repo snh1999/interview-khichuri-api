@@ -80,15 +80,14 @@ export class SqliteService implements IDatabaseService {
     fn: (tx: TdbSqlite) => Promise<T>,
   ): Promise<T> {
     this.db.run(sql`BEGIN`);
-    return fn(this.db)
-      .then((result) => {
-        this.db.run(sql`COMMIT`);
-        return result;
-      })
-      .catch((err: unknown) => {
-        this.db.run(sql`ROLLBACK`);
-        throw err;
-      });
+    try {
+      const result = await fn(this.db);
+      this.db.run(sql`COMMIT`);
+      return result;
+    } catch (err) {
+      this.db.run(sql`ROLLBACK`);
+      throw err;
+    }
   }
 
   public create<K extends TsqliteTableKey>(
@@ -108,7 +107,7 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName] as SQLiteTable;
-    return db.insert(schema).values(data).returning().get() as InferSelectModel<
+    return db.insert(schema).values(data).returning().all() as InferSelectModel<
       TsqliteTableRegistry[K]
     >[];
   }

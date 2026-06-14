@@ -8,6 +8,7 @@ import type { TJobInsert } from "@/src/database/database.types";
 import { expectedJobStructure, getJobPayload } from "./job.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
+import { createTestRole, createTestTopic } from "../utils/test-data";
 
 const isAppMode = Boolean(process.env.IS_APP_MODE);
 
@@ -107,11 +108,8 @@ describe("Jobs (e2e)", () => {
     });
 
     it("should create a job with a valid roleId", async () => {
-      const { body: roleBody } = await auth(httpServer.post("/roles"))
-        .send({ name: "Engineer" })
-        .expect(201);
-
-      const roleId: number = roleBody.data.id;
+      const role = await createTestRole(httpServer, authCookie);
+      const roleId: number = role.id;
 
       const { body } = await auth(httpServer.post("/jobs"))
         .send({ ...jobPayload, roleId })
@@ -121,14 +119,10 @@ describe("Jobs (e2e)", () => {
     });
 
     it("should create a job with topicIds", async () => {
-      const { body: topic1 } = await auth(httpServer.post("/topics"))
-        .send({ name: "System Design" })
-        .expect(201);
-      const { body: topic2 } = await auth(httpServer.post("/topics"))
-        .send({ name: "Algorithms" })
-        .expect(201);
+      const topic1 = await createTestTopic(httpServer, authCookie);
+      const topic2 = await createTestTopic(httpServer, authCookie);
 
-      const topicIds = [topic1.data.id, topic2.data.id];
+      const topicIds = [topic1.id, topic2.id];
 
       const { body } = await auth(httpServer.post("/jobs"))
         .send({ ...jobPayload, topicIds })
@@ -379,10 +373,8 @@ describe("Jobs (e2e)", () => {
     });
 
     it("should return populated jobTopics when job has topics", async () => {
-      const { body: topicBody } = await auth(httpServer.post("/topics"))
-        .send({ name: "System Design" })
-        .expect(201);
-      const topicIds = [topicBody.data.id];
+      const topic = await createTestTopic(httpServer, authCookie);
+      const topicIds = [topic.id];
 
       const {
         body: { data: created },
@@ -474,11 +466,8 @@ describe("Jobs (e2e)", () => {
       } = await createJob();
       const jobId: string = created.id;
 
-      const { body: roleBody } = await auth(httpServer.post("/roles"))
-        .send({ name: "Manager" })
-        .expect(201);
-
-      const roleId: number = roleBody.data.id;
+      const role = await createTestRole(httpServer, authCookie);
+      const roleId: number = role.id;
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
         .send({ roleId })
@@ -494,11 +483,8 @@ describe("Jobs (e2e)", () => {
       } = await createJob();
       const jobId: string = created.id;
 
-      const { body: topicBody } = await auth(httpServer.post("/topics"))
-        .send({ name: "Algorithms" })
-        .expect(201);
-
-      const topicIds = [topicBody.data.id];
+      const topic = await createTestTopic(httpServer, authCookie);
+      const topicIds = [topic.id];
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
         .send({ title: "Updated Job", topicIds })
@@ -548,28 +534,23 @@ describe("Jobs (e2e)", () => {
       } = await createJob();
       const jobId: string = created.id;
 
-      const { body: topicBody } = await auth(httpServer.post("/topics"))
-        .send({ name: "Machine Learning" })
-        .expect(201);
-
+      const topic = await createTestTopic(httpServer, authCookie);
       await auth(httpServer.patch(`/jobs/${jobId}`))
-        .send({ topicIds: [topicBody.data.id] })
+        .send({ topicIds: [topic.id] })
         .expect(200)
         .expect(({ body: { data } }) => {
           expect(data.jobTopics).toHaveLength(1);
-          expect(data.jobTopics[0].topic.id).toBe(topicBody.data.id);
+          expect(data.jobTopics[0].topic.id).toBe(topic.id);
         });
     });
 
     it("should clear topicIds when patching with empty array", async () => {
-      const { body: topicBody } = await auth(httpServer.post("/topics"))
-        .send({ name: "System Design" })
-        .expect(201);
+      const topic = await createTestTopic(httpServer, authCookie);
 
       const {
         body: { data: created },
       } = await auth(httpServer.post("/jobs"))
-        .send({ ...jobPayload, topicIds: [topicBody.data.id] })
+        .send({ ...jobPayload, topicIds: [topic.id] })
         .expect(201);
       const jobId: string = created.id;
 

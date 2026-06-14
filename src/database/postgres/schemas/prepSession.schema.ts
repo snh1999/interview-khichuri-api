@@ -12,7 +12,8 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { user } from "./auth.schema";
-import { jobs, roles, topics } from "./jobs.schema";
+import { jobs } from "./jobs.schema";
+import { roles, topics } from "./lookups.schema";
 
 export const prep_session = pgTable(
   "prep_session",

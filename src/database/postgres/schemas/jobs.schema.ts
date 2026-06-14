@@ -8,13 +8,11 @@ import {
   timestamp,
   uuid,
   pgEnum,
-  boolean,
   unique,
 } from "drizzle-orm/pg-core";
 
-import { session_topics } from "@/src/database/postgres/schemas/prepSession.schema";
-
 import { user } from "./auth.schema";
+import { roles, topics } from "./lookups.schema";
 
 export const statusEnum = pgEnum("status", ["applied", "saved", "scheduled"]);
 
@@ -51,21 +49,6 @@ export const jobs = pgTable(
   ],
 );
 
-export const roles = pgTable(
-  "roles",
-  {
-    id: serial("id").primaryKey(),
-    name: text("name").notNull(),
-    isApproved: boolean("isApproved"),
-  },
-  (table) => [
-    index("idx_roles_title_fts").using(
-      "gin",
-      sql`to_tsvector('english', ${table.name})`,
-    ),
-  ],
-);
-
 export const job_topics = pgTable(
   "job_topics",
   {
@@ -83,21 +66,6 @@ export const job_topics = pgTable(
   ],
 );
 
-export const topics = pgTable(
-  "topics",
-  {
-    id: serial("id").primaryKey(),
-    name: text("name").notNull(),
-    isApproved: boolean("isApproved"),
-  },
-  (table) => [
-    index("idx_topics_title_fts").using(
-      "gin",
-      sql`to_tsvector('english', ${table.name})`,
-    ),
-  ],
-);
-
 export const jobRelations = relations(jobs, ({ many }) => ({
   jobTopics: many(job_topics),
 }));
@@ -111,9 +79,4 @@ export const jobTopicRelations = relations(job_topics, ({ one }) => ({
     fields: [job_topics.topicId],
     references: [topics.id],
   }),
-}));
-
-export const topicRelations = relations(topics, ({ many }) => ({
-  jobTopics: many(job_topics),
-  sessionTopics: many(session_topics),
 }));

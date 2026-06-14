@@ -11,6 +11,7 @@ import {
 } from "./prep-session.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
+import { createTestRole, createTestTopic } from "../utils/test-data";
 
 const isAppMode = Boolean(process.env.IS_APP_MODE);
 
@@ -112,11 +113,8 @@ describe("PrepSession (e2e)", () => {
     });
 
     it("should create a session with a valid roleId", async () => {
-      const { body: roleBody } = await auth(httpServer.post("/roles"))
-        .send({ name: "Engineer" })
-        .expect(201);
-
-      const roleId: number = roleBody.data.id;
+      const role = await createTestRole(httpServer, authCookie);
+      const roleId: number = role.id;
 
       const { body } = await auth(httpServer.post("/prep-session"))
         .send({ ...sessionPayload, roleId })
@@ -126,14 +124,10 @@ describe("PrepSession (e2e)", () => {
     });
 
     it("should create a session with topicIds", async () => {
-      const { body: topic1 } = await auth(httpServer.post("/topics"))
-        .send({ name: "System Design" })
-        .expect(201);
-      const { body: topic2 } = await auth(httpServer.post("/topics"))
-        .send({ name: "Algorithms" })
-        .expect(201);
+      const topic1 = await createTestTopic(httpServer, authCookie);
+      const topic2 = await createTestTopic(httpServer, authCookie);
 
-      const topicIds = [topic1.data.id, topic2.data.id];
+      const topicIds = [topic1.id, topic2.id];
 
       const { body } = await auth(httpServer.post("/prep-session"))
         .send({ ...sessionPayload, topicIds })
@@ -325,11 +319,8 @@ describe("PrepSession (e2e)", () => {
       } = await createSession();
       const sessionId: string = created.id;
 
-      const { body: roleBody } = await auth(httpServer.post("/roles"))
-        .send({ name: "Manager" })
-        .expect(201);
-
-      const roleId: number = roleBody.data.id;
+      const role = await createTestRole(httpServer, authCookie);
+      const roleId: number = role.id;
 
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
         .send({ roleId })
@@ -560,14 +551,18 @@ describe("PrepSession (e2e)", () => {
       });
     });
 
-    describe("PATCH /prep-session/questions/:id", () => {
+    describe("PATCH /prep-session/:sessionId/questions/:id", () => {
       it("should update question answer", async () => {
         const { body: question } = await createQuestion();
         const questionId: number = question.data.id;
 
         const answer = "Updated answer";
 
-        await auth(httpServer.patch(`/prep-session/questions/${questionId}`))
+        await auth(
+          httpServer.patch(
+            `/prep-session/${sessionId}/questions/${questionId}`,
+          ),
+        )
           .send({ answer })
           .expect(200)
           .expect(({ body: { data } }) => {
@@ -581,7 +576,11 @@ describe("PrepSession (e2e)", () => {
 
         const notes = "Updated notes";
 
-        await auth(httpServer.patch(`/prep-session/questions/${questionId}`))
+        await auth(
+          httpServer.patch(
+            `/prep-session/${sessionId}/questions/${questionId}`,
+          ),
+        )
           .send({ notes })
           .expect(200)
           .expect(({ body: { data } }) => {
@@ -593,7 +592,11 @@ describe("PrepSession (e2e)", () => {
         const { body: question } = await createQuestion();
         const questionId: number = question.data.id;
 
-        await auth(httpServer.patch(`/prep-session/questions/${questionId}`))
+        await auth(
+          httpServer.patch(
+            `/prep-session/${sessionId}/questions/${questionId}`,
+          ),
+        )
           .send({ isFavorite: true })
           .expect(200)
           .expect(({ body: { data } }) => {
@@ -605,7 +608,11 @@ describe("PrepSession (e2e)", () => {
         const { body: question } = await createQuestion();
         const questionId: number = question.data.id;
 
-        await auth(httpServer.patch(`/prep-session/questions/${questionId}`))
+        await auth(
+          httpServer.patch(
+            `/prep-session/${sessionId}/questions/${questionId}`,
+          ),
+        )
           .send({ answer: "New answer", notes: "New notes", isFavorite: true })
           .expect(200)
           .expect(({ body: { data } }) => {
@@ -616,19 +623,23 @@ describe("PrepSession (e2e)", () => {
       });
 
       it("should return 404 when patching non-existent question", async () => {
-        await auth(httpServer.patch("/prep-session/questions/99999"))
+        await auth(
+          httpServer.patch(`/prep-session/${sessionId}/questions/99999`),
+        )
           .send({ answer: "Nope" })
           .expect(404);
       });
     });
 
-    describe("DELETE /prep-session/questions/:id", () => {
+    describe("DELETE /prep-session/:sessionId/questions/:id", () => {
       it("should delete a question and return 204", async () => {
         const { body: question } = await createQuestion();
         const questionId: number = question.data.id;
 
         await auth(
-          httpServer.delete(`/prep-session/questions/${questionId}`),
+          httpServer.delete(
+            `/prep-session/${sessionId}/questions/${questionId}`,
+          ),
         ).expect(204);
       });
 
@@ -638,9 +649,9 @@ describe("PrepSession (e2e)", () => {
         await createQuestion();
         await createQuestion();
 
-        await auth(httpServer.delete(`/prep-session/questions/${q1Id}`)).expect(
-          204,
-        );
+        await auth(
+          httpServer.delete(`/prep-session/${sessionId}/questions/${q1Id}`),
+        ).expect(204);
 
         const { body } = await auth(
           httpServer.get(`/prep-session/${sessionId}/questions`),
@@ -655,9 +666,9 @@ describe("PrepSession (e2e)", () => {
         await createQuestion();
         await createQuestion();
 
-        await auth(httpServer.delete(`/prep-session/questions/${q1Id}`)).expect(
-          204,
-        );
+        await auth(
+          httpServer.delete(`/prep-session/${sessionId}/questions/${q1Id}`),
+        ).expect(204);
 
         const { body } = await auth(
           httpServer.get(`/prep-session/${sessionId}/questions`),
@@ -666,9 +677,9 @@ describe("PrepSession (e2e)", () => {
       });
 
       it("should return 404 when deleting non-existent question", async () => {
-        await auth(httpServer.delete("/prep-session/questions/99999")).expect(
-          404,
-        );
+        await auth(
+          httpServer.delete(`/prep-session/${sessionId}/questions/99999`),
+        ).expect(404);
       });
     });
   });

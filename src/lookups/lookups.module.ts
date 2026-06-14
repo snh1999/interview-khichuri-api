@@ -1,12 +1,10 @@
 import { Module } from "@nestjs/common";
 
-import { RolesController } from "./roles/roles.controller";
-import { RolesService } from "./roles/roles.service";
-import { TopicsController } from "./topics/topics.controller";
-import { TopicsService } from "./topics/topics.service";
+import { LookupsController } from "@/src/lookups/lookups.controller";
+import { LookupsService } from "@/src/lookups/lookups.service";
 
 @Module({
-  controllers: [RolesController, TopicsController],
-  providers: [RolesService, TopicsService],
+  controllers: [LookupsController],
+  providers: [LookupsService],
 })
 export class LookupsModule {}
