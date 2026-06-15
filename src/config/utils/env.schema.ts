@@ -19,6 +19,13 @@ export const envSchema = basicSchema.extend({
   GITLAB_CLIENT_SECRET: z.string().length(70),
   RESEND_API_KEY: z.string().length(36),
   RESEND_FROM_EMAIL: z.email(),
+
+  R2_BUCKET_NAME: z.string(),
+  R2_ENDPOINT: z.url().length(65).endsWith(".r2.cloudflarestorage.com"),
+  R2_ACCESS_KEY: z.string().length(32),
+  R2_SECRET_KEY: z.string().length(64),
+
+  ENCRYPTION_KEY: z.string().length(64),
 });
 
 export type TBasicSchema = z.infer<typeof basicSchema>;

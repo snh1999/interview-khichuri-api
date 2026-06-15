@@ -21,7 +21,7 @@ import type {
 
 import {
   FindQuestionsDto,
-  QuestionDto,
+  CreateQuestionDto,
   UpdateQuestionDto,
 } from "./dto/question.dto";
 import { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
@@ -73,7 +73,7 @@ export class PrepSessionController {
   @Post(":sessionId/questions")
   public addQuestion(
     @Param("sessionId") sessionId: string,
-    @Body() dto: QuestionDto,
+    @Body() dto: CreateQuestionDto,
     @UserId() userId?: string,
   ): Promise<TQuestion> {
     return this.prepSessionService.addQuestion(sessionId, dto, userId);

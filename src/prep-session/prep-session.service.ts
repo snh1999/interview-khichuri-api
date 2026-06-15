@@ -9,7 +9,7 @@ import type {
   TQuestion,
 } from "@/src/database/database.types";
 
-import type { QuestionDto, UpdateQuestionDto } from "./dto/question.dto";
+import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
 import type { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
 
 @Injectable()
@@ -97,7 +97,7 @@ export class PrepSessionService {
 
   public async addQuestion(
     sessionId: string,
-    dto: QuestionDto,
+    dto: CreateQuestionDto,
     userId?: string,
   ): Promise<TQuestion> {
     await this.findOne(sessionId, userId);

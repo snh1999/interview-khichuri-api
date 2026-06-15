@@ -40,6 +40,7 @@ const postgresTableRegistry = {
   [getTableName(schemas.prep_session)]: schemas.prep_session,
   [getTableName(schemas.session_topics)]: schemas.session_topics,
   [getTableName(schemas.questions)]: schemas.questions,
+  [getTableName(schemas.api_key)]: schemas.api_key,
 } as const;
 
 type TdbQuery = TdbPostgres extends { query: infer Q } ? Q : never;
