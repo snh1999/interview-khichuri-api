@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1063.0",
     "@better-auth/passkey": "^1.6.11",
     "@faker-js/faker": "^10.4.0",
     "@nestjs/common": "^11.0.1",
@@ -30,6 +31,7 @@
     "@swc/core": "^1.15.40",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.1.0",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.7",
