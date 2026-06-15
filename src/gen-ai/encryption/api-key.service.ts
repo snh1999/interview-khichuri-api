@@ -59,7 +59,9 @@ export class ApiKeyService {
   }
 
   async activateApiKey(id: string, userId?: string): Promise<void> {
-    const apiKey = await this.db.findById("api_key", id);
+    const apiKey = await this.db.findById("api_key", id, [
+      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
+    ]);
     await this.db.withTransaction(async (transaction) => {
       await this._disableActiveKeys(apiKey.platform, userId, transaction);
       await this.db.update(

@@ -5,6 +5,7 @@ import { expect } from "vitest";
 import type {
   TPrepSession,
   TPrepSessionInsert,
+  TQuestion,
 } from "@/src/database/database.types";
 
 import {
@@ -28,3 +29,8 @@ export const expectedPrepSessionStructure = () =>
     createdAt: expect.any(String),
     updatedAt: expect.any(String),
   });
+
+export const getQuestionPayload = (data?: Partial<TQuestion>) => ({
+  questionText: faker.string.sample(),
+  ...data,
+});

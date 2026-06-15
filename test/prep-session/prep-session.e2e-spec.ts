@@ -8,6 +8,7 @@ import type { TPrepSessionInsert } from "@/src/database/database.types";
 import {
   expectedPrepSessionStructure,
   getPrepSessionPayload,
+  getQuestionPayload,
 } from "./prep-session.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
@@ -457,11 +458,14 @@ describe("PrepSession (e2e)", () => {
       sessionId = body.data.id;
     });
 
-    const createQuestion = (data: Record<string, unknown> = {}) =>
+    const createQuestion = (
+      data: Record<string, unknown> = getQuestionPayload(),
+    ) =>
       auth(httpServer.post(`/prep-session/${sessionId}/questions`))
-        .send(data)
+        .send({
+          ...data,
+        })
         .expect(201);
-
     describe("POST /prep-session/:sessionId/questions", () => {
       it("should add a question to a session", async () => {
         const { body } = await createQuestion();
@@ -469,23 +473,37 @@ describe("PrepSession (e2e)", () => {
         expect(body.statusCode).toBe(201);
         expect(body.data.id).toEqual(expect.any(Number));
         expect(body.data.sessionId).toBe(sessionId);
+        expect(body.data.questionText).toEqual(expect.any(String));
         expect(body.data.answer).toBeNull();
         expect(body.data.notes).toBeNull();
         expect(body.data.isFavorite).toBe(false);
       });
 
+      it("should add a question with questionText", async () => {
+        const questionText = "What is dependency injection?";
+
+        const { body } = await createQuestion({ questionText });
+
+        expect(body.data.questionText).toBe(questionText);
+      });
+
       it("should add a question with answer and notes", async () => {
+        const questionText = "What is dependency injection?";
         const answer = "This is my answer";
         const notes = "Some notes";
 
-        const { body } = await createQuestion({ answer, notes });
+        const { body } = await createQuestion({ questionText, answer, notes });
 
+        expect(body.data.questionText).toBe(questionText);
         expect(body.data.answer).toBe(answer);
         expect(body.data.notes).toBe(notes);
       });
 
       it("should add a question marked as favorite", async () => {
-        const { body } = await createQuestion({ isFavorite: true });
+        const { body } = await createQuestion({
+          ...getQuestionPayload(),
+          isFavorite: true,
+        });
 
         expect(body.data.isFavorite).toBe(true);
       });
@@ -520,7 +538,11 @@ describe("PrepSession (e2e)", () => {
       });
 
       it("should return questions with all expected fields", async () => {
-        await createQuestion({ answer: "Test answer", notes: "Test notes" });
+        await createQuestion({
+          questionText: "Test question",
+          answer: "Test answer",
+          notes: "Test notes",
+        });
 
         const { body } = await auth(
           httpServer.get(`/prep-session/${sessionId}/questions`),
@@ -530,6 +552,7 @@ describe("PrepSession (e2e)", () => {
         expect(body.data[0]).toMatchObject({
           id: expect.any(Number),
           sessionId,
+          questionText: "Test question",
           answer: "Test answer",
           notes: "Test notes",
           isFavorite: false,
@@ -552,6 +575,24 @@ describe("PrepSession (e2e)", () => {
     });
 
     describe("PATCH /prep-session/:sessionId/questions/:id", () => {
+      it("should update questionText", async () => {
+        const { body: question } = await createQuestion();
+        const questionId: number = question.data.id;
+
+        const questionText = "Updated question text";
+
+        await auth(
+          httpServer.patch(
+            `/prep-session/${sessionId}/questions/${questionId}`,
+          ),
+        )
+          .send({ questionText })
+          .expect(200)
+          .expect(({ body: { data } }) => {
+            expect(data.questionText).toBe(questionText);
+          });
+      });
+
       it("should update question answer", async () => {
         const { body: question } = await createQuestion();
         const questionId: number = question.data.id;
@@ -613,9 +654,15 @@ describe("PrepSession (e2e)", () => {
             `/prep-session/${sessionId}/questions/${questionId}`,
           ),
         )
-          .send({ answer: "New answer", notes: "New notes", isFavorite: true })
+          .send({
+            questionText: "New question",
+            answer: "New answer",
+            notes: "New notes",
+            isFavorite: true,
+          })
           .expect(200)
           .expect(({ body: { data } }) => {
+            expect(data.questionText).toBe("New question");
             expect(data.answer).toBe("New answer");
             expect(data.notes).toBe("New notes");
             expect(data.isFavorite).toBe(true);

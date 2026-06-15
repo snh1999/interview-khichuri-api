@@ -6,7 +6,6 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 
 import {
   FileUploadService,
@@ -17,9 +16,12 @@ import {
 export class FileUploadController {
   constructor(private readonly uploadService: FileUploadService) {}
 
-  @AllowAnonymous()
   @Post()
-  @UseInterceptors(FileInterceptor("file"))
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 1024 * 1024 * 5 },
+    }),
+  )
   public uploadFile(
     @UploadedFile(
       new ParseFilePipeBuilder()

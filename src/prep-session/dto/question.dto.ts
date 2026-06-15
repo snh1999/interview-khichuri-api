@@ -1,19 +1,19 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-export const CreateQuestionSchema = z
-  .object({
-    answer: z.string().optional(),
-    notes: z.string().optional(),
-    isFavorite: z.boolean().optional(),
-  })
-  .refine((obj) => Object.keys(obj).length > 0, {
-    message: "At least one field required",
-  });
+const createQuestionSchema = z.object({
+  questionText: z.string(),
+  answer: z.string().optional(),
+  notes: z.string().optional(),
+  isFavorite: z.boolean().optional(),
+});
 
-export class QuestionDto extends createZodDto(CreateQuestionSchema) {}
+export class CreateQuestionDto extends createZodDto(createQuestionSchema) {}
+
 export class UpdateQuestionDto extends createZodDto(
-  CreateQuestionSchema.partial(),
+  createQuestionSchema.partial().refine((obj) => Object.keys(obj).length > 0, {
+    message: "At least one field required",
+  }),
 ) {}
 
 const FindQuestionsSchema = z.object({

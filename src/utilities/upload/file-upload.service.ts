@@ -25,7 +25,7 @@ export class FileUploadService {
   public async uploadFile(file: Express.Multer.File): Promise<TUploadResponse> {
     const filename = `${file.originalname}-${Date.now()}`;
     const cmd = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: this.config.getOrThrow("R2_BUCKET_NAME"),
       Key: filename,
       Body: file.buffer,
       ContentType: file.mimetype,

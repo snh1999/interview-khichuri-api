@@ -14,6 +14,6 @@ export class CreateApiKeyDto extends createZodDto(apiKeySchema) {}
 
 const findApiKeySchema = z.object({
   platform: z.enum(["google"]).optional(),
-  isActive: z.string().optional(),
+  isActive: z.enum(["true", "false"]).optional(),
 });
 export class FindApiKeyQuery extends createZodDto(findApiKeySchema) {}
