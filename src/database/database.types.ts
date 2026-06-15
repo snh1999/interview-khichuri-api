@@ -14,6 +14,7 @@ import type {
   prep_session,
   questions,
   roles,
+  api_key,
   topics,
 } from "@/src/database/postgres/schemas";
 import type {
@@ -44,6 +45,11 @@ export type TPrepSession = InferSelectModel<typeof prep_session>;
 export type TPrepSessionInsert = InferInsertModel<typeof prep_session>;
 export type TQuestion = InferSelectModel<typeof questions>;
 export type TQuestionInsert = InferInsertModel<typeof questions>;
+
+export type TApiKeyInsecure = InferSelectModel<typeof api_key>;
+export type TApiKeyInsert = InferInsertModel<typeof api_key>;
+export type TApiKeyPlatform = TApiKeyInsecure["platform"];
+export type TApiKey = Omit<TApiKeyInsecure, "key">;
 
 export type TPrepSessionWithQuestions = InferSelectModel<
   typeof prep_session
