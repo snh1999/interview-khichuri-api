@@ -55,6 +55,7 @@ export const questions = sqliteTable("questions", {
   sessionId: text("session_id")
     .notNull()
     .references(() => prep_session.id, { onDelete: "cascade" }),
+  questionText: text("question_text").notNull(),
   answer: text("answer"),
   notes: text("notes"),
   isFavorite: integer("is_favorite", { mode: "boolean" }).default(false),
