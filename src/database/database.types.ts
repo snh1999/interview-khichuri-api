@@ -10,12 +10,24 @@ import type {
   TpgWithRelations,
 } from "@/src/database/postgres/postgres.service";
 import type {
+  companies,
+  education,
+  industries,
+  job_preference,
   jobs,
+  preference_titles,
   prep_session,
+  profile_links,
+  profiles,
   questions,
+  resume,
   roles,
   api_key,
   topics,
+  work_experience,
+  work_industries,
+  work_overview,
+  work_skills,
 } from "@/src/database/postgres/schemas";
 import type {
   TdbSqlite,
@@ -55,6 +67,51 @@ export type TPrepSessionWithQuestions = InferSelectModel<
   typeof prep_session
 > & {
   questions: TQuestion[];
+};
+
+export type TProfile = InferSelectModel<typeof profiles>;
+export type TProfileInsert = InferInsertModel<typeof profiles>;
+
+export type TProfileLink = InferSelectModel<typeof profile_links>;
+export type TProfileLinkInsert = InferInsertModel<typeof profile_links>;
+
+export type TWorkOverview = InferSelectModel<typeof work_overview>;
+export type TWorkOverviewInsert = InferInsertModel<typeof work_overview>;
+
+export type TWorkSkill = InferSelectModel<typeof work_skills>;
+export type TWorkSkillInsert = InferInsertModel<typeof work_skills>;
+
+export type TIndustry = InferSelectModel<typeof industries>;
+export type TIndustryInsert = InferInsertModel<typeof industries>;
+
+export type TWorkIndustry = InferSelectModel<typeof work_industries>;
+export type TWorkIndustryInsert = InferInsertModel<typeof work_industries>;
+
+export type TWorkExperience = InferSelectModel<typeof work_experience>;
+export type TWorkExperienceInsert = InferInsertModel<typeof work_experience>;
+
+export type TEducation = InferSelectModel<typeof education>;
+export type TEducationInsert = InferInsertModel<typeof education>;
+
+export type TJobPreference = InferSelectModel<typeof job_preference>;
+export type TJobPreferenceInsert = InferInsertModel<typeof job_preference>;
+
+export type TPreferenceTitle = InferSelectModel<typeof preference_titles>;
+export type TPreferenceTitleInsert = InferInsertModel<typeof preference_titles>;
+
+export type TResume = InferSelectModel<typeof resume>;
+export type TResumeInsert = InferInsertModel<typeof resume>;
+
+export type TCompany = InferSelectModel<typeof companies>;
+export type TCompanyInsert = InferInsertModel<typeof companies>;
+
+export type TProfilePopulated = TProfile & {
+  links: TProfileLink[];
+  workOverviews: TWorkOverview[];
+  workExperiences: TWorkExperience[];
+  educations: TEducation[];
+  resumes: TResume[];
+  jobPreferences: TJobPreference[];
 };
 
 interface TJobTopicRelation {
