@@ -9,6 +9,7 @@ import {
   eq,
   getTableColumns,
   getTableName,
+  inArray,
   InferInsertModel,
   InferSelectModel,
   is,
@@ -378,5 +379,114 @@ export class SqliteService implements IDatabaseService {
       }
       return eq(tableColumns[colName], value);
     });
+  }
+
+  public syncJunctionTable<K extends TsqliteTableKey>(
+    schemaName: K,
+    parentColumn: TColumnFilter<K>,
+    childColumn: TSqliteCols<K>,
+    newIds: number[],
+    db: TdbSqlite = this.db,
+  ): void {
+    const schema = sqliteTableRegistry[schemaName];
+    const schemaColumns = getTableColumns(schema);
+    const { columnName: parentColumnName, value: parentId } = parentColumn;
+
+    const parentCol = schemaColumns[parentColumnName as string] as unknown as
+      | AnySQLiteColumn
+      | undefined;
+
+    if (!parentCol) {
+      throw new BadRequestException(
+        `Column "${String(parentColumnName)}" not found in ${getTableName(schema)}`,
+      );
+    }
+
+    const childCol = schemaColumns[childColumn as string] as
+      | AnySQLiteColumn
+      | undefined;
+
+    if (!childCol) {
+      throw new BadRequestException(
+        `Column "${String(childColumn)}" not found in ${getTableName(schema)}`,
+      );
+    }
+
+    const existing = db
+      .select()
+      .from(schema)
+      .where(eq(parentCol, parentId))
+      .all();
+
+    const existingIds = new Set(
+      existing.map((row) => row[childColumn as string] as number),
+    );
+    const incomingIds = new Set(newIds);
+
+    const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+    const toInsert = newIds.filter((id) => !existingIds.has(id));
+
+    if (toDeleteIds.length > 0) {
+      db.delete(schema).where(
+        and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)),
+      );
+    }
+
+    if (toInsert.length > 0) {
+      db.insert(schema).values(
+        toInsert.map((id) => ({
+          [parentColumnName]: parentId,
+          [childColumn]: id,
+        })) as InferInsertModel<TsqliteTableRegistry[K]>[],
+      );
+    }
+  }
+
+  public syncOneToMany<K extends TsqliteTableKey>(
+    schemaName: K,
+    parentColumn: TColumnFilter<K>,
+    data: (Partial<InferInsertModel<TsqliteTableRegistry[K]>> & {
+      id?: string;
+    })[],
+    db: TdbSqlite = this.db,
+  ): void {
+    const existing = this.findAllByColumn(schemaName, [
+      parentColumn,
+    ]) as unknown as { id: string }[];
+
+    const existingIds = new Set(existing.map((e) => e.id));
+    const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
+
+    for (const item of data) {
+      const { id: _id, ...itemData } = item;
+      if (item.id && existingIds.has(item.id)) {
+        this.update(
+          schemaName,
+          itemData as Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
+          [{ columnName: "id", value: item.id }] as TColumnFilter<K>[],
+          db,
+        );
+      } else {
+        this.create(
+          schemaName,
+          {
+            [parentColumn.columnName]: parentColumn.value,
+            ...itemData,
+          } as InferInsertModel<TsqliteTableRegistry[K]>,
+          db,
+        );
+      }
+    }
+
+    for (const existingId of existingIds) {
+      if (!incomingIds.has(existingId)) {
+        this.delete(
+          schemaName,
+          [{ columnName: "id", value: existingId }] as TColumnFilter<K>[],
+          true,
+          db,
+        );
+      }
+    }
   }
 }

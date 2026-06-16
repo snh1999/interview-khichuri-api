@@ -84,4 +84,64 @@ export abstract class IDatabaseService {
     silent?: boolean,
     db?: TDatabase,
   ): TReturn<void>;
+
+  /**
+   * Synchronizes a many-to-many junction table for a given parent.
+   *
+   * Fetches existing child IDs for the parent,
+   * - diffs against `newIds`,
+   * - deletes orphans,
+   * - inserts missing relations.
+   * Unchanged rows are left alone.
+   * The entire operation runs on the provided `db` client (uses a transaction client for atomicity).
+   *
+   * @example
+   * await this.db.syncJunctionTable(
+   *   'work_skills',
+   *   { columnName: 'workId', value: 42 },
+   *   'topicId',
+   *   [1, 5, 12],
+   *   transaction,
+   * );
+   */
+
+  public abstract syncJunctionTable<K extends TpgTableKey>(
+    schemaName: K,
+    parentColumn: TColumnFilter<K>,
+    childColumn: TColumnNames<K>,
+    // junction table PKs are number
+    newIds: number[],
+    db?: TDatabase,
+  ): TReturn<void>;
+
+  /**
+   * Synchronizes a one-to-many array of child rows for a given parent.
+   *
+   * Compares incoming items against existing DB rows by `id`.
+   * Items with a matching existing ID are updated;
+   * items without an ID (or unknown ID) are created with the parent FK attached;
+   * existing rows not present in the input are deleted.
+   * Use `transform` to convert DTO fields (e.g. string dates to Date objects) before persistence.
+   *
+   * @example
+   * await this.db.syncArray(
+   *   'work_experience',
+   *   { columnName: 'profileId', value: 'user-123' },
+   *   dto.experiences,
+   *   {
+   *     transform: (item) => ({
+   *       ...item,
+   *       startDate: toDate(item.startDate),
+   *       endDate: toDate(item.endDate),
+   *     }),
+   *   },
+   *   transaction,
+   * );
+   */
+  public abstract syncOneToMany<K extends TpgTableKey>(
+    schemaName: K,
+    parentColumn: TColumnFilter<K>,
+    data: (Partial<TInsert<K>> & { id?: string })[],
+    db?: TDatabase,
+  ): TReturn<void>;
 }

@@ -99,9 +99,6 @@ export class PostgresService implements IDatabaseService {
     data: InferInsertModel<TpgTableRegistry[K]>,
     db: TdbPostgres = this.db,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
-    if ("userId" in data && !data.userId) {
-      throw new BadRequestException("User id is required");
-    }
     const schema = postgresTableRegistry[schemaName];
     const [result] = await db.insert(schema).values(data).returning();
     return result as InferSelectModel<TpgTableRegistry[K]>;
@@ -112,9 +109,6 @@ export class PostgresService implements IDatabaseService {
     data: InferInsertModel<TpgTableRegistry[K]>[],
     db: TdbPostgres = this.db,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
-    if ("userId" in data && !data.userId) {
-      throw new BadRequestException("User id is required");
-    }
     const schema = postgresTableRegistry[schemaName];
     const result = await db.insert(schema).values(data).returning();
     return result as InferSelectModel<TpgTableRegistry[K]>[];
@@ -391,5 +385,112 @@ export class PostgresService implements IDatabaseService {
         ? inArray(schemaColumns[colName], value)
         : eq(schemaColumns[colName], value);
     });
+  }
+
+  public async syncJunctionTable<K extends TpgTableKey>(
+    schemaName: K,
+    parentColumn: TColumnFilter<K>,
+    childColumn: TpgCols<K>,
+    newIds: number[],
+    db: TdbPostgres = this.db,
+  ): Promise<void> {
+    const schema = postgresTableRegistry[schemaName];
+    const schemaColumns = getTableColumns(schema);
+    const { columnName: parentColumnName, value: parentId } = parentColumn;
+
+    const parentCol = schemaColumns[parentColumnName as string] as
+      | AnyPgColumn
+      | undefined;
+
+    if (!parentCol) {
+      throw new BadRequestException(
+        `Column "${String(parentColumnName)}" not found in ${getTableName(schema)}`,
+      );
+    }
+
+    const childCol = schemaColumns[childColumn as string] as
+      | AnyPgColumn
+      | undefined;
+    if (!childCol) {
+      throw new BadRequestException(
+        `Column "${String(childColumn)}" not found in ${getTableName(schema)}`,
+      );
+    }
+
+    const existing = await db
+      .select()
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      .from(schema as AnyPgTable)
+      .where(eq(parentCol, parentId));
+
+    const existingIds = new Set(
+      existing.map((row) => row[childColumn as string] as number),
+    );
+    const incomingIds = new Set(newIds);
+
+    const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+    const toInsert = newIds.filter((id) => !existingIds.has(id));
+
+    if (toDeleteIds.length > 0) {
+      await db
+        .delete(schema)
+        .where(and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)));
+    }
+
+    if (toInsert.length > 0) {
+      await db.insert(schema).values(
+        toInsert.map((id) => ({
+          [parentColumnName]: parentId,
+          [childColumn]: id,
+        })) as InferInsertModel<TpgTableRegistry[K]>[],
+      );
+    }
+  }
+
+  public async syncOneToMany<K extends TpgTableKey>(
+    schemaName: K,
+    parentColumn: TColumnFilter<K>,
+    data: (Partial<InferInsertModel<TpgTableRegistry[K]>> & { id?: string })[],
+    db: TdbPostgres = this.db,
+  ): Promise<void> {
+    const existing = (await this.findAllByColumn(schemaName, [
+      parentColumn,
+    ])) as unknown as { id: string }[];
+
+    const existingIds = new Set(existing.map((e) => e.id));
+    const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
+
+    for (const item of data) {
+      if (item.id && existingIds.has(item.id)) {
+        const { id: _id, ...updateData } = item;
+        await this.update(
+          schemaName,
+          updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
+          [{ columnName: "id", value: item.id }] as TColumnFilter<K>[],
+          db,
+        );
+      } else {
+        const { id: _id, ...insertData } = item;
+        await this.create(
+          schemaName,
+          {
+            [parentColumn.columnName]: parentColumn.value,
+            ...insertData,
+          } as InferInsertModel<TpgTableRegistry[K]>,
+          db,
+        );
+      }
+    }
+
+    for (const existingId of existingIds) {
+      if (!incomingIds.has(existingId)) {
+        await this.delete(
+          schemaName,
+          [{ columnName: "id", value: existingId }] as TColumnFilter<K>[],
+          true,
+          db,
+        );
+      }
+    }
   }
 }
