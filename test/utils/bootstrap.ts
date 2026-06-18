@@ -3,6 +3,8 @@ import type { Server } from "node:http";
 import type { INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test } from "@nestjs/testing";
+import type { ThrottlerModuleOptions } from "@nestjs/throttler";
+import { THROTTLER_OPTIONS } from "@nestjs/throttler/dist/throttler.constants";
 import request from "supertest";
 import { vi } from "vitest";
 
@@ -19,6 +21,8 @@ export const bootstrapTestServer = async () => {
       sendPasswordResetEmail: vi.fn(),
       sendDeleteAccountVerification: vi.fn(),
     })
+    .overrideProvider(THROTTLER_OPTIONS)
+    .useValue([{ ttl: 60_000, limit: 9_999 }] as ThrottlerModuleOptions)
     .compile();
 
   const app: INestApplication = module.createNestApplication();

@@ -2,12 +2,15 @@ import { Injectable } from "@nestjs/common";
 
 import { IDatabaseService } from "@/src/database/database.service";
 
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import type { CreateJobDto, UpdateJobDto } from "./jobs.dto";
 import type {
   TDatabase,
   TJob,
   TJobWithTopics,
+  TPagination,
 } from "../database/database.types";
+import type { TSortBy } from "../database/database.types";
 
 @Injectable()
 export class JobsService {
@@ -43,8 +46,14 @@ export class JobsService {
     }
   }
 
-  public async findAll(userId?: string, search?: string): Promise<TJob[]> {
+  public async findAll(
+    userId?: string,
+    search?: string,
+    pagination?: TPagination,
+    sortBy?: TSortEntry[],
+  ): Promise<TJob[]> {
     const filters = userId ? { userId } : {};
+    const sort = sortBy?.length ? sortBy : [{ columnName: "createdAt", order: "desc" as const }];
 
     if (search) {
       const result = await this.db.search(
@@ -53,12 +62,13 @@ export class JobsService {
         search,
         {
           filter: filters,
+          pagination,
         },
       );
       return result.data;
     }
 
-    return this.db.findAllByColumn("jobs", { filter: filters });
+    return this.db.findAllByColumn("jobs", { filter: filters, sortBy: sort as TSortBy<"jobs">[], pagination });
   }
 
   public async findOne(

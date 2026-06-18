@@ -9,21 +9,20 @@ import {
   ParseIntPipe,
   Patch,
   Post,
-  Query,
 } from "@nestjs/common";
 
+import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type {
+  TPagination,
   TPrepSession,
   TPrepSessionWithQuestions,
   TQuestion,
 } from "@/src/database/database.types";
 
-import {
-  FindQuestionsDto,
-  CreateQuestionDto,
-  UpdateQuestionDto,
-} from "./dto/question.dto";
+import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
 import { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
 import { PrepSessionService } from "./prep-session.service";
 
@@ -40,8 +39,12 @@ export class PrepSessionController {
   }
 
   @Get()
-  public findAll(@UserId() userId?: string): Promise<TPrepSession[]> {
-    return this.prepSessionService.findAll(userId);
+  public findAll(
+    @Pagination() pagination?: TPagination,
+    @SortBy(["experience", "description", "createdAt", "updatedAt"]) sortBy?: TSortEntry[],
+    @UserId() userId?: string,
+  ): Promise<TPrepSession[]> {
+    return this.prepSessionService.findAll(userId, pagination, sortBy);
   }
 
   @Get(":id")
@@ -82,17 +85,11 @@ export class PrepSessionController {
   @Get(":sessionId/questions")
   public findQuestions(
     @Param("sessionId") sessionId: string,
-    @Query() query: FindQuestionsDto,
+    @Pagination() pagination?: TPagination,
+    @SortBy(["questionText", "answer", "isFavorite", "createdAt", "updatedAt"]) sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TQuestion[]> {
-    return this.prepSessionService.findQuestions(
-      sessionId,
-      {
-        offset: (query.page - 1) * query.limit,
-        limit: query.limit,
-      },
-      userId,
-    );
+    return this.prepSessionService.findQuestions(sessionId, pagination, userId, sortBy);
   }
 
   @Patch(":sessionId/questions/:id")

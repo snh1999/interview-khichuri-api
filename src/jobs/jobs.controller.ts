@@ -11,8 +11,15 @@ import {
   Query,
 } from "@nestjs/common";
 
+import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
-import { TJob, TJobWithTopics } from "@/src/database/database.types";
+import type {
+  TPagination,
+  TJob,
+  TJobWithTopics,
+} from "@/src/database/database.types";
 
 import { CreateJobDto, UpdateJobDto } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
@@ -31,10 +38,12 @@ export class JobsController {
 
   @Get()
   public findAll(
+    @Pagination() pagination?: TPagination,
+    @SortBy(["title", "description", "status", "createdAt", "updatedAt"]) sortBy?: TSortEntry[],
     @Query("search") search?: string,
     @UserId() userId?: string,
   ): Promise<TJob[]> {
-    return this.jobsService.findAll(userId, search);
+    return this.jobsService.findAll(userId, search, pagination, sortBy);
   }
 
   @Get(":id")

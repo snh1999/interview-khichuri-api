@@ -161,6 +161,29 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
 
       expect(body.data).toHaveLength(2);
     });
+
+    it(`should paginate ${entity}`, async () => {
+      await create({ name: "First" });
+      await create({ name: "Second" });
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}?page=1&limit=1`),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(1);
+    });
+
+    it(`should sort ${entity} by name ascending`, async () => {
+      await create({ name: "Beta" });
+      await create({ name: "Alpha" });
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}?sort=name:asc`),
+      ).expect(200);
+
+      expect(body.data[0].name).toBe("Alpha");
+      expect(body.data[1].name).toBe("Beta");
+    });
   });
 
   describe(`PATCH /${entity}/:id`, () => {

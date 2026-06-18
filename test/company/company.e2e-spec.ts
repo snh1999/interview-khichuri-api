@@ -134,6 +134,29 @@ describe("Company (e2e)", () => {
       expect(body.data[0].name).toBe("Google");
     });
 
+    it("should paginate companies", async () => {
+      await create();
+      await create();
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}?page=1&limit=1`),
+      ).expect(200);
+
+      expect(body.data.length).toEqual(1);
+    });
+
+    it("should sort companies by name ascending", async () => {
+      await create({ name: "B Corp" });
+      await create({ name: "A Corp" });
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}?sort=name:asc`),
+      ).expect(200);
+
+      expect(body.data[0].name).toBe("A Corp");
+      expect(body.data[1].name).toBe("B Corp");
+    });
+
     it("should return empty list when search name does not match", async () => {
       await create({ name: "Google" });
 

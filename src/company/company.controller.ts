@@ -12,7 +12,10 @@ import {
 } from "@nestjs/common";
 import { Roles } from "@thallesp/nestjs-better-auth";
 
-import type { TCompany } from "@/src/database/database.types";
+import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import type { TPagination, TCompany } from "@/src/database/database.types";
 
 import { CompanyService } from "./company.service";
 import { CreateCompanyDto, UpdateCompanyDto } from "./dto/company.dto";
@@ -28,8 +31,12 @@ export class CompanyController {
   }
 
   @Get()
-  public findAll(@Query("name") name?: string): Promise<TCompany[]> {
-    return this.companyService.findAll(name);
+  public findAll(
+    @Pagination() pagination?: TPagination,
+    @SortBy(["name"]) sortBy?: TSortEntry[],
+    @Query("name") name?: string,
+  ): Promise<TCompany[]> {
+    return this.companyService.findAll(name, pagination, sortBy);
   }
 
   @Patch(":id")

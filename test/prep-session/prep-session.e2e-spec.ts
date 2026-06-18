@@ -235,6 +235,31 @@ describe("PrepSession (e2e)", () => {
       if (isAppMode) return;
       await httpServer.get("/prep-session").expect(401);
     });
+
+    it("should paginate prep sessions", async () => {
+      await createSession();
+      await createSession();
+
+      const { body } = await auth(
+        httpServer.get("/prep-session?page=1&limit=1"),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(1);
+    });
+
+    it("should sort prep sessions by description ascending", async () => {
+      const descA = "A description";
+      const descB = "B description";
+      await createSession({ ...getPrepSessionPayload(), description: descB });
+      await createSession({ ...getPrepSessionPayload(), description: descA });
+
+      const { body } = await auth(
+        httpServer.get("/prep-session?sort=description:asc"),
+      ).expect(200);
+
+      expect(body.data[0].description).toBe(descA);
+      expect(body.data[1].description).toBe(descB);
+    });
   });
 
   describe("GET /prep-session/:id", () => {
@@ -571,6 +596,18 @@ describe("PrepSession (e2e)", () => {
         ).expect(200);
 
         expect(body.data).toHaveLength(3);
+      });
+
+      it("should sort questions by questionText ascending", async () => {
+        await createQuestion({ questionText: "B question" });
+        await createQuestion({ questionText: "A question" });
+
+        const { body } = await auth(
+          httpServer.get(`/prep-session/${sessionId}/questions?sort=questionText:asc`),
+        ).expect(200);
+
+        expect(body.data[0].questionText).toBe("A question");
+        expect(body.data[1].questionText).toBe("B question");
       });
     });
 

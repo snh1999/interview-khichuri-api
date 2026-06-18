@@ -2,7 +2,6 @@ import type {
   TSingleColumnFilter,
   TColumnNames,
   TDatabase,
-  TdbWithRelations,
   TInsert,
   TReturn,
   TSearchResult,

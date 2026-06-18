@@ -356,6 +356,55 @@ describe("Jobs (e2e)", () => {
       expect(body.data).toHaveLength(1);
       expect(body.data[0].title).toBe("My Job");
     });
+
+    it("should paginate jobs", async () => {
+      await createJob();
+      await createJob();
+
+      const { body: page1 } = await auth(
+        httpServer.get("/jobs?page=1&limit=1"),
+      ).expect(200);
+
+      expect(page1.data).toHaveLength(1);
+
+      const { body: page2 } = await auth(
+        httpServer.get("/jobs?page=2&limit=1"),
+      ).expect(200);
+
+      expect(page2.data).toHaveLength(1);
+    });
+
+    it("should sort jobs by title ascending", async () => {
+      await createJob({ ...getJobPayload(), title: "B Job" });
+      await createJob({ ...getJobPayload(), title: "A Job" });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=title:asc"),
+      ).expect(200);
+
+      expect(body.data[0].title).toBe("A Job");
+      expect(body.data[1].title).toBe("B Job");
+    });
+
+    it("should sort jobs by title descending", async () => {
+      await createJob({ ...getJobPayload(), title: "A Job" });
+      await createJob({ ...getJobPayload(), title: "B Job" });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=title:desc"),
+      ).expect(200);
+
+      expect(body.data[0].title).toBe("B Job");
+      expect(body.data[1].title).toBe("A Job");
+    });
+
+    it("should return 400 for invalid sort column", async () => {
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=invalidColumn:asc"),
+      ).expect(400);
+
+      expect(body.statusCode).toBe(400);
+    });
   });
 
   describe("GET /jobs/:id", () => {

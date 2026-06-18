@@ -1,12 +1,14 @@
 import { Injectable } from "@nestjs/common";
 
 import { IDatabaseService } from "@/src/database/database.service";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import type {
   TDatabase,
   TPagination,
   TPrepSession,
   TPrepSessionWithQuestions,
   TQuestion,
+  TSortBy,
 } from "@/src/database/database.types";
 
 import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
@@ -36,9 +38,13 @@ export class PrepSessionService {
   public async findAll(
     userId?: string,
     pagination?: TPagination,
+    sortBy?: TSortEntry[],
   ): Promise<TPrepSession[]> {
+    const sort = sortBy?.length ? sortBy : [{ columnName: "createdAt", order: "desc" as const }];
     return this.db.findAllByColumn("prep_session", {
       filter: userId ? { userId } : {},
+      pagination,
+      sortBy: sort as TSortBy<"prep_session">[],
     });
   }
 
@@ -103,11 +109,13 @@ export class PrepSessionService {
     sessionId: string,
     pagination?: TPagination,
     userId?: string,
+    sortBy?: TSortEntry[],
   ): Promise<TQuestion[]> {
     await this.findOne(sessionId, userId);
+    const sort = sortBy?.length ? sortBy : [{ columnName: "createdAt", order: "desc" as const }];
     return this.db.findAllByColumn("questions", {
       filter: { sessionId },
-      sortBy: [{ columnName: "isFavorite" }, { columnName: "createdAt" }],
+      sortBy: sort as TSortBy<"questions">[],
       pagination,
     });
   }

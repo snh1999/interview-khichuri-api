@@ -82,16 +82,22 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<void> {
-    const resumes = await this.db.findAllByColumn("resume", { profileId });
+    const resumes = await this.db.findAllByColumn("resume", {
+      filter: { profileId },
+    });
 
     const target = resumes.find((r) => r.id === resumeId);
     if (!target) throw new NotFoundException("Resume not found");
     if (target.isPrimary) return;
 
     for (const resume of resumes) {
-      await this.db.update("resume", { isPrimary: resume.id === resumeId }, {
-        id: resume.id,
-      });
+      await this.db.update(
+        "resume",
+        { isPrimary: resume.id === resumeId },
+        {
+          id: resume.id,
+        },
+      );
     }
   }
 
@@ -99,7 +105,9 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<void> {
-    const resumes = await this.db.findAllByColumn("resume", { id: resumeId });
+    const resumes = await this.db.findAllByColumn("resume", {
+      filter: { id: resumeId },
+    });
 
     if (resumes.length === 0) {
       throw new NotFoundException("Resume not found");
