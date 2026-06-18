@@ -32,10 +32,11 @@ import { TpgTableKey } from "@/src/database/postgres/postgres.service";
 import { DATABASE_CONNECTION } from "../database.constants";
 import {
   TSingleColumnFilter,
-  type TPagination,
   TSchemaColumnFilter,
   TSearchResult,
-  TSortBy,
+  TFindAllByColumnOptions,
+  TFindByIdOptions,
+  TSearchOptions,
   TColumnFilter,
 } from "../database.types";
 import * as schemas from "./schemas";
@@ -132,11 +133,14 @@ export class SqliteService implements IDatabaseService {
 
   public findAllByColumn<K extends TsqliteTableKey>(
     schemaName: K,
-    columns?: TColumnFilter<K>,
-    sortBy?: TSortBy<K>[],
-    pagination?: TPagination,
-    relations?: TsqliteWithRelations<K>,
+    options?: TFindAllByColumnOptions<K>,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
+    const {
+      filter: columns,
+      sortBy,
+      pagination,
+      relation: relations,
+    } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
 
     const conditions = columns
@@ -177,9 +181,9 @@ export class SqliteService implements IDatabaseService {
     schemaName: K,
     columnNames: TSqliteCols<K>[],
     value: string,
-    columns?: TColumnFilter<K>,
-    pagination?: TPagination,
+    options?: TSearchOptions<K>,
   ): TSearchResult<K> {
+    const { filter, pagination } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
     const schemaColumns = getTableColumns(schema);
     const tableName = getTableName(schema);
@@ -194,8 +198,8 @@ export class SqliteService implements IDatabaseService {
       return like(schemaColumns[colName] as AnySQLiteColumn, `%${value}%`);
     });
 
-    const exactConditions = columns
-      ? this._buildConditions(schema, columns, tableName)
+    const exactConditions = filter
+      ? this._buildConditions(schema, filter, tableName)
       : [];
 
     const whereClause = and(
@@ -229,9 +233,9 @@ export class SqliteService implements IDatabaseService {
   public async findById<K extends TsqliteTableKey>(
     schemaName: K,
     id: string | number,
-    columns?: TColumnFilter<K>,
-    relations?: TsqliteWithRelations<K>,
+    options?: TFindByIdOptions<K>,
   ): Promise<InferSelectModel<TsqliteTableRegistry[K]>> {
+    const { filter, relation: relations } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
     if (
       typeof id === "string" &&
@@ -241,8 +245,8 @@ export class SqliteService implements IDatabaseService {
     ) {
       throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
     }
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
+    const conditions = filter
+      ? this._buildConditions(schema, filter, getTableName(schema))
       : [];
 
     const allConditions = [...conditions, eq(schema.id, id)];
@@ -452,8 +456,10 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): void {
     const existing = this.findAllByColumn(schemaName, {
-      [parentColumn.columnName]: parentColumn.value,
-    } as TColumnFilter<K>) as {
+      filter: {
+        [parentColumn.columnName]: parentColumn.value,
+      } as TColumnFilter<K>,
+    }) as {
       id: string;
     }[];
 

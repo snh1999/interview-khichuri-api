@@ -51,12 +51,14 @@ export class JobsService {
         "jobs",
         ["title", "description"],
         search,
-        filters,
+        {
+          filter: filters,
+        },
       );
       return result.data;
     }
 
-    return this.db.findAllByColumn("jobs", filters);
+    return this.db.findAllByColumn("jobs", { filter: filters });
   }
 
   public async findOne(
@@ -64,12 +66,10 @@ export class JobsService {
     userId?: string,
     populate = true,
   ): Promise<TJobWithTopics> {
-    return this.db.findById(
-      "jobs",
-      id,
-      { ...(userId ? { userId } : {}) },
-      populate ? { jobTopics: { with: { topic: true } } } : undefined,
-    ) as Promise<TJobWithTopics>;
+    return this.db.findById("jobs", id, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: populate ? { jobTopics: { with: { topic: true } } } : undefined,
+    }) as Promise<TJobWithTopics>;
   }
 
   public async update(
@@ -84,19 +84,12 @@ export class JobsService {
         await this.db.update(
           "jobs",
           jobFields,
-          userId
-            ? { id, userId }
-            : { id },
+          userId ? { id, userId } : { id },
           transaction,
         );
       }
       if (topicIds) {
-        await this.db.delete(
-          "job_topics",
-          { jobId: id },
-          true,
-          transaction,
-        );
+        await this.db.delete("job_topics", { jobId: id }, true, transaction);
         await this._createJobTopics(id, transaction, topicIds);
       }
     });

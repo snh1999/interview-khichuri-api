@@ -46,13 +46,10 @@ export class ProfileService {
     const userId = user?.id;
     const name = user?.name;
 
-    const [profile] = (await this.db.findAllByColumn(
-      "profiles",
-      userId ? { id: userId } : {},
-      undefined,
-      undefined,
-      profileRelations,
-    )) as unknown as [TProfilePopulated | undefined];
+    const [profile] = (await this.db.findAllByColumn("profiles", {
+      filter: userId ? { id: userId } : {},
+      relation: profileRelations,
+    })) as unknown as [TProfilePopulated | undefined];
 
     if (!profile) {
       const profile = await this.db.create("profiles", {
@@ -90,7 +87,9 @@ export class ProfileService {
 
     await this.db.withTransaction(async (transaction) => {
       // for now allows only one section per userId
-      const existing = await this.db.findAllByColumn("work_overview", { profileId: userId });
+      const existing = await this.db.findAllByColumn("work_overview", {
+        filter: { profileId: userId },
+      });
       const overviewId = existing[0]?.id;
 
       if (overviewId) {
@@ -171,7 +170,9 @@ export class ProfileService {
     const { titles, ...prefFields } = dto;
 
     await this.db.withTransaction(async (transaction) => {
-      const existing = (await this.db.findAllByColumn("job_preference", { profileId: userId })) as unknown as { id: string }[];
+      const existing = (await this.db.findAllByColumn("job_preference", {
+        filter: { profileId: userId },
+      })) as unknown as { id: string }[];
 
       const preferenceId = existing[0]?.id;
 

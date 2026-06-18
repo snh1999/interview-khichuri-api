@@ -4,11 +4,12 @@ import type {
   TDatabase,
   TdbWithRelations,
   TInsert,
-  TPagination,
   TReturn,
   TSearchResult,
   TSelect,
-  TSortBy,
+  TFindAllByColumnOptions,
+  TFindByIdOptions,
+  TSearchOptions,
   TColumnFilter,
 } from "@/src/database/database.types";
 import type { TpgTableKey } from "@/src/database/postgres/postgres.service";
@@ -53,25 +54,20 @@ export abstract class IDatabaseService {
 
   abstract findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
-    column?: TColumnFilter<K>,
-    sortBy?: TSortBy<K>[],
-    pagination?: TPagination,
-    relation?: TdbWithRelations<K>,
+    options?: TFindAllByColumnOptions<K>,
   ): TReturn<TSelect<K>[]>;
 
   abstract search<K extends TpgTableKey>(
     schemaName: K,
     columnName: TColumnNames<K>[],
     value: string,
-    columns?: TColumnFilter<K>,
-    pagination?: TPagination,
+    options?: TSearchOptions<K>,
   ): TReturn<TSearchResult<K>>;
 
   abstract findById<K extends TpgTableKey>(
     schemaName: K,
     id: string | number,
-    columns?: TColumnFilter<K>,
-    relation?: TdbWithRelations<K>,
+    options?: TFindByIdOptions<K>,
   ): TReturn<TSelect<K>>;
 
   abstract update<K extends TpgTableKey>(

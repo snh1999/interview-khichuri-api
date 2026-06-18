@@ -33,22 +33,23 @@ export class PrepSessionService {
     });
   }
 
-  public async findAll(userId?: string): Promise<TPrepSession[]> {
-    const filters = userId ? { userId } : {};
-
-    return this.db.findAllByColumn("prep_session", filters);
+  public async findAll(
+    userId?: string,
+    pagination?: TPagination,
+  ): Promise<TPrepSession[]> {
+    return this.db.findAllByColumn("prep_session", {
+      filter: userId ? { userId } : {},
+    });
   }
 
   public async findOne(
     id: string,
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
-    return this.db.findById(
-      "prep_session",
-      id,
-      { ...(userId ? { userId } : {}) },
-      { questions: true },
-    ) as Promise<TPrepSessionWithQuestions>;
+    return this.db.findById("prep_session", id, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: { questions: true },
+    }) as Promise<TPrepSessionWithQuestions>;
   }
 
   public async update(
@@ -63,9 +64,7 @@ export class PrepSessionService {
         await this.db.update(
           "prep_session",
           sessionFields,
-          userId
-            ? { id, userId }
-            : { id },
+          userId ? { id, userId } : { id },
           transaction,
         );
       }
@@ -106,12 +105,11 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<TQuestion[]> {
     await this.findOne(sessionId, userId);
-    return this.db.findAllByColumn(
-      "questions",
-      { sessionId },
-      [{ columnName: "isFavorite" }, { columnName: "createdAt" }],
+    return this.db.findAllByColumn("questions", {
+      filter: { sessionId },
+      sortBy: [{ columnName: "isFavorite" }, { columnName: "createdAt" }],
       pagination,
-    );
+    });
   }
 
   public async updateQuestion(

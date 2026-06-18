@@ -24,7 +24,9 @@ export class ResumeService {
     file: Express.Multer.File,
     profileId: string,
   ): Promise<TUploadResponse> {
-    const existing = await this.db.findAllByColumn("resume", { profileId });
+    const existing = await this.db.findAllByColumn("resume", {
+      filter: { profileId },
+    });
 
     if (existing.length >= MAX_RESUMES) {
       throw new BadRequestException(
@@ -57,7 +59,9 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<TViewUrlResponse> {
-    const resumes = await this.db.findAllByColumn("resume", { id: resumeId });
+    const resumes = await this.db.findAllByColumn("resume", {
+      filter: { id: resumeId },
+    });
 
     if (resumes.length === 0) {
       throw new NotFoundException("Resume not found");

@@ -26,10 +26,11 @@ import { IDatabaseService } from "@/src/database/database.service";
 import { DATABASE_CONNECTION } from "../database.constants";
 import {
   TSingleColumnFilter,
-  type TPagination,
   TSchemaColumnFilter,
   TSearchResult,
-  TSortBy,
+  TFindAllByColumnOptions,
+  TFindByIdOptions,
+  TSearchOptions,
   TColumnFilter,
 } from "../database.types";
 import * as schemas from "./schemas";
@@ -120,11 +121,14 @@ export class PostgresService implements IDatabaseService {
 
   public async findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
-    columns?: TColumnFilter<K>,
-    sortBy?: TSortBy<K>[],
-    pagination?: TPagination,
-    relations?: TpgWithRelations<K>,
+    options?: TFindAllByColumnOptions<K>,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
+    const {
+      filter: columns,
+      sortBy,
+      pagination,
+      relation: relations,
+    } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
     const conditions = columns
       ? this._buildConditions(schema, columns, getTableName(schema))
@@ -163,9 +167,9 @@ export class PostgresService implements IDatabaseService {
   public async findById<K extends TpgTableKey>(
     schemaName: K,
     id: string | number,
-    columns?: TColumnFilter<K>,
-    relations?: TpgWithRelations<K>,
+    options?: TFindByIdOptions<K>,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
+    const { filter, relation: relations } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
     if (
       typeof id === "string" &&
@@ -175,8 +179,8 @@ export class PostgresService implements IDatabaseService {
     ) {
       throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
     }
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
+    const conditions = filter
+      ? this._buildConditions(schema, filter, getTableName(schema))
       : [];
 
     const allConditions = [...conditions, eq((schema as PgTableWithId).id, id)];
@@ -209,9 +213,9 @@ export class PostgresService implements IDatabaseService {
     schemaName: K,
     columnNames: TpgCols<K>[],
     value: string,
-    columns?: TColumnFilter<K>,
-    pagination?: TPagination,
+    options?: TSearchOptions<K>,
   ): Promise<TSearchResult<K>> {
+    const { filter, pagination } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
     const schemaColumns = getTableColumns(schema);
 
@@ -237,8 +241,8 @@ export class PostgresService implements IDatabaseService {
 
     const ftsWhere = sql`${vectorExpr} @@ ${queryExpr}`;
 
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
+    const conditions = filter
+      ? this._buildConditions(schema, filter, getTableName(schema))
       : [];
 
     const whereClause = conditions.length
@@ -452,8 +456,10 @@ export class PostgresService implements IDatabaseService {
     db: TdbPostgres = this.db,
   ): Promise<void> {
     const existing = (await this.findAllByColumn(schemaName, {
-      [parentColumn.columnName]: parentColumn.value,
-    } as TColumnFilter<K>)) as unknown as { id: string }[];
+      filter: {
+        [parentColumn.columnName]: parentColumn.value,
+      } as TColumnFilter<K>,
+    })) as unknown as { id: string }[];
 
     const existingIds = new Set(existing.map((e) => e.id));
     const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));

@@ -40,15 +40,14 @@ export class ApiKeyService {
     isActive?: boolean,
     userId?: string,
   ): Promise<TApiKeyInsecure[]> {
-    return this.db.findAllByColumn(
-      "api_key",
-      {
+    return this.db.findAllByColumn("api_key", {
+      filter: {
         ...(isActive !== undefined ? { isActive } : {}),
         ...(platform ? { platform } : {}),
         ...(userId ? { userId } : {}),
       },
-      [{ columnName: "createdAt", order: "desc" }],
-    );
+      sortBy: [{ columnName: "createdAt", order: "desc" }],
+    });
   }
 
   async delete(id: string, userId?: string): Promise<void> {
@@ -60,7 +59,7 @@ export class ApiKeyService {
 
   async activateApiKey(id: string, userId?: string): Promise<void> {
     const apiKey = await this.db.findById("api_key", id, {
-      ...(userId ? { userId } : {}),
+      filter: { ...(userId ? { userId } : {}) },
     });
     await this.db.withTransaction(async (transaction) => {
       await this._disableActiveKeys(apiKey.platform, userId, transaction);

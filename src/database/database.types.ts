@@ -177,3 +177,20 @@ export interface TSortBy<K extends TpgTableKey> {
   columnName: TColumnNames<K>;
   order?: TSortOrder;
 }
+
+export interface TFindAllByColumnOptions<K extends TpgTableKey> {
+  filter?: TColumnFilter<K>;
+  sortBy?: TSortBy<K>[];
+  pagination?: TPagination;
+  relation?: TdbWithRelations<K>;
+}
+
+export interface TFindByIdOptions<K extends TpgTableKey> {
+  filter?: TColumnFilter<K>;
+  relation?: TdbWithRelations<K>;
+}
+
+export interface TSearchOptions<K extends TpgTableKey> {
+  filter?: TColumnFilter<K>;
+  pagination?: TPagination;
+}
