@@ -58,7 +58,7 @@ export abstract class IDatabaseService {
 
   abstract search<K extends TpgTableKey>(
     schemaName: K,
-    columnName: TColumnNames<K>[],
+    columnNames: TColumnNames<K>[],
     value: string,
     options?: TSearchOptions<K>,
   ): TReturn<TSearchResult<K>>;
@@ -96,7 +96,7 @@ export abstract class IDatabaseService {
    * @example
    * await this.db.syncJunctionTable(
    *   'work_skills',
-   *   { columnName: 'workId', value: 42 },
+   *   { column: 'workId', value: 42 },
    *   'topicId',
    *   [1, 5, 12],
    *   transaction,
@@ -124,7 +124,7 @@ export abstract class IDatabaseService {
    * @example
    * await this.db.syncArray(
    *   'work_experience',
-   *   { columnName: 'profileId', value: 'user-123' },
+   *   { column: 'profileId', value: 'user-123' },
    *   dto.experiences,
    *   {
    *     transform: (item) => ({

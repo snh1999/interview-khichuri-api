@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -39,7 +40,8 @@ export class JobsController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
-    @SortBy(["title", "description", "status", "createdAt", "updatedAt"]) sortBy?: TSortEntry[],
+    @SortBy(["title", "description", "status", "createdAt", "updatedAt"])
+    sortBy?: TSortEntry[],
     @Query("search") search?: string,
     @UserId() userId?: string,
   ): Promise<TJob[]> {
@@ -48,7 +50,7 @@ export class JobsController {
 
   @Get(":id")
   public findOne(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<TJobWithTopics> {
     return this.jobsService.findOne(id, userId);
@@ -56,7 +58,7 @@ export class JobsController {
 
   @Patch(":id")
   public update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateJobDto,
     @UserId() userId?: string,
   ): Promise<TJobWithTopics> {
@@ -66,7 +68,7 @@ export class JobsController {
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async remove(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.jobsService.delete(id, userId);

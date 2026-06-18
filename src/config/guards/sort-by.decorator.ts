@@ -3,23 +3,30 @@ import {
   type ExecutionContext,
   BadRequestException,
 } from "@nestjs/common";
+import type { Request } from "express";
 
 export interface TSortEntry {
-  columnName: string;
+  column: string;
   order?: "asc" | "desc";
 }
 
 const sortItemRegex = /^([a-zA-Z_]\w*)(?::(asc|desc))?$/;
 
 export const SortBy = createParamDecorator(
-  (allowedColumns: string[] | undefined, ctx: ExecutionContext): TSortEntry[] | undefined => {
+  (
+    allowedColumns: string[] | undefined,
+    ctx: ExecutionContext,
+  ): TSortEntry[] | undefined => {
     const columns = Array.isArray(allowedColumns) ? allowedColumns : [];
-    const request = ctx.switchToHttp().getRequest();
-    const sortParam = request.query["sort"] as string | undefined;
+    const request = ctx.switchToHttp().getRequest<Request>();
+    const sortParam = request.query.sort as string | undefined;
 
     if (!sortParam) return undefined;
 
-    const items = sortParam.split(",").map((s) => s.trim()).filter(Boolean);
+    const items = sortParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     const result: TSortEntry[] = [];
 
@@ -39,7 +46,11 @@ export const SortBy = createParamDecorator(
         );
       }
 
-      result.push({ columnName, order: (order as "asc" | "desc") ?? "asc" });
+      result.push({
+        column: columnName,
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        order: (order as "asc" | "desc") ?? "asc",
+      });
     }
 
     return result;

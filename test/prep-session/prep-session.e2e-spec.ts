@@ -603,7 +603,9 @@ describe("PrepSession (e2e)", () => {
         await createQuestion({ questionText: "A question" });
 
         const { body } = await auth(
-          httpServer.get(`/prep-session/${sessionId}/questions?sort=questionText:asc`),
+          httpServer.get(
+            `/prep-session/${sessionId}/questions?sort=questionText:asc`,
+          ),
         ).expect(200);
 
         expect(body.data[0].questionText).toBe("A question");
@@ -740,24 +742,11 @@ describe("PrepSession (e2e)", () => {
         const { body } = await auth(
           httpServer.get(`/prep-session/${sessionId}/questions`),
         ).expect(200);
+
+        expect(body.data).toHaveLength(2);
+
         const ids = (body.data as { id: number }[]).map((q) => q.id);
         expect(ids).not.toContain(q1Id);
-      });
-
-      it("should not affect other questions when deleting one", async () => {
-        const { body: q1 } = await createQuestion();
-        const q1Id: number = q1.data.id;
-        await createQuestion();
-        await createQuestion();
-
-        await auth(
-          httpServer.delete(`/prep-session/${sessionId}/questions/${q1Id}`),
-        ).expect(204);
-
-        const { body } = await auth(
-          httpServer.get(`/prep-session/${sessionId}/questions`),
-        ).expect(200);
-        expect(body.data).toHaveLength(2);
       });
 
       it("should return 404 when deleting non-existent question", async () => {

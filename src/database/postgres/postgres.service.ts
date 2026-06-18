@@ -13,7 +13,6 @@ import {
   InferInsertModel,
   getTableColumns,
   and,
-  DrizzleQueryError,
   inArray,
   desc,
   asc,
@@ -122,6 +121,7 @@ export class PostgresService implements IDatabaseService {
   public async findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
     options?: TFindAllByColumnOptions<K>,
+    db: TdbPostgres = this.db,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const {
       filter: columns,
@@ -135,7 +135,7 @@ export class PostgresService implements IDatabaseService {
       : [];
 
     if (relations && Object.keys(relations).length > 0) {
-      return this.db.query[schemaName].findMany({
+      return db.query[schemaName].findMany({
         where: conditions.length ? and(...conditions) : undefined,
         with: relations,
         ...(pagination && {
@@ -146,11 +146,11 @@ export class PostgresService implements IDatabaseService {
     }
 
     const orderBy = sortBy?.map((sort) => {
-      const col = schema[sort.columnName as keyof typeof schema] as AnyPgColumn;
+      const col = schema[sort.column as keyof typeof schema] as AnyPgColumn;
       return sort.order === "desc" ? desc(col) : asc(col);
     });
 
-    const query = this.db
+    const query = db
       .select()
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       .from(schema as AnyPgTable)
@@ -171,14 +171,6 @@ export class PostgresService implements IDatabaseService {
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
     const { filter, relation: relations } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
-    if (
-      typeof id === "string" &&
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        id,
-      )
-    ) {
-      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
-    }
     const conditions = filter
       ? this._buildConditions(schema, filter, getTableName(schema))
       : [];
@@ -194,7 +186,6 @@ export class PostgresService implements IDatabaseService {
         throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
       return result as InferSelectModel<TpgTableRegistry[K]>;
     }
-
     const result = await this.db
       .select()
       // Drizzle #4367: generic indexed table types fail TableLikeHasEmptySelection.
@@ -215,6 +206,8 @@ export class PostgresService implements IDatabaseService {
     value: string,
     options?: TSearchOptions<K>,
   ): Promise<TSearchResult<K>> {
+    if (!value.trim()) return { data: [], total: 0 };
+
     const { filter, pagination } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
     const schemaColumns = getTableColumns(schema);
@@ -238,6 +231,7 @@ export class PostgresService implements IDatabaseService {
           )})`;
 
     const queryExpr = sql`plainto_tsquery('english', ${value})`;
+    const rankExpr = sql`ts_rank(${vectorExpr}, ${queryExpr})`;
 
     const ftsWhere = sql`${vectorExpr} @@ ${queryExpr}`;
 
@@ -254,7 +248,7 @@ export class PostgresService implements IDatabaseService {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       .from(schema as AnyPgTable)
       .where(whereClause)
-      .orderBy(sql`ts_rank(${vectorExpr}, ${queryExpr}) DESC`);
+      .orderBy(sql`${rankExpr} DESC`);
 
     if (pagination) {
       baseQuery.limit(pagination.limit).offset(pagination.offset);
@@ -306,19 +300,11 @@ export class PostgresService implements IDatabaseService {
       getTableName(schema),
     );
 
-    let result: InferSelectModel<T>[];
-    try {
-      result = await db
-        .update(schema)
-        .set(data)
-        .where(and(...conditions))
-        .returning();
-    } catch (error) {
-      if (error instanceof DrizzleQueryError) {
-        throw new NotFoundException(`Could not update ${getTableName(schema)}`);
-      }
-      throw error;
-    }
+    const result = await db
+      .update(schema)
+      .set(data)
+      .where(and(...conditions))
+      .returning();
 
     if (result.length === 0) {
       throw new NotFoundException(`Could not update ${getTableName(schema)}`);
@@ -339,19 +325,15 @@ export class PostgresService implements IDatabaseService {
       getTableName(schema),
     );
 
-    try {
-      const result = await db
-        .delete(schema)
-        .where(and(...conditions))
-        .returning();
-      if (result.length === 0 && !silent) throw new NotFoundException();
-    } catch (error) {
-      if (error instanceof DrizzleQueryError) {
-        throw new NotFoundException(
-          `Nothing to delete in ${getTableName(schema)}`,
-        );
-      }
-      throw error;
+    const result = await db
+      .delete(schema)
+      .where(and(...conditions))
+      .returning();
+
+    if (result.length === 0 && !silent) {
+      throw new NotFoundException(
+        `Nothing to delete in ${getTableName(schema)}`,
+      );
     }
   }
 
@@ -396,57 +378,58 @@ export class PostgresService implements IDatabaseService {
     newIds: number[],
     db: TdbPostgres = this.db,
   ): Promise<void> {
-    const schema = postgresTableRegistry[schemaName];
-    const schemaColumns = getTableColumns(schema);
-    const { columnName: parentColumnName, value: parentId } = parentColumn;
+    await db.transaction(async (tx) => {
+      const schema = postgresTableRegistry[schemaName];
+      const schemaColumns = getTableColumns(schema);
+      const { column: parentColumnName, value: parentId } = parentColumn;
 
-    const parentCol = schemaColumns[parentColumnName as string] as
-      | AnyPgColumn
-      | undefined;
+      const parentCol = schemaColumns[parentColumnName as string] as
+        | AnyPgColumn
+        | undefined;
+      if (!parentCol) {
+        throw new BadRequestException(
+          `Column "${String(parentColumnName)}" not found in ${getTableName(schema)}`,
+        );
+      }
 
-    if (!parentCol) {
-      throw new BadRequestException(
-        `Column "${String(parentColumnName)}" not found in ${getTableName(schema)}`,
+      const childCol = schemaColumns[childColumn as string] as
+        | AnyPgColumn
+        | undefined;
+      if (!childCol) {
+        throw new BadRequestException(
+          `Column "${String(childColumn)}" not found in ${getTableName(schema)}`,
+        );
+      }
+
+      const existing = await tx
+        .select()
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        .from(schema as AnyPgTable)
+        .where(eq(parentCol, parentId));
+
+      const existingIds = new Set(
+        existing.map((row) => row[childColumn as string] as number),
       );
-    }
+      const incomingIds = new Set(newIds);
 
-    const childCol = schemaColumns[childColumn as string] as
-      | AnyPgColumn
-      | undefined;
-    if (!childCol) {
-      throw new BadRequestException(
-        `Column "${String(childColumn)}" not found in ${getTableName(schema)}`,
-      );
-    }
+      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+      const toInsert = newIds.filter((id) => !existingIds.has(id));
 
-    const existing = await db
-      .select()
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-      .from(schema as AnyPgTable)
-      .where(eq(parentCol, parentId));
+      if (toDeleteIds.length > 0) {
+        await tx
+          .delete(schema)
+          .where(and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)));
+      }
 
-    const existingIds = new Set(
-      existing.map((row) => row[childColumn as string] as number),
-    );
-    const incomingIds = new Set(newIds);
-
-    const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
-    const toInsert = newIds.filter((id) => !existingIds.has(id));
-
-    if (toDeleteIds.length > 0) {
-      await db
-        .delete(schema)
-        .where(and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)));
-    }
-
-    if (toInsert.length > 0) {
-      await db.insert(schema).values(
-        toInsert.map((id) => ({
-          [parentColumnName]: parentId,
-          [childColumn]: id,
-        })) as InferInsertModel<TpgTableRegistry[K]>[],
-      );
-    }
+      if (toInsert.length > 0) {
+        await tx.insert(schema).values(
+          toInsert.map((id) => ({
+            [parentColumnName]: parentId,
+            [childColumn]: id,
+          })) as InferInsertModel<TpgTableRegistry[K]>[],
+        );
+      }
+    });
   }
 
   public async syncOneToMany<K extends TpgTableKey>(
@@ -455,46 +438,69 @@ export class PostgresService implements IDatabaseService {
     data: (Partial<InferInsertModel<TpgTableRegistry[K]>> & { id?: string })[],
     db: TdbPostgres = this.db,
   ): Promise<void> {
-    const existing = (await this.findAllByColumn(schemaName, {
-      filter: {
-        [parentColumn.columnName]: parentColumn.value,
-      } as TColumnFilter<K>,
-    })) as unknown as { id: string }[];
+    await db.transaction(async (tx) => {
+      const existing = (await this.findAllByColumn(
+        schemaName,
+        {
+          filter: {
+            [parentColumn.column]: parentColumn.value,
+          } as TColumnFilter<K>,
+        },
+        tx,
+      )) as unknown as { id: string }[];
 
-    const existingIds = new Set(existing.map((e) => e.id));
-    const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
+      const existingIds = new Set(existing.map((e) => e.id));
+      const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
 
-    for (const item of data) {
-      if (item.id && existingIds.has(item.id)) {
-        const { id: _id, ...updateData } = item;
+      const toUpdate = data.filter(
+        (item) => item.id && existingIds.has(item.id),
+      );
+      const toInsert = data.filter(
+        (item) => !item.id || !existingIds.has(item.id),
+      );
+      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+
+      for (const item of toUpdate) {
+        const { id, ...updateData } = item;
         await this.update(
           schemaName,
           updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
-          { id: item.id } as TColumnFilter<K>,
-          db,
-        );
-      } else {
-        const { id: _id, ...insertData } = item;
-        await this.create(
-          schemaName,
-          {
-            [parentColumn.columnName]: parentColumn.value,
-            ...insertData,
-          } as InferInsertModel<TpgTableRegistry[K]>,
-          db,
+          { id } as TColumnFilter<K>,
+          tx,
         );
       }
-    }
 
-    for (const existingId of existingIds) {
-      if (!incomingIds.has(existingId)) {
+      await Promise.all(
+        toUpdate.map((item) => {
+          const { id, ...updateData } = item;
+          return this.update(
+            schemaName,
+            updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
+            { id } as TColumnFilter<K>,
+            tx,
+          );
+        }),
+      );
+
+      if (toInsert.length > 0) {
+        await this.createMany(
+          schemaName,
+          toInsert.map(({ id: _id, ...insertData }) => ({
+            [parentColumn.column]: parentColumn.value,
+            ...insertData,
+          })) as InferInsertModel<TpgTableRegistry[K]>[],
+          tx,
+        );
+      }
+
+      if (toDeleteIds.length > 0) {
         await this.delete(
           schemaName,
-          { id: existingId } as TColumnFilter<K>,
+          { id: toDeleteIds } as TColumnFilter<K>,
           true,
-          db,
+          tx,
         );
       }
-    }
+    });
   }
 }

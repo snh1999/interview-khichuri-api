@@ -155,7 +155,7 @@ type TColumnValue<K extends TpgTableKey, C extends TColumnNames<K>> =
 
 export type TSingleColumnFilter<K extends TpgTableKey> = {
   [C in TColumnNames<K>]: {
-    columnName: C;
+    column: C;
     value: TColumnValue<K, C> | TColumnValue<K, C>[];
   };
 }[TColumnNames<K>];
@@ -174,7 +174,7 @@ export type TColumnFilter<K extends TpgTableKey> = {
 export type TSortOrder = "asc" | "desc";
 
 export interface TSortBy<K extends TpgTableKey> {
-  columnName: TColumnNames<K>;
+  column: TColumnNames<K>;
   order?: TSortOrder;
 }
 

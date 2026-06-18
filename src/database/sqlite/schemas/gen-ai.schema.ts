@@ -16,7 +16,7 @@ export const api_key = sqliteTable(
       .$defaultFn(() => crypto.randomUUID()),
     name: text("name").notNull(),
     userId: text("user_id"),
-    platform: text("platform", { enum: ["google"] }).notNull(),
+    platform: text("platform", { enum: ["google", "openai"] }).notNull(),
     key: text("key").notNull(),
     isActive: integer("is_active", { mode: "boolean" }),
     ...defaultTimeStamps,

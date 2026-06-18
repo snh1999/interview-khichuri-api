@@ -177,6 +177,39 @@ describe("Company (e2e)", () => {
     });
   });
 
+  describe("GET /company/:id", () => {
+    it("should return a company by id", async () => {
+      const {
+        body: { data: created },
+      } = await create();
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}/${created.id}`),
+      ).expect(200);
+
+      expect(body.data).toMatchObject(expectedCompanyStructure());
+      expect(body.data.name).toBe(created.name);
+      expect(body.data.id).toBe(created.id);
+    });
+
+    it("should return 404 when company does not exist", async () => {
+      const { body } = await auth(httpServer.get(`${routePath}/99999`)).expect(
+        404,
+      );
+
+      expect(body.statusCode).toBe(404);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+      const {
+        body: { data: created },
+      } = await create();
+
+      await httpServer.get(`${routePath}/${created.id}`).expect(401);
+    });
+  });
+
   describe("PATCH /company/:id", () => {
     it("should update company name", async () => {
       const {

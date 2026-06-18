@@ -90,15 +90,10 @@ export class ResumeService {
     if (!target) throw new NotFoundException("Resume not found");
     if (target.isPrimary) return;
 
-    for (const resume of resumes) {
-      await this.db.update(
-        "resume",
-        { isPrimary: resume.id === resumeId },
-        {
-          id: resume.id,
-        },
-      );
-    }
+    await this.db.withTransaction(async (tx) => {
+      await this.db.update("resume", { isPrimary: false }, { profileId }, tx);
+      await this.db.update("resume", { isPrimary: true }, { id: resumeId }, tx);
+    });
   }
 
   public async deleteResume(

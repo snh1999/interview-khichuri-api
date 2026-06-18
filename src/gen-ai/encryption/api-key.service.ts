@@ -46,7 +46,7 @@ export class ApiKeyService {
         ...(platform ? { platform } : {}),
         ...(userId ? { userId } : {}),
       },
-      sortBy: [{ columnName: "createdAt", order: "desc" }],
+      sortBy: [{ column: "platform" }, { column: "createdAt", order: "desc" }],
     });
   }
 

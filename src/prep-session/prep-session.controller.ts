@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from "@nestjs/common";
@@ -41,7 +42,8 @@ export class PrepSessionController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
-    @SortBy(["experience", "description", "createdAt", "updatedAt"]) sortBy?: TSortEntry[],
+    @SortBy(["experience", "description", "createdAt", "updatedAt"])
+    sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TPrepSession[]> {
     return this.prepSessionService.findAll(userId, pagination, sortBy);
@@ -49,7 +51,7 @@ export class PrepSessionController {
 
   @Get(":id")
   public findOne(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
     return this.prepSessionService.findOne(id, userId);
@@ -57,7 +59,7 @@ export class PrepSessionController {
 
   @Patch(":id")
   public update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdatePrepSessionDto,
     @UserId() userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
@@ -67,7 +69,7 @@ export class PrepSessionController {
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async remove(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.prepSessionService.delete(id, userId);
@@ -86,10 +88,16 @@ export class PrepSessionController {
   public findQuestions(
     @Param("sessionId") sessionId: string,
     @Pagination() pagination?: TPagination,
-    @SortBy(["questionText", "answer", "isFavorite", "createdAt", "updatedAt"]) sortBy?: TSortEntry[],
+    @SortBy(["questionText", "answer", "isFavorite", "createdAt", "updatedAt"])
+    sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TQuestion[]> {
-    return this.prepSessionService.findQuestions(sessionId, pagination, userId, sortBy);
+    return this.prepSessionService.findQuestions(
+      sessionId,
+      pagination,
+      userId,
+      sortBy,
+    );
   }
 
   @Patch(":sessionId/questions/:id")

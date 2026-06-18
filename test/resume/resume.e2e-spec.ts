@@ -97,7 +97,7 @@ describe("Upload Resume (e2e)", () => {
       mockFileUploadService.uploadFile.mockResolvedValue(expectedResponse);
 
       const { body } = await auth(httpServer.post("/resume"))
-        .attach("file", Buffer.from("fake pdf content"), {
+        .attach("file", Buffer.from("%PDF-1.4\nfake pdf content"), {
           filename: "resume.pdf",
           contentType: "application/pdf",
         })
@@ -136,7 +136,7 @@ describe("Upload Resume (e2e)", () => {
       );
 
       await auth(httpServer.post("/resume"))
-        .attach("file", Buffer.from("fake pdf content"), {
+        .attach("file", Buffer.from("%PDF-1.4\nfake pdf content"), {
           filename: "resume.pdf",
           contentType: "application/pdf",
         })

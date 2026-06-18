@@ -454,8 +454,14 @@ describe("Jobs (e2e)", () => {
       );
     });
 
+    it("should return 400 for non-uuid id", async () => {
+      const fakeId = "invalid_id";
+
+      await auth(httpServer.get(`/jobs/${fakeId}`)).expect(400);
+    });
+
     it("should return 404 for non-existent id", async () => {
-      const fakeId = "invalid-id";
+      const fakeId: string = crypto.randomUUID();
 
       await auth(httpServer.get(`/jobs/${fakeId}`)).expect(404);
     });
@@ -643,8 +649,16 @@ describe("Jobs (e2e)", () => {
         .expect(400);
     });
 
-    it("should return 404 when patching non-existent job", async () => {
+    it("should return 400 when patching non-uuid job", async () => {
       const fakeId = "invalid-id";
+
+      await auth(httpServer.patch(`/jobs/${fakeId}`))
+        .send({ title: "Nope" })
+        .expect(400);
+    });
+
+    it("should return 404 when patching non-existent job", async () => {
+      const fakeId: string = crypto.randomUUID();
 
       await auth(httpServer.patch(`/jobs/${fakeId}`))
         .send({ title: "Nope" })
@@ -702,14 +716,15 @@ describe("Jobs (e2e)", () => {
       expect(body.data).toHaveLength(2);
     });
 
-    it("should return 404 when deleting non-existent job", async () => {
+    it("should return 400 when deleting non-uuid id", async () => {
       const fakeId = "invalid_id";
 
-      const { body } = await auth(httpServer.delete(`/jobs/${fakeId}`)).expect(
-        404,
-      );
+      await auth(httpServer.delete(`/jobs/${fakeId}`)).expect(400);
+    });
 
-      expect(body.statusCode).toBe(404);
+    it("should return 404 when deleting non-existent job", async () => {
+      const fakeId = crypto.randomUUID();
+      await auth(httpServer.delete(`/jobs/${fakeId}`)).expect(404);
     });
 
     it("should return 404 when deleting another user's job", async () => {

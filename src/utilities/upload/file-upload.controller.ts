@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 
+import { UserId } from "@/src/config/guards/user-id.decorator";
 import {
   FileUploadService,
   TUploadResponse,
@@ -27,13 +28,13 @@ export class FileUploadController {
       new ParseFilePipeBuilder()
         .addFileTypeValidator({
           fileType: /(image\/png|image\/jpeg|application\/pdf)/,
-          skipMagicNumbersValidation: true,
         })
         .addMaxSizeValidator({ maxSize: 1024 * 1024 * 5 })
         .build(),
     )
     file: Express.Multer.File,
+    @UserId() userId?: string,
   ): Promise<TUploadResponse> {
-    return this.uploadService.uploadFile(file);
+    return this.uploadService.uploadFile(file, userId ?? "app");
   }
 }

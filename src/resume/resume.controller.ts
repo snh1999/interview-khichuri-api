@@ -35,7 +35,6 @@ export class ResumeController {
       new ParseFilePipeBuilder()
         .addFileTypeValidator({
           fileType: /application\/pdf/,
-          skipMagicNumbersValidation: true,
         })
         .addMaxSizeValidator({ maxSize: 1024 * 1024 * 5 })
         .build(),

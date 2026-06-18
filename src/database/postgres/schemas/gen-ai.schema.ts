@@ -11,7 +11,7 @@ import {
 import { user } from "@/src/database/postgres/schemas/auth.schema";
 import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
 
-export const platformEnum = pgEnum("platform", ["google"]);
+export const platformEnum = pgEnum("platform", ["google", "openai"]);
 
 export const api_key = pgTable(
   "api_key",

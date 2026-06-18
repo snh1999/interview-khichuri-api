@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
-import { IDatabaseService } from "@/src/database/database.service";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import { IDatabaseService } from "@/src/database/database.service";
 import type {
   TDatabase,
   TPagination,
@@ -40,7 +40,9 @@ export class PrepSessionService {
     pagination?: TPagination,
     sortBy?: TSortEntry[],
   ): Promise<TPrepSession[]> {
-    const sort = sortBy?.length ? sortBy : [{ columnName: "createdAt", order: "desc" as const }];
+    const sort = sortBy?.length
+      ? sortBy
+      : [{ column: "createdAt", order: "desc" as const }];
     return this.db.findAllByColumn("prep_session", {
       filter: userId ? { userId } : {},
       pagination,
@@ -112,7 +114,9 @@ export class PrepSessionService {
     sortBy?: TSortEntry[],
   ): Promise<TQuestion[]> {
     await this.findOne(sessionId, userId);
-    const sort = sortBy?.length ? sortBy : [{ columnName: "createdAt", order: "desc" as const }];
+    const sort = sortBy?.length
+      ? sortBy
+      : [{ column: "createdAt", order: "desc" as const }];
     return this.db.findAllByColumn("questions", {
       filter: { sessionId },
       sortBy: sort as TSortBy<"questions">[],

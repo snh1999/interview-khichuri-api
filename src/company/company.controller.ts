@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -30,6 +31,11 @@ export class CompanyController {
     return this.companyService.create(dto);
   }
 
+  @Get(":id")
+  public findOne(@Param("id", ParseIntPipe) id: number): Promise<TCompany> {
+    return this.companyService.findById(id);
+  }
+
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
@@ -42,7 +48,7 @@ export class CompanyController {
   @Patch(":id")
   @Roles(["admin"])
   public update(
-    @Param("id") id: number,
+    @Param("id", ParseIntPipe) id: number,
     @Body() dto: UpdateCompanyDto,
   ): Promise<TCompany> {
     return this.companyService.update(id, dto);
@@ -51,7 +57,7 @@ export class CompanyController {
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles(["admin"])
-  public delete(@Param("id") id: number): Promise<void> {
+  public delete(@Param("id", ParseIntPipe) id: number): Promise<void> {
     return this.companyService.delete(id);
   }
 }

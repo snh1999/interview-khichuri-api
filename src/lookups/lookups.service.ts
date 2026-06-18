@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
-import { IDatabaseService } from "@/src/database/database.service";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import { IDatabaseService } from "@/src/database/database.service";
 import type { TPagination, TSortBy } from "@/src/database/database.types";
 import { CreateLookupDto, UpdateLookupDto } from "@/src/lookups/lookups.dto";
 
@@ -28,9 +28,10 @@ export class LookupsService {
       const result = await this.db.search(schema, ["name"], name);
       return result.data as TLookupMap[T][];
     }
-    return this.db.findAllByColumn(schema, { pagination, sortBy: sortBy as TSortBy<T>[] }) as Promise<
-      TLookupMap[T][]
-    >;
+    return this.db.findAllByColumn(schema, {
+      pagination,
+      sortBy: sortBy as TSortBy<T>[],
+    }) as Promise<TLookupMap[T][]>;
   }
 
   async update<T extends TLookupSchema>(

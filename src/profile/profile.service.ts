@@ -134,7 +134,7 @@ export class ProfileService {
     await this.db.withTransaction(async (transaction) => {
       await this.db.syncOneToMany(
         "work_experience",
-        { columnName: "profileId", value: userId },
+        { column: "profileId", value: userId },
         dto.experiences.map((exp) => ({
           ...exp,
           startDate: toDate(exp.startDate),
@@ -152,7 +152,7 @@ export class ProfileService {
     await this.db.withTransaction(async (transaction) => {
       await this.db.syncOneToMany(
         "education",
-        { columnName: "profileId", value: userId },
+        { column: "profileId", value: userId },
         dto.education.map((edu) => ({
           ...edu,
           startDate: toDate(edu.startDate),
@@ -189,7 +189,7 @@ export class ProfileService {
         if (titles !== undefined) {
           await this.db.syncJunctionTable(
             "preference_titles",
-            { columnName: "preferenceId", value: preferenceId },
+            { column: "preferenceId", value: preferenceId },
             "roleId",
             titles,
             transaction,
@@ -206,7 +206,7 @@ export class ProfileService {
           if (titles?.length) {
             await this.db.syncJunctionTable(
               "preference_titles",
-              { columnName: "preferenceId", value: created.id },
+              { column: "preferenceId", value: created.id },
               "roleId",
               titles,
               transaction,
@@ -251,7 +251,7 @@ export class ProfileService {
     if (skills !== undefined) {
       await this.db.syncJunctionTable(
         "work_skills",
-        { columnName: "workId", value: workId },
+        { column: "workId", value: workId },
         "topicId",
         skills,
         transaction,
@@ -261,7 +261,7 @@ export class ProfileService {
     if (industries !== undefined) {
       await this.db.syncJunctionTable(
         "work_industries",
-        { columnName: "workId", value: workId },
+        { column: "workId", value: workId },
         "industryId",
         industries,
         transaction,

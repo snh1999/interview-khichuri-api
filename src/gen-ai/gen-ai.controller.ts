@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -49,7 +50,7 @@ export class GenAiController {
   @Delete("api-keys/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
   async delete(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.apiKeyService.delete(id, userId);
@@ -57,7 +58,7 @@ export class GenAiController {
 
   @Patch("api-keys/:id/activate")
   async activate(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.apiKeyService.activateApiKey(id, userId);

@@ -104,7 +104,9 @@ export class SqliteService implements IDatabaseService {
       this.db.run(sql`COMMIT`);
       return result;
     } catch (err) {
-      this.db.run(sql`ROLLBACK`);
+      try {
+        this.db.run(sql`ROLLBACK`);
+      } catch {}
       throw err;
     }
   }
@@ -134,6 +136,7 @@ export class SqliteService implements IDatabaseService {
   public findAllByColumn<K extends TsqliteTableKey>(
     schemaName: K,
     options?: TFindAllByColumnOptions<K>,
+    db: TdbSqlite = this.db,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const {
       filter: columns,
@@ -148,7 +151,7 @@ export class SqliteService implements IDatabaseService {
       : [];
 
     if (relations && Object.keys(relations).length > 0) {
-      return this.db.query[schemaName].findMany({
+      return db.query[schemaName].findMany({
         where: conditions.length ? and(...conditions) : undefined,
         with: relations,
         ...(pagination && {
@@ -160,11 +163,11 @@ export class SqliteService implements IDatabaseService {
     }
 
     const orderBy = sortBy?.map((s) => {
-      const col = schema[s.columnName as keyof typeof schema] as SQLiteColumn;
+      const col = schema[s.column as keyof typeof schema] as SQLiteColumn;
       return s.order === "desc" ? desc(col) : asc(col);
     });
 
-    const query = this.db
+    const query = db
       .select()
       .from(schema)
       .where(conditions.length ? and(...conditions) : undefined)
@@ -237,14 +240,7 @@ export class SqliteService implements IDatabaseService {
   ): Promise<InferSelectModel<TsqliteTableRegistry[K]>> {
     const { filter, relation: relations } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
-    if (
-      typeof id === "string" &&
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        id,
-      )
-    ) {
-      throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
-    }
+
     const conditions = filter
       ? this._buildConditions(schema, filter, getTableName(schema))
       : [];
@@ -276,7 +272,7 @@ export class SqliteService implements IDatabaseService {
   public update<K extends TsqliteTableKey>(
     schemaName: K,
     data: Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
-    columns?: TColumnFilter<K>,
+    columns: TColumnFilter<K>,
     db: TdbSqlite = this.db,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName];
@@ -284,7 +280,7 @@ export class SqliteService implements IDatabaseService {
     return this._update(
       schema,
       data,
-      (columns ?? []) as TSchemaColumnFilter<typeof schema>[],
+      columns as TSchemaColumnFilter<typeof schema>,
       db,
     );
   }
@@ -292,12 +288,12 @@ export class SqliteService implements IDatabaseService {
   private _update<T extends TSqliteTableWithId>(
     schema: T,
     data: Partial<InferInsertModel<T>>,
-    columns: TSchemaColumnFilter<T>[],
+    columns: TSchemaColumnFilter<T>,
     db: TdbSqlite = this.db,
   ): InferSelectModel<T>[] {
     const conditions = this._buildConditions(
       schema,
-      columns as TSchemaColumnFilter<typeof schema>,
+      columns,
       getTableName(schema),
     );
 
@@ -359,10 +355,7 @@ export class SqliteService implements IDatabaseService {
     try {
       this.db.transaction((tx) => {
         for (const table of tableNames) {
-          tx.run(
-            sql.raw(`DELETE
-                          FROM "${table}"`),
-          );
+          tx.run(sql.raw(`DELETE FROM "${table}"`));
         }
       });
     } finally {
@@ -375,14 +368,16 @@ export class SqliteService implements IDatabaseService {
     columns: Record<string, unknown>,
     serviceName: string,
   ): ReturnType<typeof eq>[] {
-    const tableColumns = getTableColumns(schema);
+    const schemaColumns = getTableColumns(schema);
     return Object.entries(columns).map(([colName, value]) => {
-      if (!(colName in tableColumns)) {
+      if (!(colName in schemaColumns)) {
         throw new BadRequestException(
           `Column "${colName}" not supported by ${serviceName}`,
         );
       }
-      return eq(tableColumns[colName], value);
+      return Array.isArray(value)
+        ? inArray(schemaColumns[colName], value)
+        : eq(schemaColumns[colName], value);
     });
   }
 
@@ -395,7 +390,7 @@ export class SqliteService implements IDatabaseService {
   ): void {
     const schema = sqliteTableRegistry[schemaName];
     const schemaColumns = getTableColumns(schema);
-    const { columnName: parentColumnName, value: parentId } = parentColumn;
+    const { column: parentColumnName, value: parentId } = parentColumn;
 
     const parentCol = schemaColumns[parentColumnName as string] as unknown as
       | AnySQLiteColumn
@@ -417,34 +412,38 @@ export class SqliteService implements IDatabaseService {
       );
     }
 
-    const existing = db
-      .select()
-      .from(schema)
-      .where(eq(parentCol, parentId))
-      .all();
+    db.transaction((tx) => {
+      const existing = tx
+        .select()
+        .from(schema)
+        .where(eq(parentCol, parentId))
+        .all();
 
-    const existingIds = new Set(
-      existing.map((row) => row[childColumn as string] as number),
-    );
-    const incomingIds = new Set(newIds);
-
-    const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
-    const toInsert = newIds.filter((id) => !existingIds.has(id));
-
-    if (toDeleteIds.length > 0) {
-      db.delete(schema).where(
-        and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)),
+      const existingIds = new Set(
+        existing.map((row) => row[childColumn as string] as number),
       );
-    }
+      const incomingIds = new Set(newIds);
 
-    if (toInsert.length > 0) {
-      db.insert(schema).values(
-        toInsert.map((id) => ({
-          [parentColumnName]: parentId,
-          [childColumn]: id,
-        })) as InferInsertModel<TsqliteTableRegistry[K]>[],
-      );
-    }
+      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+      const toInsert = newIds.filter((id) => !existingIds.has(id));
+
+      if (toDeleteIds.length > 0) {
+        tx.delete(schema)
+          .where(and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)))
+          .run();
+      }
+
+      if (toInsert.length > 0) {
+        tx.insert(schema)
+          .values(
+            toInsert.map((id) => ({
+              [parentColumnName]: parentId,
+              [childColumn]: id,
+            })) as InferInsertModel<TsqliteTableRegistry[K]>[],
+          )
+          .run();
+      }
+    });
   }
 
   public syncOneToMany<K extends TsqliteTableKey>(
@@ -455,47 +454,58 @@ export class SqliteService implements IDatabaseService {
     })[],
     db: TdbSqlite = this.db,
   ): void {
-    const existing = this.findAllByColumn(schemaName, {
-      filter: {
-        [parentColumn.columnName]: parentColumn.value,
-      } as TColumnFilter<K>,
-    }) as {
-      id: string;
-    }[];
+    db.transaction((tx) => {
+      const existing = this.findAllByColumn(
+        schemaName,
+        {
+          filter: {
+            [parentColumn.column]: parentColumn.value,
+          } as TColumnFilter<K>,
+        },
+        tx,
+      ) as { id: string }[];
 
-    const existingIds = new Set(existing.map((e) => e.id));
-    const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
+      const existingIds = new Set(existing.map((e) => e.id));
+      const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
 
-    for (const item of data) {
-      const { id: _id, ...itemData } = item;
-      if (item.id && existingIds.has(item.id)) {
+      const toInsert = data.filter(
+        (item) => !item.id || !existingIds.has(item.id),
+      );
+      const toUpdate = data.filter(
+        (item) => item.id && existingIds.has(item.id),
+      );
+      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+
+      for (const item of toUpdate) {
+        const { id, ...rest } = item;
         this.update(
           schemaName,
-          itemData as Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
-          { id: item.id } as TColumnFilter<K>,
-          db,
-        );
-      } else {
-        this.create(
-          schemaName,
-          {
-            [parentColumn.columnName]: parentColumn.value,
-            ...itemData,
-          } as InferInsertModel<TsqliteTableRegistry[K]>,
-          db,
+          rest as Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
+          { id } as TColumnFilter<K>,
+          tx,
         );
       }
-    }
 
-    for (const existingId of existingIds) {
-      if (!incomingIds.has(existingId)) {
+      if (toInsert.length > 0) {
+        const insertData = toInsert.map(({ id: _id, ...rest }) => ({
+          [parentColumn.column]: parentColumn.value,
+          ...rest,
+        }));
+        this.createMany(
+          schemaName,
+          insertData as InferInsertModel<TsqliteTableRegistry[K]>[],
+          tx,
+        );
+      }
+
+      if (toDeleteIds.length > 0) {
         this.delete(
           schemaName,
-          { id: existingId } as TColumnFilter<K>,
+          { id: toDeleteIds } as TColumnFilter<K>,
           true,
-          db,
+          tx,
         );
       }
-    }
+    });
   }
 }

@@ -17,7 +17,7 @@ export const profiles = sqliteTable("profiles", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
+  lastName: text("last_name"),
   phone: text("phone"),
   email: text("email"),
   location: text("location"),

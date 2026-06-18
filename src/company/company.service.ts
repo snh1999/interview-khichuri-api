@@ -1,8 +1,12 @@
 import { Injectable } from "@nestjs/common";
 
-import { IDatabaseService } from "@/src/database/database.service";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
-import type { TCompany, TPagination, TSortBy } from "@/src/database/database.types";
+import { IDatabaseService } from "@/src/database/database.service";
+import type {
+  TCompany,
+  TPagination,
+  TSortBy,
+} from "@/src/database/database.types";
 
 import { CreateCompanyDto, UpdateCompanyDto } from "./dto/company.dto";
 
@@ -14,6 +18,10 @@ export class CompanyService {
     return this.db.create("companies", dto);
   }
 
+  public async findById(id: number): Promise<TCompany> {
+    return this.db.findById("companies", id);
+  }
+
   public async findAll(
     name?: string,
     pagination?: TPagination,
@@ -23,7 +31,10 @@ export class CompanyService {
       const result = await this.db.search("companies", ["name"], name);
       return result.data;
     }
-    return this.db.findAllByColumn("companies", { pagination, sortBy: sortBy as TSortBy<"companies">[] });
+    return this.db.findAllByColumn("companies", {
+      pagination,
+      sortBy: sortBy as TSortBy<"companies">[],
+    });
   }
 
   public async update(id: number, dto: UpdateCompanyDto): Promise<TCompany> {
