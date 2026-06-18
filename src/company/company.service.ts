@@ -22,13 +22,11 @@ export class CompanyService {
   }
 
   public async update(id: number, dto: UpdateCompanyDto): Promise<TCompany> {
-    const [company] = await this.db.update("companies", dto, [
-      { columnName: "id", value: id },
-    ]);
+    const [company] = await this.db.update("companies", dto, { id });
     return company;
   }
 
   public async delete(id: number): Promise<void> {
-    await this.db.delete("companies", [{ columnName: "id", value: id }]);
+    await this.db.delete("companies", { id });
   }
 }

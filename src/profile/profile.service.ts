@@ -15,7 +15,7 @@ import type {
   UpdateProfileLinksDto,
   UpdateWorkExperienceDto,
   UpdateWorkOverviewDto,
-} from "./dto/profile.dto";
+} from "./profile.dto";
 
 const profileRelations = {
   links: true,
@@ -48,7 +48,8 @@ export class ProfileService {
 
     const [profile] = (await this.db.findAllByColumn(
       "profiles",
-      userId ? [{ columnName: "id", value: userId }] : [],
+      userId ? { id: userId } : {},
+      undefined,
       undefined,
       profileRelations,
     )) as unknown as [TProfilePopulated | undefined];
@@ -77,9 +78,7 @@ export class ProfileService {
     userId: string,
     dto: UpdateProfileDto,
   ): Promise<TProfile> {
-    const [profile] = await this.db.update("profiles", dto, [
-      { columnName: "id", value: userId },
-    ]);
+    const [profile] = await this.db.update("profiles", dto, { id: userId });
     return profile;
   }
 
@@ -91,16 +90,14 @@ export class ProfileService {
 
     await this.db.withTransaction(async (transaction) => {
       // for now allows only one section per userId
-      const existing = await this.db.findAllByColumn("work_overview", [
-        { columnName: "profileId", value: userId },
-      ]);
+      const existing = await this.db.findAllByColumn("work_overview", { profileId: userId });
       const overviewId = existing[0]?.id;
 
       if (overviewId) {
         await this.db.update(
           "work_overview",
           overviewFields,
-          [{ columnName: "id", value: overviewId }],
+          { id: overviewId },
           transaction,
         );
 
@@ -174,9 +171,7 @@ export class ProfileService {
     const { titles, ...prefFields } = dto;
 
     await this.db.withTransaction(async (transaction) => {
-      const existing = (await this.db.findAllByColumn("job_preference", [
-        { columnName: "profileId", value: userId },
-      ])) as unknown as { id: string }[];
+      const existing = (await this.db.findAllByColumn("job_preference", { profileId: userId })) as unknown as { id: string }[];
 
       const preferenceId = existing[0]?.id;
 
@@ -185,7 +180,7 @@ export class ProfileService {
           await this.db.update(
             "job_preference",
             prefFields,
-            [{ columnName: "id", value: preferenceId }],
+            { id: preferenceId },
             transaction,
           );
         }
@@ -231,7 +226,7 @@ export class ProfileService {
     await this.db.withTransaction(async (transaction) => {
       await this.db.delete(
         "profile_links",
-        [{ columnName: "profileId", value: userId }],
+        { profileId: userId },
         true,
         transaction,
       );

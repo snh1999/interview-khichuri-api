@@ -44,9 +44,7 @@ export class JobsService {
   }
 
   public async findAll(userId?: string, search?: string): Promise<TJob[]> {
-    const filters = userId
-      ? [{ columnName: "userId" as const, value: userId }]
-      : [];
+    const filters = userId ? { userId } : {};
 
     if (search) {
       const result = await this.db.search(
@@ -69,7 +67,7 @@ export class JobsService {
     return this.db.findById(
       "jobs",
       id,
-      [...(userId ? [{ columnName: "userId", value: userId } as const] : [])],
+      { ...(userId ? { userId } : {}) },
       populate ? { jobTopics: { with: { topic: true } } } : undefined,
     ) as Promise<TJobWithTopics>;
   }
@@ -87,18 +85,15 @@ export class JobsService {
           "jobs",
           jobFields,
           userId
-            ? [
-                { columnName: "id" as const, value: id },
-                { columnName: "userId" as const, value: userId },
-              ]
-            : [{ columnName: "id" as const, value: id }],
+            ? { id, userId }
+            : { id },
           transaction,
         );
       }
       if (topicIds) {
         await this.db.delete(
           "job_topics",
-          [{ columnName: "jobId", value: id }],
+          { jobId: id },
           true,
           transaction,
         );
@@ -110,9 +105,9 @@ export class JobsService {
   }
 
   public async delete(id: string, userId?: string): Promise<void> {
-    return this.db.delete("jobs", [
-      { columnName: "id", value: id },
-      ...(userId ? [{ columnName: "userId", value: userId } as const] : []),
-    ]);
+    return this.db.delete("jobs", {
+      id,
+      ...(userId ? { userId } : {}),
+    });
   }
 }

@@ -21,7 +21,7 @@ import {
   UpdateProfileLinksDto,
   UpdateWorkExperienceDto,
   UpdateWorkOverviewDto,
-} from "./dto/profile.dto";
+} from "./profile.dto";
 import { ProfileService } from "./profile.service";
 
 @Controller("profile")

@@ -153,16 +153,27 @@ type TColumnValue<K extends TpgTableKey, C extends TColumnNames<K>> =
       ? InferSelectModel<TsqliteTableRegistry[K]>[C]
       : never);
 
-export type TColumnFilter<K extends TpgTableKey> = {
+export type TSingleColumnFilter<K extends TpgTableKey> = {
   [C in TColumnNames<K>]: {
     columnName: C;
     value: TColumnValue<K, C> | TColumnValue<K, C>[];
   };
 }[TColumnNames<K>];
 
-export type TSchemaColumn<T extends AnyPgTable | SQLiteTable> = {
-  [C in keyof T["_"]["columns"]]: {
-    columnName: C;
-    value: InferSelectModel<T>[C & keyof InferSelectModel<T>];
-  };
-}[keyof T["_"]["columns"]];
+export type TSchemaColumnFilter<T extends AnyPgTable | SQLiteTable> = {
+  [C in keyof T["_"]["columns"]]?:
+    | InferSelectModel<T>[C & keyof InferSelectModel<T>]
+    | InferSelectModel<T>[C & keyof InferSelectModel<T>][];
+};
+
+// No clear path to derive from TSchemaColumnFilter as we need both pg and sqlite registry
+export type TColumnFilter<K extends TpgTableKey> = {
+  [C in TColumnNames<K>]?: TColumnValue<K, C> | TColumnValue<K, C>[];
+};
+
+export type TSortOrder = "asc" | "desc";
+
+export interface TSortBy<K extends TpgTableKey> {
+  columnName: TColumnNames<K>;
+  order?: TSortOrder;
+}

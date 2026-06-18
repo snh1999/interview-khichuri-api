@@ -15,6 +15,8 @@ import {
   and,
   DrizzleQueryError,
   inArray,
+  desc,
+  asc,
 } from "drizzle-orm";
 import { AnyPgColumn, AnyPgTable, PgTable } from "drizzle-orm/pg-core";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
@@ -23,10 +25,12 @@ import { IDatabaseService } from "@/src/database/database.service";
 
 import { DATABASE_CONNECTION } from "../database.constants";
 import {
-  TColumnFilter,
+  TSingleColumnFilter,
   type TPagination,
-  TSchemaColumn,
+  TSchemaColumnFilter,
   TSearchResult,
+  TSortBy,
+  TColumnFilter,
 } from "../database.types";
 import * as schemas from "./schemas";
 
@@ -116,17 +120,14 @@ export class PostgresService implements IDatabaseService {
 
   public async findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
-    columns?: TColumnFilter<K>[],
+    columns?: TColumnFilter<K>,
+    sortBy?: TSortBy<K>[],
     pagination?: TPagination,
     relations?: TpgWithRelations<K>,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const schema = postgresTableRegistry[schemaName];
-    const conditions = columns?.length
-      ? this._buildConditions(
-          schema,
-          columns as TSchemaColumn<typeof schema>[],
-          getTableName(schema),
-        )
+    const conditions = columns
+      ? this._buildConditions(schema, columns, getTableName(schema))
       : [];
 
     if (relations && Object.keys(relations).length > 0) {
@@ -140,11 +141,17 @@ export class PostgresService implements IDatabaseService {
       }) as Promise<InferSelectModel<TpgTableRegistry[K]>[]>;
     }
 
+    const orderBy = sortBy?.map((sort) => {
+      const col = schema[sort.columnName as keyof typeof schema] as AnyPgColumn;
+      return sort.order === "desc" ? desc(col) : asc(col);
+    });
+
     const query = this.db
       .select()
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       .from(schema as AnyPgTable)
-      .where(conditions.length ? and(...conditions) : undefined);
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(...(orderBy ?? []));
 
     if (pagination) {
       query.limit(pagination.limit).offset(pagination.offset);
@@ -156,7 +163,7 @@ export class PostgresService implements IDatabaseService {
   public async findById<K extends TpgTableKey>(
     schemaName: K,
     id: string | number,
-    columns?: TColumnFilter<K>[],
+    columns?: TColumnFilter<K>,
     relations?: TpgWithRelations<K>,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
     const schema = postgresTableRegistry[schemaName];
@@ -169,11 +176,7 @@ export class PostgresService implements IDatabaseService {
       throw new NotFoundException(`${getTableName(schema)} ${id} not found`);
     }
     const conditions = columns
-      ? this._buildConditions(
-          schema,
-          columns as TSchemaColumn<typeof schema>[],
-          getTableName(schema),
-        )
+      ? this._buildConditions(schema, columns, getTableName(schema))
       : [];
 
     const allConditions = [...conditions, eq((schema as PgTableWithId).id, id)];
@@ -206,7 +209,7 @@ export class PostgresService implements IDatabaseService {
     schemaName: K,
     columnNames: TpgCols<K>[],
     value: string,
-    columns?: TColumnFilter<K>[],
+    columns?: TColumnFilter<K>,
     pagination?: TPagination,
   ): Promise<TSearchResult<K>> {
     const schema = postgresTableRegistry[schemaName];
@@ -234,12 +237,8 @@ export class PostgresService implements IDatabaseService {
 
     const ftsWhere = sql`${vectorExpr} @@ ${queryExpr}`;
 
-    const conditions = columns?.length
-      ? this._buildConditions(
-          schema,
-          columns as TSchemaColumn<typeof schema>[],
-          getTableName(schema),
-        )
+    const conditions = columns
+      ? this._buildConditions(schema, columns, getTableName(schema))
       : [];
 
     const whereClause = conditions.length
@@ -277,7 +276,7 @@ export class PostgresService implements IDatabaseService {
   public async update<K extends TpgTableKey>(
     schemaName: K,
     data: Partial<InferInsertModel<TpgTableRegistry[K]>>,
-    columns: TColumnFilter<K>[],
+    columns: TColumnFilter<K>,
     db: TdbPostgres = this.db,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const schema = postgresTableRegistry[schemaName] as TpgTableRegistry[K] &
@@ -286,7 +285,7 @@ export class PostgresService implements IDatabaseService {
     return this._update(
       schema,
       data,
-      columns as TSchemaColumn<typeof schema>[],
+      columns as TSchemaColumnFilter<typeof schema>,
       db,
     );
   }
@@ -294,7 +293,7 @@ export class PostgresService implements IDatabaseService {
   private async _update<T extends PgTableWithId>(
     schema: T,
     data: Partial<InferInsertModel<T>>,
-    columns: TSchemaColumn<T>[],
+    columns: TSchemaColumnFilter<T>,
     db: TdbPostgres = this.db,
   ): Promise<InferSelectModel<T>[]> {
     const conditions = this._buildConditions(
@@ -325,14 +324,14 @@ export class PostgresService implements IDatabaseService {
 
   public async delete<K extends TpgTableKey>(
     schemaName: K,
-    columns: TColumnFilter<K>[],
+    columns: TColumnFilter<K>,
     silent = false,
     db: TdbPostgres = this.db,
   ): Promise<void> {
     const schema = postgresTableRegistry[schemaName];
     const conditions = this._buildConditions(
       schema,
-      columns as TSchemaColumn<typeof schema>[],
+      columns,
       getTableName(schema),
     );
 
@@ -368,14 +367,13 @@ export class PostgresService implements IDatabaseService {
     await this.db.execute(sql.raw(`TRUNCATE TABLE ${tableNames} CASCADE`));
   }
 
-  private _buildConditions<T extends AnyPgTable>(
-    schema: T,
-    columns: TSchemaColumn<T>[],
+  private _buildConditions(
+    schema: AnyPgTable,
+    columns: Record<string, unknown>,
     schemaName: string,
   ): ReturnType<typeof eq>[] {
     const schemaColumns = getTableColumns(schema);
-    return columns.map(({ columnName, value }) => {
-      const colName = String(columnName);
+    return Object.entries(columns).map(([colName, value]) => {
       if (!(colName in schemaColumns)) {
         throw new BadRequestException(
           `Column "${colName}" not supported by ${schemaName}`,
@@ -389,7 +387,7 @@ export class PostgresService implements IDatabaseService {
 
   public async syncJunctionTable<K extends TpgTableKey>(
     schemaName: K,
-    parentColumn: TColumnFilter<K>,
+    parentColumn: TSingleColumnFilter<K>,
     childColumn: TpgCols<K>,
     newIds: number[],
     db: TdbPostgres = this.db,
@@ -449,13 +447,13 @@ export class PostgresService implements IDatabaseService {
 
   public async syncOneToMany<K extends TpgTableKey>(
     schemaName: K,
-    parentColumn: TColumnFilter<K>,
+    parentColumn: TSingleColumnFilter<K>,
     data: (Partial<InferInsertModel<TpgTableRegistry[K]>> & { id?: string })[],
     db: TdbPostgres = this.db,
   ): Promise<void> {
-    const existing = (await this.findAllByColumn(schemaName, [
-      parentColumn,
-    ])) as unknown as { id: string }[];
+    const existing = (await this.findAllByColumn(schemaName, {
+      [parentColumn.columnName]: parentColumn.value,
+    } as TColumnFilter<K>)) as unknown as { id: string }[];
 
     const existingIds = new Set(existing.map((e) => e.id));
     const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
@@ -466,7 +464,7 @@ export class PostgresService implements IDatabaseService {
         await this.update(
           schemaName,
           updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
-          [{ columnName: "id", value: item.id }] as TColumnFilter<K>[],
+          { id: item.id } as TColumnFilter<K>,
           db,
         );
       } else {
@@ -486,7 +484,7 @@ export class PostgresService implements IDatabaseService {
       if (!incomingIds.has(existingId)) {
         await this.delete(
           schemaName,
-          [{ columnName: "id", value: existingId }] as TColumnFilter<K>[],
+          { id: existingId } as TColumnFilter<K>,
           true,
           db,
         );

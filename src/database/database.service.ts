@@ -1,5 +1,5 @@
 import type {
-  TColumnFilter,
+  TSingleColumnFilter,
   TColumnNames,
   TDatabase,
   TdbWithRelations,
@@ -8,6 +8,8 @@ import type {
   TReturn,
   TSearchResult,
   TSelect,
+  TSortBy,
+  TColumnFilter,
 } from "@/src/database/database.types";
 import type { TpgTableKey } from "@/src/database/postgres/postgres.service";
 
@@ -51,7 +53,8 @@ export abstract class IDatabaseService {
 
   abstract findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
-    column?: TColumnFilter<K>[],
+    column?: TColumnFilter<K>,
+    sortBy?: TSortBy<K>[],
     pagination?: TPagination,
     relation?: TdbWithRelations<K>,
   ): TReturn<TSelect<K>[]>;
@@ -60,27 +63,27 @@ export abstract class IDatabaseService {
     schemaName: K,
     columnName: TColumnNames<K>[],
     value: string,
-    columns?: TColumnFilter<K>[],
+    columns?: TColumnFilter<K>,
     pagination?: TPagination,
   ): TReturn<TSearchResult<K>>;
 
   abstract findById<K extends TpgTableKey>(
     schemaName: K,
     id: string | number,
-    columns?: TColumnFilter<K>[],
+    columns?: TColumnFilter<K>,
     relation?: TdbWithRelations<K>,
   ): TReturn<TSelect<K>>;
 
   abstract update<K extends TpgTableKey>(
     schemaName: K,
     data: Partial<TInsert<K>>,
-    columns: TColumnFilter<K>[],
+    columns: TColumnFilter<K>,
     db?: TDatabase,
   ): TReturn<TSelect<K>[]>;
 
   public abstract delete<K extends TpgTableKey>(
     schemaName: K,
-    columns: TColumnFilter<K>[],
+    columns: TColumnFilter<K>,
     silent?: boolean,
     db?: TDatabase,
   ): TReturn<void>;
@@ -107,7 +110,7 @@ export abstract class IDatabaseService {
 
   public abstract syncJunctionTable<K extends TpgTableKey>(
     schemaName: K,
-    parentColumn: TColumnFilter<K>,
+    parentColumn: TSingleColumnFilter<K>,
     childColumn: TColumnNames<K>,
     // junction table PKs are number
     newIds: number[],
@@ -140,7 +143,7 @@ export abstract class IDatabaseService {
    */
   public abstract syncOneToMany<K extends TpgTableKey>(
     schemaName: K,
-    parentColumn: TColumnFilter<K>,
+    parentColumn: TSingleColumnFilter<K>,
     data: (Partial<TInsert<K>> & { id?: string })[],
     db?: TDatabase,
   ): TReturn<void>;

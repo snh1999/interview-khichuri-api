@@ -24,9 +24,7 @@ export class ResumeService {
     file: Express.Multer.File,
     profileId: string,
   ): Promise<TUploadResponse> {
-    const existing = await this.db.findAllByColumn("resume", [
-      { columnName: "profileId", value: profileId },
-    ]);
+    const existing = await this.db.findAllByColumn("resume", { profileId });
 
     if (existing.length >= MAX_RESUMES) {
       throw new BadRequestException(
@@ -34,7 +32,11 @@ export class ResumeService {
       );
     }
 
-    const { filename } = await this.fileService.uploadFile(file, profileId);
+    const { filename } = await this.fileService.uploadFile(
+      file,
+      profileId,
+      "resumes",
+    );
 
     try {
       await this.db.create("resume", {
@@ -55,9 +57,7 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<TViewUrlResponse> {
-    const resumes = await this.db.findAllByColumn("resume", [
-      { columnName: "id", value: resumeId },
-    ]);
+    const resumes = await this.db.findAllByColumn("resume", { id: resumeId });
 
     if (resumes.length === 0) {
       throw new NotFoundException("Resume not found");
@@ -78,18 +78,16 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<void> {
-    const resumes = await this.db.findAllByColumn("resume", [
-      { columnName: "profileId", value: profileId },
-    ]);
+    const resumes = await this.db.findAllByColumn("resume", { profileId });
 
     const target = resumes.find((r) => r.id === resumeId);
     if (!target) throw new NotFoundException("Resume not found");
     if (target.isPrimary) return;
 
     for (const resume of resumes) {
-      await this.db.update("resume", { isPrimary: resume.id === resumeId }, [
-        { columnName: "id", value: resume.id },
-      ]);
+      await this.db.update("resume", { isPrimary: resume.id === resumeId }, {
+        id: resume.id,
+      });
     }
   }
 
@@ -97,9 +95,7 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<void> {
-    const resumes = await this.db.findAllByColumn("resume", [
-      { columnName: "id", value: resumeId },
-    ]);
+    const resumes = await this.db.findAllByColumn("resume", { id: resumeId });
 
     if (resumes.length === 0) {
       throw new NotFoundException("Resume not found");
@@ -109,7 +105,7 @@ export class ResumeService {
     if (resume.profileId !== profileId)
       throw new ForbiddenException("You do not have permission to delete");
 
-    await this.db.delete("resume", [{ columnName: "id", value: resumeId }]);
+    await this.db.delete("resume", { id: resumeId });
 
     await this.fileService.deleteFile(resume.url);
   }

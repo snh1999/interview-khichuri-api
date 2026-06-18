@@ -35,12 +35,12 @@ export class LookupsService {
     const result = await this.db.update(
       schema,
       dto as never,
-      [{ columnName: "id", value: id }] as never,
+      { id } as never,
     );
     return result[0] as TLookupMap[T];
   }
 
   async delete(schema: TLookupSchema, id: number): Promise<void> {
-    return this.db.delete(schema, [{ columnName: "id", value: id }]);
+    return this.db.delete(schema, { id });
   }
 }

@@ -34,9 +34,7 @@ export class PrepSessionService {
   }
 
   public async findAll(userId?: string): Promise<TPrepSession[]> {
-    const filters = userId
-      ? [{ columnName: "userId" as const, value: userId }]
-      : [];
+    const filters = userId ? { userId } : {};
 
     return this.db.findAllByColumn("prep_session", filters);
   }
@@ -48,7 +46,7 @@ export class PrepSessionService {
     return this.db.findById(
       "prep_session",
       id,
-      [...(userId ? [{ columnName: "userId" as const, value: userId }] : [])],
+      { ...(userId ? { userId } : {}) },
       { questions: true },
     ) as Promise<TPrepSessionWithQuestions>;
   }
@@ -66,18 +64,15 @@ export class PrepSessionService {
           "prep_session",
           sessionFields,
           userId
-            ? [
-                { columnName: "id", value: id },
-                { columnName: "userId", value: userId },
-              ]
-            : [{ columnName: "id", value: id }],
+            ? { id, userId }
+            : { id },
           transaction,
         );
       }
       if (topicIds) {
         await this.db.delete(
           "session_topics",
-          [{ columnName: "sessionId", value: id }],
+          { sessionId: id },
           true,
           transaction,
         );
@@ -89,10 +84,10 @@ export class PrepSessionService {
   }
 
   public async delete(id: string, userId?: string): Promise<void> {
-    return this.db.delete("prep_session", [
-      { columnName: "id", value: id },
-      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-    ]);
+    return this.db.delete("prep_session", {
+      id,
+      ...(userId ? { userId } : {}),
+    });
   }
 
   public async addQuestion(
@@ -113,7 +108,8 @@ export class PrepSessionService {
     await this.findOne(sessionId, userId);
     return this.db.findAllByColumn(
       "questions",
-      [{ columnName: "sessionId", value: sessionId }],
+      { sessionId },
+      [{ columnName: "isFavorite" }, { columnName: "createdAt" }],
       pagination,
     );
   }
@@ -126,10 +122,7 @@ export class PrepSessionService {
   ): Promise<TQuestion> {
     await this.findOne(sessionId, userId);
 
-    const [result] = await this.db.update("questions", dto, [
-      { columnName: "id", value: id },
-      { columnName: "sessionId", value: sessionId },
-    ]);
+    const [result] = await this.db.update("questions", dto, { id, sessionId });
     return result;
   }
 
@@ -139,10 +132,7 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<void> {
     await this.findOne(sessionId, userId);
-    return this.db.delete("questions", [
-      { columnName: "sessionId", value: sessionId },
-      { columnName: "id", value: id },
-    ]);
+    return this.db.delete("questions", { sessionId, id });
   }
 
   private async _createSessionTopics(

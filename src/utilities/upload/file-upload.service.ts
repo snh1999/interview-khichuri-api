@@ -48,12 +48,13 @@ export class FileUploadService {
   public async uploadFile(
     file: Express.Multer.File,
     profileId?: string,
+    filePrefix?: string,
   ): Promise<TUploadResponse> {
     const ext = path.extname(file.originalname);
     if (!ALLOWED_EXT.includes(ext))
       throw new BadRequestException("File type not allowed");
 
-    const filename = `resumes/${profileId}/${randomUUID()}${ext}`;
+    const filename = `${filePrefix ?? "files"}/${profileId}/${randomUUID()}${ext}`;
 
     await this.s3.send(
       new PutObjectCommand({

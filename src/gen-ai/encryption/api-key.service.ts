@@ -40,37 +40,34 @@ export class ApiKeyService {
     isActive?: boolean,
     userId?: string,
   ): Promise<TApiKeyInsecure[]> {
-    return this.db.findAllByColumn("api_key", [
-      ...(isActive !== undefined
-        ? [{ columnName: "isActive" as const, value: isActive }]
-        : []),
-      ...(platform
-        ? [{ columnName: "platform" as const, value: platform }]
-        : []),
-      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-    ]);
+    return this.db.findAllByColumn(
+      "api_key",
+      {
+        ...(isActive !== undefined ? { isActive } : {}),
+        ...(platform ? { platform } : {}),
+        ...(userId ? { userId } : {}),
+      },
+      [{ columnName: "createdAt", order: "desc" }],
+    );
   }
 
   async delete(id: string, userId?: string): Promise<void> {
-    return this.db.delete("api_key", [
-      { columnName: "id", value: id },
-      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-    ]);
+    return this.db.delete("api_key", {
+      id,
+      ...(userId ? { userId } : {}),
+    });
   }
 
   async activateApiKey(id: string, userId?: string): Promise<void> {
-    const apiKey = await this.db.findById("api_key", id, [
-      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-    ]);
+    const apiKey = await this.db.findById("api_key", id, {
+      ...(userId ? { userId } : {}),
+    });
     await this.db.withTransaction(async (transaction) => {
       await this._disableActiveKeys(apiKey.platform, userId, transaction);
       await this.db.update(
         "api_key",
         { isActive: true },
-        [
-          { columnName: "id", value: id },
-          ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-        ],
+        { id, ...(userId ? { userId } : {}) },
         transaction,
       );
     });
@@ -85,11 +82,11 @@ export class ApiKeyService {
       await this.db.update(
         "api_key",
         { isActive: false },
-        [
-          { columnName: "platform", value: platform },
-          { columnName: "isActive", value: true },
-          ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-        ],
+        {
+          platform,
+          isActive: true,
+          ...(userId ? { userId } : {}),
+        },
         db,
       );
     } catch (err) {
