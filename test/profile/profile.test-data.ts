@@ -70,7 +70,6 @@ export const expectedProfileStructure = () =>
     workOverviews: expect.any(Array),
     workExperiences: expect.any(Array),
     educations: expect.any(Array),
-    resumes: expect.any(Array),
     jobPreferences: expect.any(Array),
   });
 

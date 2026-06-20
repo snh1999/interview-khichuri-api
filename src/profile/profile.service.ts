@@ -27,7 +27,6 @@ const profileRelations = {
   },
   workExperiences: true,
   educations: true,
-  resumes: true,
   jobPreferences: {
     with: {
       titles: true,
@@ -62,7 +61,6 @@ export class ProfileService {
         workOverviews: [],
         workExperiences: [],
         educations: [],
-        resumes: [],
         jobPreferences: [],
         ...profile,
       };

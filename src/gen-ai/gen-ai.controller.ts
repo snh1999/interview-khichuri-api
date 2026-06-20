@@ -23,7 +23,7 @@ export class GenAiController {
   constructor(private readonly apiKeyService: ApiKeyService) {}
 
   @Post("api-keys")
-  async create(
+  async createKey(
     @Body() dto: CreateApiKeyDto,
     @UserId() userId?: string,
   ): Promise<TApiKey> {
@@ -32,7 +32,7 @@ export class GenAiController {
   }
 
   @Get("api-keys")
-  async findAll(
+  async findAllKeys(
     @Query() query: FindApiKeyQuery,
     @UserId() userId?: string,
   ): Promise<TApiKey[]> {
@@ -49,7 +49,7 @@ export class GenAiController {
 
   @Delete("api-keys/:id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(
+  async deleteKey(
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
@@ -57,7 +57,7 @@ export class GenAiController {
   }
 
   @Patch("api-keys/:id/activate")
-  async activate(
+  async activateKey(
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {

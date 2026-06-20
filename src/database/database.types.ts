@@ -110,7 +110,6 @@ export type TProfilePopulated = TProfile & {
   workOverviews: TWorkOverview[];
   workExperiences: TWorkExperience[];
   educations: TEducation[];
-  resumes: TResume[];
   jobPreferences: TJobPreference[];
 };
 

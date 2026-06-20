@@ -25,6 +25,7 @@ describe("Profile (e2e)", () => {
   let httpServer: ReturnType<typeof supertest>;
   let dbService: IDatabaseService;
   let authCookie: string;
+  let testUserId: string;
 
   beforeAll(async () => {
     const { appInstance, httpServerInstance, dbServiceInstance } =
@@ -40,24 +41,19 @@ describe("Profile (e2e)", () => {
 
   beforeEach(async () => {
     await dbService.dbClear();
-    if (!isAppMode) {
-      const { cookie, userId } = await getTestAuthHeader(
-        app,
-        dbService.database(),
-      );
-      authCookie = cookie;
-      await dbService.create("profiles", {
-        id: userId,
-        firstName: "",
-        lastName: "",
-      });
-    } else {
-      await dbService.create("profiles", {
-        id: "app",
-        firstName: "",
-        lastName: "",
-      });
-    }
+    const { cookie, userId } = await getTestAuthHeader(
+      app,
+      dbService.database(),
+    );
+
+    authCookie = cookie;
+    testUserId = userId ?? "app";
+
+    await dbService.create("profiles", {
+      id: testUserId,
+      firstName: "",
+      lastName: "",
+    });
   });
 
   const auth = (req: supertest.Test, userCookie?: string): supertest.Test => {
@@ -77,9 +73,18 @@ describe("Profile (e2e)", () => {
         workOverviews: [],
         workExperiences: [],
         educations: [],
-        resumes: [],
         jobPreferences: [],
       });
+    });
+
+    it("should auto-create a profile on first access when none exists", async () => {
+      await dbService.delete("profiles", { id: testUserId });
+
+      const { body } = await auth(httpServer.get("/profile")).expect(200);
+
+      expect(body.statusCode).toBe(200);
+      expect(body.data.firstName).toBeDefined();
+      expect(body.data.links).toEqual([]);
     });
 
     it("should return profile with all sections after creation", async () => {
@@ -137,6 +142,18 @@ describe("Profile (e2e)", () => {
     it("should return 400 when firstName is empty", async () => {
       await auth(httpServer.put("/profile"))
         .send({ firstName: "", lastName: "Name" })
+        .expect(400);
+    });
+
+    it("should return 400 for invalid email", async () => {
+      await auth(httpServer.put("/profile"))
+        .send({ firstName: "Test", email: "not-an-email" })
+        .expect(400);
+    });
+
+    it("should return 400 for invalid country code", async () => {
+      await auth(httpServer.put("/profile"))
+        .send({ firstName: "Test", country: "USA" })
         .expect(400);
     });
 
@@ -279,6 +296,31 @@ describe("Profile (e2e)", () => {
         })
         .expect(400);
     });
+
+    it("should clear all experiences when empty array is sent", async () => {
+      const profilePayload = getProfilePayload();
+      await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
+
+      await auth(httpServer.put("/profile/work-experience"))
+        .send({ experiences: [getWorkExperiencePayload()] })
+        .expect(204);
+
+      await auth(httpServer.put("/profile/work-experience"))
+        .send({ experiences: [] })
+        .expect(204);
+
+      const { body } = await auth(httpServer.get("/profile")).expect(200);
+      expect(body.data.workExperiences).toHaveLength(0);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .put("/profile/work-experience")
+        .send({ experiences: [getWorkExperiencePayload()] })
+        .expect(401);
+    });
   });
 
   describe("PUT /profile/education", () => {
@@ -353,6 +395,23 @@ describe("Profile (e2e)", () => {
       );
       expect(secondGet.data.educations).toHaveLength(1);
     });
+
+    it("should return 400 for invalid education payload", async () => {
+      await auth(httpServer.put("/profile/education"))
+        .send({
+          education: [{ degreeName: "", institution: "" }],
+        })
+        .expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .put("/profile/education")
+        .send({ education: [getEducationPayload()] })
+        .expect(401);
+    });
   });
 
   describe("PUT /profile/preferences", () => {
@@ -385,6 +444,19 @@ describe("Profile (e2e)", () => {
       const { body } = await auth(httpServer.get("/profile")).expect(200);
       expect(body.data.jobPreferences[0].workType).toBe("hybrid");
       expect(body.data.jobPreferences[0].salaryExpected).toBe(200000);
+    });
+
+    it("should return 400 for empty payload", async () => {
+      await auth(httpServer.put("/profile/preferences")).send({}).expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .put("/profile/preferences")
+        .send(getJobPreferencePayload())
+        .expect(401);
     });
   });
 
@@ -429,6 +501,23 @@ describe("Profile (e2e)", () => {
       await auth(httpServer.put("/profile/links"))
         .send({ links: [{ type: "linkedin", url: "not-a-url" }] })
         .expect(400);
+    });
+
+    it("should return 400 for invalid link type", async () => {
+      await auth(httpServer.put("/profile/links"))
+        .send({ links: [{ type: "invalid-type", url: "https://example.com" }] })
+        .expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .put("/profile/links")
+        .send({
+          links: [{ type: "linkedin", url: "https://linkedin.com/in/test" }],
+        })
+        .expect(401);
     });
   });
 });

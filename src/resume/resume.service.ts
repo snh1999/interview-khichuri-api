@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 
 import { IDatabaseService } from "@/src/database/database.service";
+import type { TResume } from "@/src/database/database.types";
 import {
   FileUploadService,
   TUploadResponse,
@@ -20,9 +21,17 @@ export class ResumeService {
     private readonly fileService: FileUploadService,
     private readonly db: IDatabaseService,
   ) {}
-  public async uploadResume(
+
+  public async findAll(profileId: string): Promise<TResume[]> {
+    return this.db.findAllByColumn("resume", {
+      filter: { profileId },
+    });
+  }
+
+  public async upload(
     file: Express.Multer.File,
     profileId: string,
+    name?: string,
   ): Promise<TUploadResponse> {
     const existing = await this.db.findAllByColumn("resume", {
       filter: { profileId },
@@ -43,7 +52,7 @@ export class ResumeService {
     try {
       await this.db.create("resume", {
         profileId,
-        name: file.originalname,
+        name: name?.trim() || file.originalname,
         url: filename,
         isPrimary: existing.length === 0,
       });
@@ -55,7 +64,7 @@ export class ResumeService {
     return { success: true, filename };
   }
 
-  public async getResumeSignedUrl(
+  public async getSignedResumeUrl(
     resumeId: string,
     profileId: string,
   ): Promise<TViewUrlResponse> {
@@ -78,7 +87,7 @@ export class ResumeService {
     return { url };
   }
 
-  public async setResumePrimary(
+  public async setAsPrimary(
     resumeId: string,
     profileId: string,
   ): Promise<void> {
@@ -96,10 +105,7 @@ export class ResumeService {
     });
   }
 
-  public async deleteResume(
-    resumeId: string,
-    profileId: string,
-  ): Promise<void> {
+  public async delete(resumeId: string, profileId: string): Promise<void> {
     const resumes = await this.db.findAllByColumn("resume", {
       filter: { id: resumeId },
     });

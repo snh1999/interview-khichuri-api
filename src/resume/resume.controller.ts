@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
@@ -13,6 +14,7 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 
 import { UserId } from "@/src/config/guards/user-id.decorator";
+import type { TResume } from "@/src/database/database.types";
 import {
   TUploadResponse,
   TViewUrlResponse,
@@ -24,13 +26,18 @@ import { ResumeService } from "./resume.service";
 export class ResumeController {
   constructor(private readonly resumeService: ResumeService) {}
 
+  @Get()
+  public findAll(@UserId() userId?: string): Promise<TResume[]> {
+    return this.resumeService.findAll(userId ?? "app");
+  }
+
   @Post()
   @UseInterceptors(
     FileInterceptor("file", {
       limits: { fileSize: 1024 * 1024 * 5 },
     }),
   )
-  public uploadResume(
+  public upload(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({
@@ -40,9 +47,10 @@ export class ResumeController {
         .build(),
     )
     file: Express.Multer.File,
+    @Body("name") name?: string,
     @UserId() userId?: string,
   ): Promise<TUploadResponse> {
-    return this.resumeService.uploadResume(file, userId ?? "app");
+    return this.resumeService.upload(file, userId ?? "app", name);
   }
 
   @Get(":id/url")
@@ -50,22 +58,22 @@ export class ResumeController {
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<TViewUrlResponse> {
-    return this.resumeService.getResumeSignedUrl(id, userId ?? "app");
+    return this.resumeService.getSignedResumeUrl(id, userId ?? "app");
   }
 
   @Patch(":id/primary")
-  public setResumePrimary(
+  public setAsPrimary(
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
-    return this.resumeService.setResumePrimary(id, userId ?? "app");
+    return this.resumeService.setAsPrimary(id, userId ?? "app");
   }
 
   @Delete(":id")
-  public deleteResume(
+  public delete(
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
-    return this.resumeService.deleteResume(id, userId ?? "app");
+    return this.resumeService.delete(id, userId ?? "app");
   }
 }
