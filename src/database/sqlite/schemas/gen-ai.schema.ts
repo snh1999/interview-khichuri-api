@@ -7,6 +7,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
+import { GEN_AI_PROVIDERS } from "@/src/gen-ai/dto/gen-ai.dto";
 
 export const api_key = sqliteTable(
   "api_key",
@@ -16,14 +17,17 @@ export const api_key = sqliteTable(
       .$defaultFn(() => crypto.randomUUID()),
     name: text("name").notNull(),
     userId: text("user_id"),
-    platform: text("platform", { enum: ["google", "openai"] }).notNull(),
+    provider: text("provider", {
+      enum: GEN_AI_PROVIDERS,
+    }).notNull(),
     key: text("key").notNull(),
     isActive: integer("is_active", { mode: "boolean" }),
+    model: text("model"),
     ...defaultTimeStamps,
   },
   (table) => [
     uniqueIndex("idx_active_api_key")
-      .on(table.platform, table.userId)
+      .on(table.provider, table.userId)
       .where(sql`${table.isActive} = 1`),
   ],
 );

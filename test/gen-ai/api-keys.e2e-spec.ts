@@ -8,7 +8,7 @@ import type { TApiKeyInsert } from "@/src/database/database.types";
 import {
   expectedApiKeyStructure,
   getApiKeyPayload,
-  platform,
+  provider,
 } from "./gen-ai.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
@@ -62,7 +62,7 @@ describe("Gen-AI API keys (e2e)", () => {
       expect(body.message).toBe("");
       expect(body.data).toMatchObject({
         name: apiKeyPayload.name,
-        platform,
+        provider,
         isActive: false,
       });
       expect(body.data.id).toEqual(expect.any(String));
@@ -79,33 +79,48 @@ describe("Gen-AI API keys (e2e)", () => {
       expect(body.data.isActive).toBe(true);
     });
 
+    it("should create an api key with a model", async () => {
+      const { body } = await createApiKey({
+        ...getApiKeyPayload(),
+        model: "gemini-2.0-flash",
+      });
+
+      expect(body.data.model).toBe("gemini-2.0-flash");
+    });
+
+    it("should default model to null when not provided", async () => {
+      const { body } = await createApiKey();
+
+      expect(body.data.model).toBeNull();
+    });
+
     it("should return 400 when name is missing", async () => {
       await auth(httpServer.post("/ai/api-keys"))
-        .send({ key: "test", platform })
+        .send({ key: "test", provider })
         .expect(400);
     });
 
     it("should return 400 when name is empty", async () => {
       await auth(httpServer.post("/ai/api-keys"))
-        .send({ name: "", key: "test", platform })
+        .send({ name: "", key: "test", provider })
         .expect(400);
     });
 
     it("should return 400 when key is missing", async () => {
       await auth(httpServer.post("/ai/api-keys"))
-        .send({ name: "test", platform })
+        .send({ name: "test", provider })
         .expect(400);
     });
 
-    it("should return 400 when platform is missing", async () => {
+    it("should return 400 when provider is missing", async () => {
       await auth(httpServer.post("/ai/api-keys"))
         .send({ name: "test", key: "test" })
         .expect(400);
     });
 
-    it("should return 400 when platform is invalid", async () => {
+    it("should return 400 when provider is invalid", async () => {
       await auth(httpServer.post("/ai/api-keys"))
-        .send({ name: "test", key: "test", platform: "invalid" })
+        .send({ name: "test", key: "test", provider: "invalid" })
         .expect(400);
     });
 
@@ -144,20 +159,20 @@ describe("Gen-AI API keys (e2e)", () => {
       expect(body.data[0]).toMatchObject(created.data);
     });
 
-    it("should filter by platform", async () => {
+    it("should filter by provider", async () => {
       await createApiKey();
 
       const { body } = await auth(
-        httpServer.get("/ai/api-keys?platform=google"),
+        httpServer.get("/ai/api-keys?provider=google"),
       ).expect(200);
 
       expect(body.data).toHaveLength(1);
-      expect(body.data[0].platform).toBe("google");
+      expect(body.data[0].provider).toBe("google");
     });
 
-    it("should return 400 when platform filter is invalid", async () => {
+    it("should return 400 when provider filter is invalid", async () => {
       await createApiKey();
-      await auth(httpServer.get("/ai/api-keys?platform=nonexistent")).expect(
+      await auth(httpServer.get("/ai/api-keys?provider=nonexistent")).expect(
         400,
       );
     });
@@ -271,7 +286,7 @@ describe("Gen-AI API keys (e2e)", () => {
       expect(body.data[0].id).toBe(keyId);
     });
 
-    it("should deactivate other keys on the same platform when activating a new one", async () => {
+    it("should deactivate other keys on the same provider when activating a new one", async () => {
       await createApiKey({
         ...getApiKeyPayload(),
         isActive: true,
@@ -300,6 +315,93 @@ describe("Gen-AI API keys (e2e)", () => {
       ).expect(404);
 
       expect(body.statusCode).toBe(404);
+    });
+
+    it("should be a no-op when activating an already-active key", async () => {
+      const { body: created } = await createApiKey({
+        ...getApiKeyPayload(),
+        isActive: true,
+      });
+      const keyId: string = created.data.id;
+
+      await auth(httpServer.patch(`/ai/api-keys/${keyId}/activate`)).expect(
+        200,
+      );
+
+      const { body } = await auth(
+        httpServer.get("/ai/api-keys?isActive=true"),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].id).toBe(keyId);
+    });
+  });
+
+  describe("PATCH /ai/api-keys/:id", () => {
+    it("should update the key name", async () => {
+      const { body: created } = await createApiKey();
+      const keyId: string = created.data.id;
+      const newName = "updated-key-name";
+
+      const { body } = await auth(httpServer.patch(`/ai/api-keys/${keyId}`))
+        .send({ name: newName })
+        .expect(200);
+
+      expect(body.data.name).toBe(newName);
+    });
+
+    it("should update the key model", async () => {
+      const { body: created } = await createApiKey({
+        ...getApiKeyPayload(),
+        model: "gemini-1.5-flash",
+      });
+      const keyId: string = created.data.id;
+      const newModel = "gemini-2.0-flash";
+
+      const { body } = await auth(httpServer.patch(`/ai/api-keys/${keyId}`))
+        .send({ model: newModel })
+        .expect(200);
+
+      expect(body.data.model).toBe(newModel);
+    });
+
+    it("should return 404 when updating non-existent key", async () => {
+      const fakeId = "00000000-0000-0000-0000-000000000000";
+
+      const { body } = await auth(httpServer.patch(`/ai/api-keys/${fakeId}`))
+        .send({ name: "new-name" })
+        .expect(404);
+
+      expect(body.statusCode).toBe(404);
+    });
+
+    it("should return 404 when updating another user's key", async () => {
+      if (isAppMode) return;
+
+      const { body: created } = await createApiKey();
+      const keyId: string = created.data.id;
+
+      const { cookie: otherCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+      const { body } = await httpServer
+        .patch(`/ai/api-keys/${keyId}`)
+        .set("Cookie", otherCookie)
+        .send({ name: "hijacked" })
+        .expect(404);
+
+      expect(body.statusCode).toBe(404);
+    });
+  });
+
+  describe("DELETE /ai/api-keys/:id", () => {
+    it("should return 404 when deleting a key twice", async () => {
+      const { body: created } = await createApiKey();
+      const keyId: string = created.data.id;
+
+      await auth(httpServer.delete(`/ai/api-keys/${keyId}`)).expect(204);
+      await auth(httpServer.delete(`/ai/api-keys/${keyId}`)).expect(404);
     });
   });
 });
