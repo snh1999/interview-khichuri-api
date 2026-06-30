@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common";
 import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import type { CreateCompanyDto } from "@/src/company/dto/company.dto";
 import type { IDatabaseService } from "@/src/database/database.service";
 
 import {
@@ -54,7 +55,7 @@ describe("Company (e2e)", () => {
   };
 
   const create = (
-    payload: Record<string, unknown> = getCompanyPayload(),
+    payload: CreateCompanyDto = getCompanyPayload(),
     userCookie?: string,
   ) => auth(httpServer.post(routePath), userCookie).send(payload).expect(201);
 

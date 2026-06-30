@@ -67,6 +67,7 @@ export type TPrepSessionWithQuestions = InferSelectModel<
   typeof prep_session
 > & {
   questions: TQuestion[];
+  job?: TJob;
 };
 
 export type TProfile = InferSelectModel<typeof profiles>;

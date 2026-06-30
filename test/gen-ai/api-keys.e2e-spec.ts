@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-misused-spread */
+
 import type { INestApplication } from "@nestjs/common";
 import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
-import type { TApiKeyInsert } from "@/src/database/database.types";
+import type { CreateApiKeyDto } from "@/src/gen-ai/api-key/api-key.dto";
 
 import {
   expectedApiKeyStructure,
@@ -20,7 +22,7 @@ describe("Gen-AI API keys (e2e)", () => {
   let httpServer: ReturnType<typeof supertest>;
   let dbService: IDatabaseService;
   let authCookie: string;
-  let apiKeyPayload: TApiKeyInsert;
+  let apiKeyPayload: CreateApiKeyDto;
 
   beforeAll(async () => {
     const { appInstance, httpServerInstance, dbServiceInstance } =
@@ -49,7 +51,7 @@ describe("Gen-AI API keys (e2e)", () => {
   };
 
   const createApiKey = (
-    payload: Record<string, unknown> = getApiKeyPayload(),
+    payload: CreateApiKeyDto = getApiKeyPayload(),
     userCookie?: string,
   ) =>
     auth(httpServer.post("/ai/api-keys"), userCookie).send(payload).expect(201);

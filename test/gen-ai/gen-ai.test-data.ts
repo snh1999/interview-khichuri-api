@@ -7,6 +7,7 @@ import type {
   TApiKeyProvider,
 } from "@/src/database/database.types";
 import { providerEnum } from "@/src/database/postgres/schemas";
+import type { CreateApiKeyDto } from "@/src/gen-ai/api-key/api-key.dto";
 
 import {
   expectEnum,
@@ -18,11 +19,11 @@ export const provider: TApiKeyProvider = "google";
 
 export const getApiKeyPayload = (
   data?: Partial<TApiKeyInsert>,
-): TApiKeyInsert => ({
-  name: faker.string.alphanumeric(10),
+): CreateApiKeyDto => ({
   provider,
-  key: faker.string.alphanumeric(20),
   isActive: false,
+  name: faker.string.alphanumeric(10),
+  key: faker.string.alphanumeric(20),
   ...data,
 });
 

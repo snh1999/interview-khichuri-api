@@ -3,6 +3,7 @@ import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
+import type { CreateLookupDto } from "@/src/lookups/lookups.dto";
 
 import { expectedLookupStructure, getLookupPayload } from "./lookups.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
@@ -56,7 +57,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
   };
 
   const create = (
-    payload: Record<string, unknown> = getLookupPayload(),
+    payload: CreateLookupDto = getLookupPayload(),
     userCookie?: string,
   ) => auth(httpServer.post(routePath), userCookie).send(payload).expect(201);
 

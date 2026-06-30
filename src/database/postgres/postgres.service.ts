@@ -164,18 +164,35 @@ export class PostgresService implements IDatabaseService {
     return (await query) as unknown as InferSelectModel<TpgTableRegistry[K]>[];
   }
 
+  public async count<K extends TpgTableKey>(
+    schemaName: K,
+    columns?: TColumnFilter<K>,
+    db: TdbPostgres = this.db,
+  ): Promise<number> {
+    const schema = postgresTableRegistry[schemaName];
+    const conditions = columns
+      ? this._buildConditions(schema, columns, getTableName(schema))
+      : [];
+
+    return db.$count(
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      schema as AnyPgTable,
+      conditions.length ? and(...conditions) : undefined,
+    );
+  }
+
   public async findById<K extends TpgTableKey>(
     schemaName: K,
     id: string | number,
     options?: TFindByIdOptions<K>,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
     const { filter, relation: relations } = options ?? {};
-    const schema = postgresTableRegistry[schemaName];
+    const schema = postgresTableRegistry[schemaName] as PgTableWithId;
     const conditions = filter
       ? this._buildConditions(schema, filter, getTableName(schema))
       : [];
 
-    const allConditions = [...conditions, eq((schema as PgTableWithId).id, id)];
+    const allConditions = [...conditions, eq(schema.id, id)];
 
     if (relations && Object.keys(relations).length > 0) {
       const result = await this.db.query[schemaName].findFirst({

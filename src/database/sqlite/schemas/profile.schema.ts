@@ -8,6 +8,11 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
+import {
+  EXPERIENCE_LEVELS,
+  PROFILE_LINK_TYPES,
+  PROFILE_WORK_TYPES,
+} from "@/src/profile/profile.dto";
 
 import { companies } from "./company.schema";
 import { topics, roles, industries } from "./lookups.schema";
@@ -33,7 +38,7 @@ export const profile_links = sqliteTable(
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
     type: text("type", {
-      enum: ["github", "gitlab", "linkedin", "portfolio", "blog", "other"],
+      enum: PROFILE_LINK_TYPES,
     }).notNull(),
     url: text("url").notNull(),
   },
@@ -66,7 +71,7 @@ export const work_overview = sqliteTable("work_overview", {
     .references(() => profiles.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   experienceLevel: text("experience_level", {
-    enum: ["junior", "mid", "senior", "lead", "executive"],
+    enum: EXPERIENCE_LEVELS,
   }),
   yearsOfExperience: integer("years_of_experience"),
   ...defaultTimeStamps,
@@ -214,7 +219,7 @@ export const job_preference = sqliteTable("job_preference", {
   profileId: text("profile_id")
     .notNull()
     .references(() => profiles.id, { onDelete: "cascade" }),
-  workType: text("work_type", { enum: ["remote", "hybrid", "onsite"] }),
+  workType: text("work_type", { enum: PROFILE_WORK_TYPES }),
   salaryLower: integer("salary_lower"),
   salaryExpected: integer("salary_expected"),
   currency: text("currency").default("USD"), // ISO 4217

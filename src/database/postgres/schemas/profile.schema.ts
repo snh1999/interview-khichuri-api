@@ -13,29 +13,24 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
+import {
+  EXPERIENCE_LEVELS,
+  PROFILE_LINK_TYPES,
+  PROFILE_WORK_TYPES,
+} from "@/src/profile/profile.dto";
 
 import { user } from "./auth.schema";
 import { companies } from "./company.schema";
 import { topics, roles, industries } from "./lookups.schema";
 
-export const linkTypeEnum = pgEnum("link_type", [
-  "github",
-  "gitlab",
-  "linkedin",
-  "portfolio",
-  "blog",
-  "other",
-]);
+export const linkTypeEnum = pgEnum("link_type", PROFILE_LINK_TYPES);
 
-export const workTypeEnum = pgEnum("work_type", ["remote", "hybrid", "onsite"]);
+export const workTypeEnum = pgEnum("work_type", PROFILE_WORK_TYPES);
 
-export const experienceLevelEnum = pgEnum("experience_level", [
-  "junior",
-  "mid",
-  "senior",
-  "lead",
-  "executive",
-]);
+export const experienceLevelEnum = pgEnum(
+  "experience_level",
+  EXPERIENCE_LEVELS,
+);
 
 export const profiles = pgTable("profiles", {
   id: text("id")

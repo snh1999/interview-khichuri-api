@@ -10,7 +10,7 @@ import {
 
 import { user } from "@/src/database/postgres/schemas/auth.schema";
 import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/dto/gen-ai.dto";
+import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 
 export const providerEnum = pgEnum("provider", GEN_AI_PROVIDERS);
 

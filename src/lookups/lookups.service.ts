@@ -46,4 +46,57 @@ export class LookupsService {
   async delete(schema: TLookupSchema, id: number): Promise<void> {
     return this.db.delete(schema, { id });
   }
+
+  async resolveOrCreateNames(
+    schema: TLookupSchema,
+    names?: string[] | null,
+  ): Promise<number[]> {
+    if (!names || names.length === 0) return [];
+
+    const uniqueNames = [...new Set(names)];
+
+    const existing = await this.db.findAllByColumn(schema, {
+      filter: { name: uniqueNames },
+    });
+
+    const nameIdMap = new Map<string, number>(
+      existing.map((e) => [e.name, e.id]),
+    );
+
+    const newRecords: { name: string }[] = [];
+    for (const name of uniqueNames) {
+      if (!nameIdMap.has(name)) newRecords.push({ name });
+    }
+
+    if (newRecords.length > 0) {
+      const created = await this.db.createMany(schema, newRecords);
+      for (const record of created) {
+        nameIdMap.set(record.name, record.id);
+      }
+    }
+
+    return names.map((n) => {
+      const id = nameIdMap.get(n);
+      if (id === undefined) throw new Error(`Failed to resolve name: ${n}`);
+      return id;
+    });
+  }
+
+  async resolveOrCreateName(
+    schema: TLookupSchema,
+    name?: string | null,
+  ): Promise<number | null> {
+    if (!name) return null;
+
+    const existing = await this.db.findAllByColumn(schema, {
+      filter: { name },
+    });
+
+    if (existing.length === 0) {
+      const created = await this.db.create(schema, { name });
+      return created.id;
+    }
+
+    return existing[0].id;
+  }
 }

@@ -51,6 +51,12 @@ export abstract class IDatabaseService {
     db?: TDatabase,
   ): TReturn<TSelect<K>[]>;
 
+  abstract count<K extends TpgTableKey>(
+    schemaName: K,
+    columns?: TColumnFilter<K>,
+    db?: TDatabase,
+  ): Promise<number>;
+
   abstract findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
     options?: TFindAllByColumnOptions<K>,

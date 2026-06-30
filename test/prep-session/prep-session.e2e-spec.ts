@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-misused-spread */
 import type { INestApplication } from "@nestjs/common";
 import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
 import type { TPrepSessionInsert } from "@/src/database/database.types";
+import type { CreateQuestionDto } from "@/src/prep-session/dto/question.dto";
 
 import {
   expectedPrepSessionStructure,
@@ -13,6 +15,7 @@ import {
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
 import { createTestRole, createTestTopic } from "../utils/test-data";
+import { CreatePrepSessionDto } from "@/src/prep-session/dto/session.dto";
 
 const isAppMode = Boolean(process.env.IS_APP_MODE);
 
@@ -50,7 +53,7 @@ describe("PrepSession (e2e)", () => {
   };
 
   const createSession = (
-    payload: Record<string, unknown> = getPrepSessionPayload(),
+    payload: CreatePrepSessionDto = getPrepSessionPayload(),
     userCookie?: string,
   ) =>
     auth(httpServer.post("/prep-session"), userCookie)
@@ -101,7 +104,11 @@ describe("PrepSession (e2e)", () => {
 
     it("should create a session with a valid jobId", async () => {
       const { body: jobBody } = await auth(httpServer.post("/jobs"))
-        .send({ title: "Engineer", description: "A role" })
+        .send({
+          title: "Engineer",
+          companyName: "Tech Corp",
+          description: "A role",
+        })
         .expect(201);
 
       const jobId: string = jobBody.data.id;
@@ -363,7 +370,11 @@ describe("PrepSession (e2e)", () => {
       const sessionId: string = created.id;
 
       const { body: jobBody } = await auth(httpServer.post("/jobs"))
-        .send({ title: "Engineer", description: "A role" })
+        .send({
+          title: "Engineer",
+          companyName: "Tech Corp",
+          description: "A role",
+        })
         .expect(201);
 
       const jobId: string = jobBody.data.id;
@@ -483,9 +494,7 @@ describe("PrepSession (e2e)", () => {
       sessionId = body.data.id;
     });
 
-    const createQuestion = (
-      data: Record<string, unknown> = getQuestionPayload(),
-    ) =>
+    const createQuestion = (data: CreateQuestionDto = getQuestionPayload()) =>
       auth(httpServer.post(`/prep-session/${sessionId}/questions`))
         .send({
           ...data,

@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/dto/gen-ai.dto";
+import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 
 export const api_key = sqliteTable(
   "api_key",

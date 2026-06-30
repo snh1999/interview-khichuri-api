@@ -133,11 +133,7 @@ export class ProfileService {
       await this.db.syncOneToMany(
         "work_experience",
         { column: "profileId", value: userId },
-        dto.experiences.map((exp) => ({
-          ...exp,
-          startDate: toDate(exp.startDate),
-          endDate: toDate(exp.endDate),
-        })),
+        dto.experiences,
         transaction,
       );
     });
@@ -151,11 +147,7 @@ export class ProfileService {
       await this.db.syncOneToMany(
         "education",
         { column: "profileId", value: userId },
-        dto.education.map((edu) => ({
-          ...edu,
-          startDate: toDate(edu.startDate),
-          graduationDate: toDate(edu.graduationDate),
-        })),
+        dto.education,
         transaction,
       );
     });

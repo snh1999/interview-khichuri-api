@@ -1,24 +1,30 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-export const linkTypeSchema = z.enum([
+export const PROFILE_LINK_TYPES = [
   "github",
   "gitlab",
   "linkedin",
   "portfolio",
   "blog",
   "other",
-]);
+] as const;
 
-export const workTypeSchema = z.enum(["remote", "hybrid", "onsite"]);
+export const PROFILE_WORK_TYPES = ["remote", "hybrid", "onsite"] as const;
 
-export const experienceLevelSchema = z.enum([
+export const EXPERIENCE_LEVELS = [
   "junior",
   "mid",
   "senior",
   "lead",
   "executive",
-]);
+] as const;
+
+export const linkTypeSchema = z.enum(PROFILE_LINK_TYPES);
+
+export const workTypeSchema = z.enum(PROFILE_WORK_TYPES);
+
+export const experienceLevelSchema = z.enum(EXPERIENCE_LEVELS);
 
 export const UpdateProfileSchema = z.object({
   firstName: z.string().trim().min(1),
@@ -49,8 +55,8 @@ const WorkExperienceEntrySchema = z
     company: z.string().trim().min(1),
     companyId: z.number().int().positive().optional(),
     title: z.string().trim().min(1),
-    startDate: z.string().min(1),
-    endDate: z.string().optional(),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date().optional(),
     isCurrent: z.boolean(),
     responsibilities: z.string().optional(),
   })
@@ -70,8 +76,8 @@ const EducationEntrySchema = z.object({
   fieldOfStudy: z.string().optional(),
   institution: z.string().trim().min(1),
   country: z.string().optional(),
-  startDate: z.string().optional(),
-  graduationDate: z.string().optional(),
+  startDate: z.coerce.date().optional(),
+  graduationDate: z.coerce.date().optional(),
   notes: z.string().optional(),
 });
 

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
+import { LookupsService } from "@/src/lookups/lookups.service";
 
 import type { CreateJobDto, UpdateJobDto } from "./jobs.dto";
 import type {
@@ -14,19 +15,26 @@ import type {
 
 @Injectable()
 export class JobsService {
-  public constructor(private readonly db: IDatabaseService) {}
+  public constructor(
+    private readonly db: IDatabaseService,
+    private readonly lookupsService: LookupsService,
+  ) {}
 
   public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
-    const { topicIds, deadline, ...data } = dto;
-    const newJob = {
-      ...data,
-      userId,
-      deadline: deadline ? new Date(deadline) : null,
-    };
+    const { topicIds, topicNames, deadline, interviewDate, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
-      const job = await this.db.create("jobs", newJob, transaction);
-      await this._createJobTopics(job.id, transaction, topicIds);
+      const job = await this.db.create(
+        "jobs",
+        {
+          ...data,
+          userId,
+          deadline: deadline ? new Date(deadline) : null,
+          interviewDate: interviewDate ? new Date(interviewDate) : null,
+        },
+        transaction,
+      );
+      await this._createJobTopics(job.id, transaction, topicIds, topicNames);
       return job;
     });
   }
@@ -93,7 +101,12 @@ export class JobsService {
     dto: UpdateJobDto,
     userId?: string,
   ): Promise<TJobWithTopics> {
-    const { topicIds, ...jobFields } = dto;
+    const { topicIds, topicNames, deadline, interviewDate, ...data } = dto;
+    const jobFields: Record<string, unknown> = {
+      ...data,
+      deadline: deadline ? new Date(deadline) : undefined,
+      interviewDate: interviewDate ? new Date(interviewDate) : undefined,
+    };
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(jobFields).length > 0) {
@@ -104,10 +117,7 @@ export class JobsService {
           transaction,
         );
       }
-      if (topicIds) {
-        await this.db.delete("job_topics", { jobId: id }, true, transaction);
-        await this._createJobTopics(id, transaction, topicIds);
-      }
+      await this._createJobTopics(id, transaction, topicIds, topicNames);
     });
 
     return this.findOne(id, userId);
@@ -118,5 +128,30 @@ export class JobsService {
       id,
       ...(userId ? { userId } : {}),
     });
+  }
+
+  private async _createJobTopics(
+    jobId: string,
+    transaction: TDatabase,
+    topicIds?: number[],
+    topicNames?: string[],
+  ) {
+    if (!topicNames && !topicIds) return;
+
+    const resolvedTopicNames = await this.lookupsService.resolveOrCreateNames(
+      "topics",
+      topicNames,
+    );
+    const allTopicIds = [
+      ...new Set([...(topicIds ?? []), ...resolvedTopicNames]),
+    ];
+
+    await this.db.syncJunctionTable(
+      "job_topics",
+      { column: "jobId", value: jobId },
+      "topicId",
+      allTopicIds,
+      transaction,
+    );
   }
 }

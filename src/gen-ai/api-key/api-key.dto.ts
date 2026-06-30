@@ -8,8 +8,8 @@ const apiKeySchema = z.object({
   name: z.string().trim().min(1),
   provider: z.enum(GEN_AI_PROVIDERS),
   key: z.string(),
-  isActive: z.boolean().default(false),
-  model: z.string().optional(),
+  isActive: z.boolean().nullable().default(false),
+  model: z.string().nullable().optional(),
 }) satisfies z.ZodType<TApiKeyInsert>;
 
 export class CreateApiKeyDto extends createZodDto(apiKeySchema) {}

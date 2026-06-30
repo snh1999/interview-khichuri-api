@@ -12,11 +12,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
+import { JOB_STATUS } from "@/src/jobs/jobs.dto";
 
 import { user } from "./auth.schema";
 import { roles, topics } from "./lookups.schema";
 
-export const statusEnum = pgEnum("status", ["applied", "saved", "scheduled"]);
+export const statusEnum = pgEnum("status", JOB_STATUS);
 
 export const jobs = pgTable(
   "jobs",
@@ -24,12 +25,16 @@ export const jobs = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
+    companyName: text("company_name").notNull(),
     description: text("description").notNull(),
+    location: text("location"),
+    source: text("source"),
+    interviewDate: timestamp("interview_date"),
     status: statusEnum("status").notNull().default("saved"),
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),
-    links: text("links"), // TODO make array
+    links: text("links"),
     notes: text("notes"),
     deadline: timestamp("deadline"),
     ...defaultTimeStamps,

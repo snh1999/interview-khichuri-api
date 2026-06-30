@@ -180,6 +180,22 @@ export class SqliteService implements IDatabaseService {
     return query.all() as InferSelectModel<TsqliteTableRegistry[K]>[];
   }
 
+  public async count<K extends TpgTableKey>(
+    schemaName: K,
+    columns?: TColumnFilter<K>,
+    db: TdbSqlite = this.db,
+  ): Promise<number> {
+    const schema = sqliteTableRegistry[schemaName];
+    const conditions = columns
+      ? this._buildConditions(schema, columns, getTableName(schema))
+      : [];
+
+    return db.$count(
+      schema,
+      conditions.length ? and(...conditions) : undefined,
+    );
+  }
+
   public search<K extends TsqliteTableKey>(
     schemaName: K,
     columnNames: TSqliteCols<K>[],
