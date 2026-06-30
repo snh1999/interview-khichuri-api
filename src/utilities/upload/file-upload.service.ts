@@ -84,6 +84,17 @@ export class FileUploadService {
       });
   }
 
+  public async downloadFile(key: string): Promise<Buffer> {
+    const response = await this.s3.send(
+      new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      }),
+    );
+    const body = await response.Body?.transformToByteArray();
+    return Buffer.from(body ?? []);
+  }
+
   public async getSignedUrl(
     key: string,
     expiresIn: number = 7 * 24 * 3600,

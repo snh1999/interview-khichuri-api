@@ -9,33 +9,13 @@ import type {
 } from "@/src/database/database.types";
 
 import type {
-  UpdateEducationDto,
+  EducationDto,
   UpdateJobPreferenceDto,
   UpdateProfileDto,
-  UpdateProfileLinksDto,
+  ProfileLinksDto,
   UpdateWorkExperienceDto,
-  UpdateWorkOverviewDto,
+  WorkOverviewDto,
 } from "./profile.dto";
-
-const profileRelations = {
-  links: true,
-  workOverviews: {
-    with: {
-      skills: true,
-      industries: true,
-    },
-  },
-  workExperiences: true,
-  educations: true,
-  jobPreferences: {
-    with: {
-      titles: true,
-    },
-  },
-} as const;
-
-const toDate = (value?: string): Date | undefined =>
-  value ? new Date(value) : undefined;
 
 @Injectable()
 export class ProfileService {
@@ -47,7 +27,13 @@ export class ProfileService {
 
     const [profile] = (await this.db.findAllByColumn("profiles", {
       filter: userId ? { id: userId } : {},
-      relation: profileRelations,
+      relation: {
+        links: true,
+        workOverviews: { with: { skills: true, industries: true } },
+        workExperiences: true,
+        educations: true,
+        jobPreferences: { with: { titles: true } },
+      },
     })) as unknown as [TProfilePopulated | undefined];
 
     if (!profile) {
@@ -79,7 +65,7 @@ export class ProfileService {
 
   public async updateWorkOverview(
     userId: string,
-    dto: UpdateWorkOverviewDto,
+    dto: WorkOverviewDto,
   ): Promise<void> {
     const { skills, industries, ...overviewFields } = dto;
 
@@ -91,14 +77,16 @@ export class ProfileService {
       const overviewId = existing[0]?.id;
 
       if (overviewId) {
-        await this.db.update(
-          "work_overview",
-          overviewFields,
-          { id: overviewId },
-          transaction,
-        );
+        if (Object.keys(overviewFields).length > 0) {
+          await this.db.update(
+            "work_overview",
+            overviewFields,
+            { id: overviewId },
+            transaction,
+          );
+        }
 
-        if (skills !== undefined || industries !== undefined) {
+        if (Array.isArray(skills) || Array.isArray(industries)) {
           await this._replaceWorkOverviewRelations(
             overviewId,
             transaction,
@@ -113,7 +101,7 @@ export class ProfileService {
           transaction,
         )) as unknown as { id: number };
 
-        if (skills?.length || industries?.length) {
+        if (Array.isArray(skills) || Array.isArray(industries)) {
           await this._replaceWorkOverviewRelations(
             created.id,
             transaction,
@@ -141,7 +129,7 @@ export class ProfileService {
 
   public async updateEducation(
     userId: string,
-    dto: UpdateEducationDto,
+    dto: EducationDto,
   ): Promise<void> {
     await this.db.withTransaction(async (transaction) => {
       await this.db.syncOneToMany(
@@ -176,7 +164,7 @@ export class ProfileService {
           );
         }
 
-        if (titles !== undefined) {
+        if (Array.isArray(titles)) {
           await this.db.syncJunctionTable(
             "preference_titles",
             { column: "preferenceId", value: preferenceId },
@@ -193,7 +181,7 @@ export class ProfileService {
             transaction,
           )) as unknown as { id: string };
 
-          if (titles?.length) {
+          if (Array.isArray(titles)) {
             await this.db.syncJunctionTable(
               "preference_titles",
               { column: "preferenceId", value: created.id },
@@ -210,7 +198,7 @@ export class ProfileService {
 
   public async updateLinks(
     userId: string,
-    dto: UpdateProfileLinksDto,
+    dto: ProfileLinksDto,
   ): Promise<void> {
     const links = dto.links;
 
@@ -235,10 +223,10 @@ export class ProfileService {
   private async _replaceWorkOverviewRelations(
     workId: number,
     transaction: TDatabase,
-    skills?: number[],
-    industries?: number[],
+    skills?: number[] | null,
+    industries?: number[] | null,
   ): Promise<void> {
-    if (skills !== undefined) {
+    if (Array.isArray(skills)) {
       await this.db.syncJunctionTable(
         "work_skills",
         { column: "workId", value: workId },
@@ -248,7 +236,7 @@ export class ProfileService {
       );
     }
 
-    if (industries !== undefined) {
+    if (Array.isArray(industries)) {
       await this.db.syncJunctionTable(
         "work_industries",
         { column: "workId", value: workId },

@@ -15,12 +15,12 @@ import {
 } from "@/src/database/database.types";
 
 import {
-  UpdateEducationDto,
+  EducationDto,
   UpdateJobPreferenceDto,
   UpdateProfileDto,
-  UpdateProfileLinksDto,
+  ProfileLinksDto,
   UpdateWorkExperienceDto,
-  UpdateWorkOverviewDto,
+  WorkOverviewDto,
 } from "./profile.dto";
 import { ProfileService } from "./profile.service";
 
@@ -45,7 +45,7 @@ export class ProfileController {
   @Put("work-overview")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async updateWorkOverview(
-    @Body() dto: UpdateWorkOverviewDto,
+    @Body() dto: WorkOverviewDto,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.profileService.updateWorkOverview(userId ?? "app", dto);
@@ -63,7 +63,7 @@ export class ProfileController {
   @Put("education")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async updateEducation(
-    @Body() dto: UpdateEducationDto,
+    @Body() dto: EducationDto,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.profileService.updateEducation(userId ?? "app", dto);
@@ -81,7 +81,7 @@ export class ProfileController {
   @Put("links")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async updateLinks(
-    @Body() dto: UpdateProfileLinksDto,
+    @Body() dto: ProfileLinksDto,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.profileService.updateLinks(userId ?? "app", dto);

@@ -2,9 +2,16 @@ import { Injectable } from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
+import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
 
-import type { CreateJobDto, UpdateJobDto } from "./jobs.dto";
+import type {
+  CreateJobDto,
+  UpdateJobDto,
+  ExtractJobDto,
+  TJobExtractionResult,
+} from "./jobs.dto";
+import { extractedJobSchema, ExtractedJob } from "./jobs.dto";
 import type {
   TDatabase,
   TJob,
@@ -17,6 +24,7 @@ import type {
 export class JobsService {
   public constructor(
     private readonly db: IDatabaseService,
+    private readonly genAiService: GenAiService,
     private readonly lookupsService: LookupsService,
   ) {}
 
@@ -39,19 +47,24 @@ export class JobsService {
     });
   }
 
-  private async _createJobTopics(
-    jobId: string,
-    transaction: TDatabase,
-    topicIds?: number[],
-  ) {
-    if (topicIds?.length) {
-      const uniqueTopicIds = [...new Set(topicIds)];
-      const jobTopics = uniqueTopicIds.map((topicId) => ({
-        jobId: jobId,
-        topicId,
-      }));
-      await this.db.createMany("job_topics", jobTopics, transaction);
-    }
+  public async extractJob(dto: ExtractJobDto): Promise<TJobExtractionResult> {
+    const extracted = await this.genAiService.extractJob<ExtractedJob>({
+      // eslint-disable-next-line @typescript-eslint/no-misused-spread
+      ...dto,
+      schema: extractedJobSchema,
+    });
+
+    const [roleId, topicIds] = await Promise.all([
+      this.lookupsService.resolveOrCreateName("roles", extracted.roleName),
+      this.lookupsService.resolveOrCreateNames("topics", extracted.topicNames),
+    ]);
+
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-misused-spread
+      ...extracted,
+      roleId,
+      topicIds,
+    };
   }
 
   public async findAll(

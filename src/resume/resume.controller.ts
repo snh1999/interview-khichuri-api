@@ -15,6 +15,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type { TResume } from "@/src/database/database.types";
+import { ExtractionResult, ExtractResumeDto } from "@/src/resume/resume.dto";
 import {
   TUploadResponse,
   TViewUrlResponse,
@@ -51,6 +52,19 @@ export class ResumeController {
     @UserId() userId?: string,
   ): Promise<TUploadResponse> {
     return this.resumeService.upload(file, userId ?? "app", name);
+  }
+
+  @Post(":id/extract")
+  public extractFromProfile(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: ExtractResumeDto,
+    @UserId() userId?: string,
+  ): Promise<ExtractionResult> {
+    return this.resumeService.extractFromProfile(
+      id,
+      dto.provider,
+      userId ?? "app",
+    );
   }
 
   @Get(":id/url")
