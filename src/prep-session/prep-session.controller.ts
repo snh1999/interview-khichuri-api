@@ -23,8 +23,12 @@ import type {
   TQuestion,
 } from "@/src/database/database.types";
 
-import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
-import { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
+import {
+  CreateQuestionDto,
+  UpdateQuestionDto,
+  GenerateQuestionsDto,
+} from "./dto/question.dto";
+import { CreatePrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
 import { PrepSessionService } from "./prep-session.service";
 
 @Controller("prep-session")
@@ -33,7 +37,7 @@ export class PrepSessionController {
 
   @Post()
   public create(
-    @Body() dto: PrepSessionDto,
+    @Body() dto: CreatePrepSessionDto,
     @UserId() userId?: string,
   ): Promise<TPrepSession> {
     return this.prepSessionService.create(dto, userId);
@@ -82,6 +86,15 @@ export class PrepSessionController {
     @UserId() userId?: string,
   ): Promise<TQuestion> {
     return this.prepSessionService.addQuestion(sessionId, dto, userId);
+  }
+
+  @Post(":id/generate")
+  public generateQuestions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GenerateQuestionsDto,
+    @UserId() userId?: string,
+  ): Promise<TPrepSessionWithQuestions> {
+    return this.prepSessionService.generateQuestions(id, dto, userId);
   }
 
   @Get(":sessionId/questions")

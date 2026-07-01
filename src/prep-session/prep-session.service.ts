@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
-import type {
+import {
   TDatabase,
   TPagination,
   TPrepSession,
@@ -10,16 +10,27 @@ import type {
   TQuestion,
   TSortBy,
 } from "@/src/database/database.types";
+import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
-import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
-import type { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
+import {
+  CreateQuestionDto,
+  UpdateQuestionDto,
+  GenerateQuestionsDto,
+} from "./dto/question.dto";
+import type {
+  CreatePrepSessionDto,
+  UpdatePrepSessionDto,
+} from "./dto/session.dto";
 
 @Injectable()
 export class PrepSessionService {
-  public constructor(private readonly db: IDatabaseService) {}
+  public constructor(
+    private readonly db: IDatabaseService,
+    private readonly genAiService: GenAiService,
+  ) {}
 
   public async create(
-    dto: PrepSessionDto,
+    dto: CreatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSession> {
     const { topicIds, ...data } = dto;
@@ -105,6 +116,55 @@ export class PrepSessionService {
     await this.findOne(sessionId, userId);
     // eslint-disable-next-line @typescript-eslint/no-misused-spread
     return this.db.create("questions", { ...dto, sessionId });
+  }
+
+  public async generateQuestions(
+    sessionId: string,
+    dto: GenerateQuestionsDto,
+    userId?: string,
+  ): Promise<TPrepSessionWithQuestions> {
+    const { provider, avoidRepeat, includeJobDescription } = dto;
+    const session = (await this.db.findById("prep_session", sessionId, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: {
+        ...(avoidRepeat ? { questions: true } : {}),
+        ...(includeJobDescription ? { job: true } : {}),
+      },
+    })) as TPrepSessionWithQuestions;
+
+    const roleName = session.roleId
+      ? (await this.db.findById("roles", session.roleId)).name
+      : "";
+
+    const sessionTopics = await this.db.findAllByColumn("session_topics", {
+      filter: { sessionId },
+    });
+
+    const topicIds = sessionTopics.map((st) => st.topicId);
+
+    const topics = await this.db.findAllByColumn("topics", {
+      filter: { id: topicIds },
+    });
+
+    const generatedQuestions = await this.genAiService.generateQuestions({
+      topics,
+      provider,
+      roleName,
+      session,
+      dto,
+    });
+
+    const questions = generatedQuestions.questions.map((question) => ({
+      sessionId,
+      ...question,
+    }));
+
+    await this.db.createMany("questions", questions);
+
+    return this.db.findById("prep_session", sessionId, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: { questions: true },
+    }) as Promise<TPrepSessionWithQuestions>;
   }
 
   public async findQuestions(

@@ -11,7 +11,6 @@ import type {
   ExtractJobDto,
   TJobExtractionResult,
 } from "./jobs.dto";
-import { extractedJobSchema, ExtractedJob } from "./jobs.dto";
 import type {
   TDatabase,
   TJob,
@@ -48,10 +47,9 @@ export class JobsService {
   }
 
   public async extractJob(dto: ExtractJobDto): Promise<TJobExtractionResult> {
-    const extracted = await this.genAiService.extractJob<ExtractedJob>({
+    const extracted = await this.genAiService.extractJob({
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       ...dto,
-      schema: extractedJobSchema,
     });
 
     const [roleId, topicIds] = await Promise.all([

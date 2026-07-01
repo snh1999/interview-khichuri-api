@@ -22,7 +22,8 @@ import type {
   TJobWithTopics,
 } from "@/src/database/database.types";
 
-import { CreateJobDto, UpdateJobDto } from "./jobs.dto";
+import { CreateJobDto, ExtractJobDto, UpdateJobDto } from "./jobs.dto";
+import type { TJobExtractionResult } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 
 @Controller("jobs")
@@ -35,6 +36,11 @@ export class JobsController {
     @UserId() userId?: string,
   ): Promise<TJob> {
     return this.jobsService.create(dto, userId);
+  }
+
+  @Post("extract")
+  public extractJob(@Body() dto: ExtractJobDto): Promise<TJobExtractionResult> {
+    return this.jobsService.extractJob(dto);
   }
 
   @Get()
