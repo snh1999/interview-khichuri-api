@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@ai-sdk/google": "^3.0.82",
     "@ai-sdk/openai": "^3.0.71",

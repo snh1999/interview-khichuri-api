@@ -227,16 +227,9 @@ export class PostgresService implements IDatabaseService {
 
     const { filter, pagination } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
-    const schemaColumns = getTableColumns(schema);
 
     const cols = columnNames.map((colName) => {
-      const col = schemaColumns[colName];
-      if (!col) {
-        throw new BadRequestException(
-          `Column "${String(colName)}" not supported by ${getTableName(schema)}`,
-        );
-      }
-      return col;
+      return this._resolveColumn(schema, colName);
     });
 
     const vectorExpr =
@@ -370,24 +363,6 @@ export class PostgresService implements IDatabaseService {
     await this.db.execute(sql.raw(`TRUNCATE TABLE ${tableNames} CASCADE`));
   }
 
-  private _buildConditions(
-    schema: AnyPgTable,
-    columns: Record<string, unknown>,
-    schemaName: string,
-  ): ReturnType<typeof eq>[] {
-    const schemaColumns = getTableColumns(schema);
-    return Object.entries(columns).map(([colName, value]) => {
-      if (!(colName in schemaColumns)) {
-        throw new BadRequestException(
-          `Column "${colName}" not supported by ${schemaName}`,
-        );
-      }
-      return Array.isArray(value)
-        ? inArray(schemaColumns[colName], value)
-        : eq(schemaColumns[colName], value);
-    });
-  }
-
   public async syncJunctionTable<K extends TpgTableKey>(
     schemaName: K,
     parentColumn: TSingleColumnFilter<K>,
@@ -397,40 +372,26 @@ export class PostgresService implements IDatabaseService {
   ): Promise<void> {
     await db.transaction(async (tx) => {
       const schema = postgresTableRegistry[schemaName];
-      const schemaColumns = getTableColumns(schema);
       const { column: parentColumnName, value: parentId } = parentColumn;
 
-      const parentCol = schemaColumns[parentColumnName as string] as
-        | AnyPgColumn
-        | undefined;
-      if (!parentCol) {
-        throw new BadRequestException(
-          `Column "${String(parentColumnName)}" not found in ${getTableName(schema)}`,
-        );
-      }
+      const parentCol = this._resolveColumn<K>(
+        schema,
+        parentColumnName as TpgCols<K>,
+      );
 
-      const childCol = schemaColumns[childColumn as string] as
-        | AnyPgColumn
-        | undefined;
-      if (!childCol) {
-        throw new BadRequestException(
-          `Column "${String(childColumn)}" not found in ${getTableName(schema)}`,
-        );
-      }
+      const childCol = this._resolveColumn<K>(schema, childColumn);
 
       const existing = await tx
-        .select()
+        .select({ childId: childCol })
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
         .from(schema as AnyPgTable)
         .where(eq(parentCol, parentId));
 
-      const existingIds = new Set(
-        existing.map((row) => row[childColumn as string] as number),
-      );
+      const existingIds = new Set(existing.map((row) => row.childId as number));
       const incomingIds = new Set(newIds);
 
-      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
-      const toInsert = newIds.filter((id) => !existingIds.has(id));
+      const toDeleteIds = [...existingIds.difference(incomingIds)];
+      const toInsert = [...incomingIds.difference(existingIds)];
 
       if (toDeleteIds.length > 0) {
         await tx
@@ -456,18 +417,21 @@ export class PostgresService implements IDatabaseService {
     db: TdbPostgres = this.db,
   ): Promise<void> {
     await db.transaction(async (tx) => {
-      const existing = (await this.findAllByColumn(
-        schemaName,
-        {
-          filter: {
-            [parentColumn.column]: parentColumn.value,
-          } as TColumnFilter<K>,
-        },
-        tx,
-      )) as unknown as { id: string }[];
+      const schema = postgresTableRegistry[schemaName];
+      const schemaColumns = getTableColumns(schema);
+      const parentCol = schemaColumns[
+        parentColumn.column as string
+      ] as AnyPgColumn;
+      const idCol = schemaColumns.id as AnyPgColumn;
 
-      const existingIds = new Set(existing.map((e) => e.id));
-      const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
+      const existing = await tx
+        .select({ id: idCol })
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+        .from(schema as AnyPgTable)
+        .where(eq(parentCol, parentColumn.value));
+
+      const existingIds = new Set(existing.map((row) => row.id as string));
+      const incomingIds = new Set(data.map((e) => e.id));
 
       const toUpdate = data.filter(
         (item) => item.id && existingIds.has(item.id),
@@ -475,17 +439,7 @@ export class PostgresService implements IDatabaseService {
       const toInsert = data.filter(
         (item) => !item.id || !existingIds.has(item.id),
       );
-      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
-
-      for (const item of toUpdate) {
-        const { id, ...updateData } = item;
-        await this.update(
-          schemaName,
-          updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
-          { id } as TColumnFilter<K>,
-          tx,
-        );
-      }
+      const toDeleteIds = [...existingIds.difference(incomingIds)];
 
       await Promise.all(
         toUpdate.map((item) => {
@@ -519,5 +473,35 @@ export class PostgresService implements IDatabaseService {
         );
       }
     });
+  }
+
+  private _buildConditions(
+    schema: AnyPgTable,
+    columns: Record<string, unknown>,
+    schemaName: string,
+  ): ReturnType<typeof eq>[] {
+    const schemaColumns = getTableColumns(schema);
+    return Object.entries(columns).map(([colName, value]) => {
+      if (!(colName in schemaColumns)) {
+        throw new BadRequestException(
+          `Column "${colName}" not supported by ${schemaName}`,
+        );
+      }
+      return Array.isArray(value)
+        ? inArray(schemaColumns[colName], value)
+        : eq(schemaColumns[colName], value);
+    });
+  }
+
+  private _resolveColumn<K extends TpgTableKey>(
+    schema: TpgTableRegistry[K],
+    name: TpgCols<K>,
+  ): AnyPgColumn {
+    const col = getTableColumns(schema)[name] as AnyPgColumn | undefined;
+    if (!col)
+      throw new BadRequestException(
+        `Column "${String(name)}" not found in ${getTableName(schema)}`,
+      );
+    return col;
   }
 }

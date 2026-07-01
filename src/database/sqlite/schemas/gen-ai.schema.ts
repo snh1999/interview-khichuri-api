@@ -21,7 +21,9 @@ export const api_key = sqliteTable(
       enum: GEN_AI_PROVIDERS,
     }).notNull(),
     key: text("key").notNull(),
-    isActive: integer("is_active", { mode: "boolean" }),
+    isActive: integer("is_active", { mode: "boolean" })
+      .notNull()
+      .default(false),
     model: text("model"),
     ...defaultTimeStamps,
   },

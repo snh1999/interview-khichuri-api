@@ -166,11 +166,6 @@ export class ApiKeyService {
         ? createGoogleGenerativeAI({ apiKey: key })
         : createOpenAI({ apiKey: key, baseURL: config.baseURL });
 
-    await generateText({
-      model: providerInstance(model ?? config.defaultModel),
-      prompt: "Reply with just the word: ok",
-    });
-
     try {
       await generateText({
         model: providerInstance(model ?? config.defaultModel),
@@ -181,9 +176,14 @@ export class ApiKeyService {
       if (error instanceof APICallError) {
         throw new BadRequestException(error.message);
       }
+
+      const errorMessage =
+        error && typeof error === "object" && "data" in error
+          ? (error as { data?: { error?: string } }).data?.error
+          : "";
+
       throw new BadRequestException(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        `Invalid API key ${model ? "or model" : ""} for ${provider}. Check the ${model ? "name of model or" : ""} key and try again. ${error.data.error}`,
+        `Invalid API key ${model ? "or model" : ""} for ${provider}. Check the ${model ? "name of model or" : ""} key and try again. ${errorMessage ?? ""}`,
       );
     }
   }

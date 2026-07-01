@@ -405,43 +405,26 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): void {
     const schema = sqliteTableRegistry[schemaName];
-    const schemaColumns = getTableColumns(schema);
     const { column: parentColumnName, value: parentId } = parentColumn;
 
-    const parentCol = schemaColumns[parentColumnName as string] as unknown as
-      | AnySQLiteColumn
-      | undefined;
-
-    if (!parentCol) {
-      throw new BadRequestException(
-        `Column "${String(parentColumnName)}" not found in ${getTableName(schema)}`,
-      );
-    }
-
-    const childCol = schemaColumns[childColumn as string] as
-      | AnySQLiteColumn
-      | undefined;
-
-    if (!childCol) {
-      throw new BadRequestException(
-        `Column "${String(childColumn)}" not found in ${getTableName(schema)}`,
-      );
-    }
+    const parentCol = this._resolveColumn<K>(
+      schema,
+      parentColumnName as TSqliteCols<K>,
+    );
+    const childCol = this._resolveColumn<K>(schema, childColumn);
 
     db.transaction((tx) => {
       const existing = tx
-        .select()
+        .select({ childId: childCol })
         .from(schema)
         .where(eq(parentCol, parentId))
         .all();
 
-      const existingIds = new Set(
-        existing.map((row) => row[childColumn as string] as number),
-      );
+      const existingIds = new Set(existing.map((row) => row.childId as number));
       const incomingIds = new Set(newIds);
 
-      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
-      const toInsert = newIds.filter((id) => !existingIds.has(id));
+      const toDeleteIds = [...existingIds.difference(incomingIds)];
+      const toInsert = [...incomingIds.difference(existingIds)];
 
       if (toDeleteIds.length > 0) {
         tx.delete(schema)
@@ -471,18 +454,22 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): void {
     db.transaction((tx) => {
-      const existing = this.findAllByColumn(
-        schemaName,
-        {
-          filter: {
-            [parentColumn.column]: parentColumn.value,
-          } as TColumnFilter<K>,
-        },
-        tx,
-      ) as { id: string }[];
+      // sqlite
+      const schema = sqliteTableRegistry[schemaName];
+      const schemaColumns = getTableColumns(schema);
+      const parentCol = schemaColumns[
+        parentColumn.column as string
+      ] as unknown as AnySQLiteColumn;
+      const idCol = schemaColumns.id as AnySQLiteColumn;
 
-      const existingIds = new Set(existing.map((e) => e.id));
-      const incomingIds = new Set(data.filter((e) => e.id).map((e) => e.id));
+      const existing = tx
+        .select({ id: idCol })
+        .from(schema)
+        .where(eq(parentCol, parentColumn.value))
+        .all();
+
+      const existingIds = new Set(existing.map((row) => row.id as string));
+      const incomingIds = new Set(data.map((e) => e.id));
 
       const toInsert = data.filter(
         (item) => !item.id || !existingIds.has(item.id),
@@ -490,7 +477,7 @@ export class SqliteService implements IDatabaseService {
       const toUpdate = data.filter(
         (item) => item.id && existingIds.has(item.id),
       );
-      const toDeleteIds = [...existingIds].filter((id) => !incomingIds.has(id));
+      const toDeleteIds = [...existingIds.difference(incomingIds)];
 
       for (const item of toUpdate) {
         const { id, ...rest } = item;
@@ -523,5 +510,17 @@ export class SqliteService implements IDatabaseService {
         );
       }
     });
+  }
+
+  private _resolveColumn<K extends TsqliteTableKey>(
+    schema: TsqliteTableRegistry[K],
+    name: TSqliteCols<K>,
+  ): SQLiteColumn {
+    const col = getTableColumns(schema)[name] as SQLiteColumn | undefined;
+    if (!col)
+      throw new BadRequestException(
+        `Column "${String(name)}" not found in ${getTableName(schema)}`,
+      );
+    return col;
   }
 }

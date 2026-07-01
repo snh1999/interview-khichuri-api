@@ -22,7 +22,7 @@ export const api_key = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     provider: providerEnum("provider").notNull(),
     key: text("key").notNull(),
-    isActive: boolean("is_active"),
+    isActive: boolean("is_active").notNull().default(false),
     model: text("model"),
     ...defaultTimeStamps,
   },
