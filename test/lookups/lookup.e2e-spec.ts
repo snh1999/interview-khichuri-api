@@ -3,6 +3,7 @@ import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
+import type { CreateLookupDto } from "@/src/lookups/lookups.dto";
 
 import { expectedLookupStructure, getLookupPayload } from "./lookups.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
@@ -56,7 +57,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
   };
 
   const create = (
-    payload: Record<string, unknown> = getLookupPayload(),
+    payload: CreateLookupDto = getLookupPayload(),
     userCookie?: string,
   ) => auth(httpServer.post(routePath), userCookie).send(payload).expect(201);
 
@@ -160,6 +161,29 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       const { body } = await auth(httpServer.get(routePath)).expect(200);
 
       expect(body.data).toHaveLength(2);
+    });
+
+    it(`should paginate ${entity}`, async () => {
+      await create({ name: "First" });
+      await create({ name: "Second" });
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}?page=1&limit=1`),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(1);
+    });
+
+    it(`should sort ${entity} by name ascending`, async () => {
+      await create({ name: "Beta" });
+      await create({ name: "Alpha" });
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}?sort=name:asc`),
+      ).expect(200);
+
+      expect(body.data[0].name).toBe("Alpha");
+      expect(body.data[1].name).toBe("Beta");
     });
   });
 

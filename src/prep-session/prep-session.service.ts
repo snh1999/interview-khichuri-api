@@ -1,23 +1,36 @@
 import { Injectable } from "@nestjs/common";
 
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
-import type {
+import {
   TDatabase,
   TPagination,
   TPrepSession,
   TPrepSessionWithQuestions,
   TQuestion,
+  TSortBy,
 } from "@/src/database/database.types";
+import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
-import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
-import type { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
+import {
+  CreateQuestionDto,
+  UpdateQuestionDto,
+  GenerateQuestionsDto,
+} from "./dto/question.dto";
+import type {
+  CreatePrepSessionDto,
+  UpdatePrepSessionDto,
+} from "./dto/session.dto";
 
 @Injectable()
 export class PrepSessionService {
-  public constructor(private readonly db: IDatabaseService) {}
+  public constructor(
+    private readonly db: IDatabaseService,
+    private readonly genAiService: GenAiService,
+  ) {}
 
   public async create(
-    dto: PrepSessionDto,
+    dto: CreatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSession> {
     const { topicIds, ...data } = dto;
@@ -33,24 +46,29 @@ export class PrepSessionService {
     });
   }
 
-  public async findAll(userId?: string): Promise<TPrepSession[]> {
-    const filters = userId
-      ? [{ columnName: "userId" as const, value: userId }]
-      : [];
-
-    return this.db.findAllByColumn("prep_session", filters);
+  public async findAll(
+    userId?: string,
+    pagination?: TPagination,
+    sortBy?: TSortEntry[],
+  ): Promise<TPrepSession[]> {
+    const sort = sortBy?.length
+      ? sortBy
+      : [{ column: "createdAt", order: "desc" as const }];
+    return this.db.findAllByColumn("prep_session", {
+      filter: userId ? { userId } : {},
+      pagination,
+      sortBy: sort as TSortBy<"prep_session">[],
+    });
   }
 
   public async findOne(
     id: string,
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
-    return this.db.findById(
-      "prep_session",
-      id,
-      [...(userId ? [{ columnName: "userId" as const, value: userId }] : [])],
-      { questions: true },
-    ) as Promise<TPrepSessionWithQuestions>;
+    return this.db.findById("prep_session", id, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: { questions: true },
+    }) as Promise<TPrepSessionWithQuestions>;
   }
 
   public async update(
@@ -65,19 +83,14 @@ export class PrepSessionService {
         await this.db.update(
           "prep_session",
           sessionFields,
-          userId
-            ? [
-                { columnName: "id", value: id },
-                { columnName: "userId", value: userId },
-              ]
-            : [{ columnName: "id", value: id }],
+          userId ? { id, userId } : { id },
           transaction,
         );
       }
       if (topicIds) {
         await this.db.delete(
           "session_topics",
-          [{ columnName: "sessionId", value: id }],
+          { sessionId: id },
           true,
           transaction,
         );
@@ -89,10 +102,10 @@ export class PrepSessionService {
   }
 
   public async delete(id: string, userId?: string): Promise<void> {
-    return this.db.delete("prep_session", [
-      { columnName: "id", value: id },
-      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-    ]);
+    return this.db.delete("prep_session", {
+      id,
+      ...(userId ? { userId } : {}),
+    });
   }
 
   public async addQuestion(
@@ -105,17 +118,70 @@ export class PrepSessionService {
     return this.db.create("questions", { ...dto, sessionId });
   }
 
+  public async generateQuestions(
+    sessionId: string,
+    dto: GenerateQuestionsDto,
+    userId?: string,
+  ): Promise<TPrepSessionWithQuestions> {
+    const { provider, avoidRepeat, includeJobDescription } = dto;
+    const session = (await this.db.findById("prep_session", sessionId, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: {
+        ...(avoidRepeat ? { questions: true } : {}),
+        ...(includeJobDescription ? { job: true } : {}),
+      },
+    })) as TPrepSessionWithQuestions;
+
+    const roleName = session.roleId
+      ? (await this.db.findById("roles", session.roleId)).name
+      : "";
+
+    const sessionTopics = await this.db.findAllByColumn("session_topics", {
+      filter: { sessionId },
+    });
+
+    const topicIds = sessionTopics.map((st) => st.topicId);
+
+    const topics = await this.db.findAllByColumn("topics", {
+      filter: { id: topicIds },
+    });
+
+    const generatedQuestions = await this.genAiService.generateQuestions({
+      topics,
+      provider,
+      roleName,
+      session,
+      dto,
+    });
+
+    const questions = generatedQuestions.questions.map((question) => ({
+      sessionId,
+      ...question,
+    }));
+
+    await this.db.createMany("questions", questions);
+
+    return this.db.findById("prep_session", sessionId, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: { questions: true },
+    }) as Promise<TPrepSessionWithQuestions>;
+  }
+
   public async findQuestions(
     sessionId: string,
     pagination?: TPagination,
     userId?: string,
+    sortBy?: TSortEntry[],
   ): Promise<TQuestion[]> {
     await this.findOne(sessionId, userId);
-    return this.db.findAllByColumn(
-      "questions",
-      [{ columnName: "sessionId", value: sessionId }],
+    const sort = sortBy?.length
+      ? sortBy
+      : [{ column: "createdAt", order: "desc" as const }];
+    return this.db.findAllByColumn("questions", {
+      filter: { sessionId },
+      sortBy: sort as TSortBy<"questions">[],
       pagination,
-    );
+    });
   }
 
   public async updateQuestion(
@@ -126,10 +192,7 @@ export class PrepSessionService {
   ): Promise<TQuestion> {
     await this.findOne(sessionId, userId);
 
-    const [result] = await this.db.update("questions", dto, [
-      { columnName: "id", value: id },
-      { columnName: "sessionId", value: sessionId },
-    ]);
+    const [result] = await this.db.update("questions", dto, { id, sessionId });
     return result;
   }
 
@@ -139,10 +202,7 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<void> {
     await this.findOne(sessionId, userId);
-    return this.db.delete("questions", [
-      { columnName: "sessionId", value: sessionId },
-      { columnName: "id", value: id },
-    ]);
+    return this.db.delete("questions", { sessionId, id });
   }
 
   private async _createSessionTopics(

@@ -1,15 +1,17 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-export const CreatePrepSessionSchema = z.object({
+const createPrepSessionSchema = z.object({
   description: z.string().trim().min(1),
-  experience: z.string().optional(),
-  jobId: z.uuid().optional(),
-  roleId: z.number().int().positive().optional(),
+  experience: z.string().nullable().optional(),
+  jobId: z.uuid().nullable().optional(),
+  roleId: z.number().int().positive().nullable().optional(),
   topicIds: z.array(z.number().int().positive()).optional(),
 });
 
-export class PrepSessionDto extends createZodDto(CreatePrepSessionSchema) {}
+export class CreatePrepSessionDto extends createZodDto(
+  createPrepSessionSchema,
+) {}
 export class UpdatePrepSessionDto extends createZodDto(
-  CreatePrepSessionSchema.partial(),
+  createPrepSessionSchema.partial(),
 ) {}

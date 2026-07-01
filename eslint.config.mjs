@@ -46,7 +46,7 @@ export default tseslint.config(
     },
 
     rules: {
-      "@typescript-eslint/no-extraneous-class": "warn",
+      "@typescript-eslint/no-extraneous-class": "off",
       "@typescript-eslint/explicit-module-boundary-types": "error",
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-floating-promises": "error",

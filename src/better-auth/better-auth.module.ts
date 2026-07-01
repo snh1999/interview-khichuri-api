@@ -6,12 +6,15 @@ import { ConfigService } from "@nestjs/config";
 import { AuthModule } from "@thallesp/nestjs-better-auth";
 import { APIError, betterAuth, User } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { lastLoginMethod } from "better-auth/plugins";
 import { admin } from "better-auth/plugins/admin";
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { isValid } from "mailchecker";
+
+import { checkPasswordCompromise } from "@/src/better-auth/better-auth.helper";
 
 import { TEnvSchema } from "../config/utils/env.schema";
 import { DATABASE_CONNECTION } from "../database/database.constants";
@@ -33,7 +36,14 @@ import { EmailService } from "../email/email.service";
           plugins: [
             admin(),
             lastLoginMethod(),
-            haveIBeenPwned(),
+            haveIBeenPwned({
+              paths: [
+                "/sign-up/email",
+                "/change-password",
+                "/admin/create-user",
+                "/admin/set-user-password",
+              ],
+            }),
             twoFactor(),
             passkey(),
           ],
@@ -95,6 +105,9 @@ import { EmailService } from "../email/email.service";
               enabled: true,
               maxAge: 5 * 60,
             },
+            // matches session expiry
+            freshAge: 3600 * 24 * 30,
+            expiresIn: 3600 * 24 * 30,
           },
           rateLimit: {
             window: 60 * 10,
@@ -114,6 +127,15 @@ import { EmailService } from "../email/email.service";
             json: { limit: "2mb" },
             urlencoded: { limit: "2mb", extended: true },
             rawBody: true,
+          },
+          hooks: {
+            // Check password BEFORE the endpoint runs (token not yet consumed)
+            before: createAuthMiddleware(async (ctx) => {
+              if (ctx.path === "/reset-password") {
+                const { newPassword } = ctx.body as { newPassword: string };
+                await checkPasswordCompromise(newPassword);
+              }
+            }),
           },
           databaseHooks: {
             user: {

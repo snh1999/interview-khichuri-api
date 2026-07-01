@@ -7,24 +7,28 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
-  Query,
 } from "@nestjs/common";
 
+import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type {
+  TPagination,
   TPrepSession,
   TPrepSessionWithQuestions,
   TQuestion,
 } from "@/src/database/database.types";
 
 import {
-  FindQuestionsDto,
   CreateQuestionDto,
   UpdateQuestionDto,
+  GenerateQuestionsDto,
 } from "./dto/question.dto";
-import { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
+import { CreatePrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
 import { PrepSessionService } from "./prep-session.service";
 
 @Controller("prep-session")
@@ -33,20 +37,25 @@ export class PrepSessionController {
 
   @Post()
   public create(
-    @Body() dto: PrepSessionDto,
+    @Body() dto: CreatePrepSessionDto,
     @UserId() userId?: string,
   ): Promise<TPrepSession> {
     return this.prepSessionService.create(dto, userId);
   }
 
   @Get()
-  public findAll(@UserId() userId?: string): Promise<TPrepSession[]> {
-    return this.prepSessionService.findAll(userId);
+  public findAll(
+    @Pagination() pagination?: TPagination,
+    @SortBy(["experience", "description", "createdAt", "updatedAt"])
+    sortBy?: TSortEntry[],
+    @UserId() userId?: string,
+  ): Promise<TPrepSession[]> {
+    return this.prepSessionService.findAll(userId, pagination, sortBy);
   }
 
   @Get(":id")
   public findOne(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
     return this.prepSessionService.findOne(id, userId);
@@ -54,7 +63,7 @@ export class PrepSessionController {
 
   @Patch(":id")
   public update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdatePrepSessionDto,
     @UserId() userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
@@ -64,7 +73,7 @@ export class PrepSessionController {
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async remove(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.prepSessionService.delete(id, userId);
@@ -79,19 +88,28 @@ export class PrepSessionController {
     return this.prepSessionService.addQuestion(sessionId, dto, userId);
   }
 
+  @Post(":id/generate")
+  public generateQuestions(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GenerateQuestionsDto,
+    @UserId() userId?: string,
+  ): Promise<TPrepSessionWithQuestions> {
+    return this.prepSessionService.generateQuestions(id, dto, userId);
+  }
+
   @Get(":sessionId/questions")
   public findQuestions(
     @Param("sessionId") sessionId: string,
-    @Query() query: FindQuestionsDto,
+    @Pagination() pagination?: TPagination,
+    @SortBy(["questionText", "answer", "isFavorite", "createdAt", "updatedAt"])
+    sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TQuestion[]> {
     return this.prepSessionService.findQuestions(
       sessionId,
-      {
-        offset: (query.page - 1) * query.limit,
-        limit: query.limit,
-      },
+      pagination,
       userId,
+      sortBy,
     );
   }
 

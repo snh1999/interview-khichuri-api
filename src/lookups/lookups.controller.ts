@@ -13,6 +13,10 @@ import {
 } from "@nestjs/common";
 import { Roles } from "@thallesp/nestjs-better-auth";
 
+import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import type { TPagination } from "@/src/database/database.types";
 import { TLookupMap, LookupSchemaPipe } from "@/src/lookups/lookups.helpers";
 
 import { CreateLookupDto, UpdateLookupDto } from "./lookups.dto";
@@ -34,9 +38,11 @@ export class LookupsController {
   @Get()
   public findAll<T extends TLookupSchema>(
     @Param("schema", LookupSchemaPipe) schema: T,
+    @Pagination() pagination?: TPagination,
+    @SortBy(["name", "isApproved"]) sortBy?: TSortEntry[],
     @Query("name") name?: string,
   ): Promise<TLookupMap[T][]> {
-    return this.lookupsService.findAll(schema, name);
+    return this.lookupsService.findAll(schema, name, pagination, sortBy);
   }
 
   @Patch(":id")

@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { UtilitiesModule } from "@/src/utilities/utilities.module";
 
 import { BetterAuthModule } from "./better-auth/better-auth.module";
+import { CompanyModule } from "./company/company.module";
 import { ResponseTransformInterceptor } from "./config/interceptors/response.interceptor";
 import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
 import { basicSchema, envSchema } from "./config/utils/env.schema";
@@ -16,6 +17,8 @@ import { HealthModule } from "./health/health.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { LookupsModule } from "./lookups/lookups.module";
 import { PrepSessionModule } from "./prep-session/prep-session.module";
+import { ProfileModule } from "./profile/profile.module";
+import { ResumeModule } from "./resume/resume.module";
 
 const isApplicationMode = Boolean(process.env.IS_APP_MODE);
 
@@ -42,7 +45,10 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     LookupsModule,
     PrepSessionModule,
     GenAiModule,
+    ProfileModule,
+    CompanyModule,
     UtilitiesModule,
+    ResumeModule,
   ],
   providers: [
     {

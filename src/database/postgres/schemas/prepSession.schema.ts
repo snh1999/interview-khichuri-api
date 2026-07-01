@@ -57,6 +57,7 @@ export const questions = pgTable("questions", {
   sessionId: uuid("session_id")
     .notNull()
     .references(() => prep_session.id, { onDelete: "cascade" }),
+  questionText: text("question_text").notNull(),
   answer: text("answer"),
   notes: text("notes"),
   isFavorite: boolean("is_favorite").default(false),
