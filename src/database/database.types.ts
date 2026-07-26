@@ -121,8 +121,9 @@ interface TJobTopicRelation {
   topic: InferSelectModel<typeof topics>;
 }
 
-export type TJobWithTopics = InferSelectModel<typeof jobs> & {
+export type TJobWithTopics = TJob & {
   jobTopics: TJobTopicRelation[];
+  topicIds: number[];
 };
 
 export interface TPagination {

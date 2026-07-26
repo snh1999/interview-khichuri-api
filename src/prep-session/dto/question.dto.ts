@@ -20,6 +20,7 @@ export class UpdateQuestionDto extends createZodDto(
 
 const generateQuestionsSchema = z.object({
   provider: z.enum(GEN_AI_PROVIDERS),
+  model: z.string().optional(),
   count: z.coerce.number().int().min(1).max(50).optional().default(5),
   avoidRepeat: z.boolean().optional().default(false),
   includeJobDescription: z.boolean().optional().default(true),

@@ -150,10 +150,16 @@ export class SqliteService implements IDatabaseService {
       ? this._buildConditions(schema, columns, getTableName(schema))
       : [];
 
+    const orderBy = sortBy?.map((s) => {
+      const col = schema[s.column as keyof typeof schema] as SQLiteColumn;
+      return s.order === "desc" ? desc(col) : asc(col);
+    });
+
     if (relations && Object.keys(relations).length > 0) {
       return db.query[schemaName].findMany({
         where: conditions.length ? and(...conditions) : undefined,
         with: relations,
+        ...(orderBy && orderBy.length > 0 && { orderBy }),
         ...(pagination && {
           limit: pagination.limit,
           offset: pagination.offset,
@@ -161,11 +167,6 @@ export class SqliteService implements IDatabaseService {
         // returns SQLiteSyncRelationalQuery,
       }) as unknown as InferSelectModel<TsqliteTableRegistry[K]>[];
     }
-
-    const orderBy = sortBy?.map((s) => {
-      const col = schema[s.column as keyof typeof schema] as SQLiteColumn;
-      return s.order === "desc" ? desc(col) : asc(col);
-    });
 
     const query = db
       .select()
@@ -202,6 +203,7 @@ export class SqliteService implements IDatabaseService {
     value: string,
     options?: TSearchOptions<K>,
   ): TSearchResult<K> {
+    if (!value.trim()) return { data: [], total: 0 };
     const { filter, pagination } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
     const schemaColumns = getTableColumns(schema);
@@ -433,12 +435,12 @@ export class SqliteService implements IDatabaseService {
       }
 
       if (toInsert.length > 0) {
-        tx.insert(schema)
+        tx.insert(schema as SQLiteTable)
           .values(
             toInsert.map((id) => ({
               [parentColumnName]: parentId,
               [childColumn]: id,
-            })) as InferInsertModel<TsqliteTableRegistry[K]>[],
+            })),
           )
           .run();
       }

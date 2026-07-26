@@ -132,7 +132,13 @@ import { EmailService } from "../email/email.service";
             // Check password BEFORE the endpoint runs (token not yet consumed)
             before: createAuthMiddleware(async (ctx) => {
               if (ctx.path === "/reset-password") {
-                const { newPassword } = ctx.body as { newPassword: string };
+                const body = ctx.body as Record<string, unknown> | undefined;
+                const newPassword = body?.newPassword;
+                if (typeof newPassword !== "string") {
+                  throw new APIError("BAD_REQUEST", {
+                    message: "newPassword is required",
+                  });
+                }
                 await checkPasswordCompromise(newPassword);
               }
             }),

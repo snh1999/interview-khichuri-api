@@ -13,7 +13,11 @@ import {
 } from "@nestjs/common";
 
 import { Pagination } from "@/src/config/guards/pagination.decorator";
-import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import {
+  QUESTION_SORTABLE,
+  SESSION_SORTABLE,
+  SortBy,
+} from "@/src/config/guards/sort-by.decorator";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type {
@@ -46,7 +50,7 @@ export class PrepSessionController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
-    @SortBy(["experience", "description", "createdAt", "updatedAt"])
+    @SortBy(SESSION_SORTABLE)
     sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TPrepSession[]> {
@@ -93,7 +97,7 @@ export class PrepSessionController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: GenerateQuestionsDto,
     @UserId() userId?: string,
-  ): Promise<TPrepSessionWithQuestions> {
+  ): Promise<TQuestion[]> {
     return this.prepSessionService.generateQuestions(id, dto, userId);
   }
 
@@ -101,7 +105,7 @@ export class PrepSessionController {
   public findQuestions(
     @Param("sessionId") sessionId: string,
     @Pagination() pagination?: TPagination,
-    @SortBy(["questionText", "answer", "isFavorite", "createdAt", "updatedAt"])
+    @SortBy(QUESTION_SORTABLE)
     sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TQuestion[]> {

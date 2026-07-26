@@ -15,11 +15,13 @@ export const getPrepSessionPayload = (
   data?: Partial<TPrepSession>,
 ): CreatePrepSessionDto => ({
   ...data,
+  title: data?.title ?? faker.string.sample(10),
   description: data?.description ?? faker.string.sample(15),
 });
 
 export const expectedPrepSessionStructure = () =>
   expect.objectContaining({
+    title: expect.any(String),
     description: expect.any(String),
     experience: expectNullableString,
     jobId: expectNullableString,

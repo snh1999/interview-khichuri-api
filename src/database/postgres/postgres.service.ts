@@ -134,21 +134,22 @@ export class PostgresService implements IDatabaseService {
       ? this._buildConditions(schema, columns, getTableName(schema))
       : [];
 
+    const orderBy = sortBy?.map((sort) => {
+      const col = schema[sort.column as keyof typeof schema] as AnyPgColumn;
+      return sort.order === "desc" ? desc(col) : asc(col);
+    });
+
     if (relations && Object.keys(relations).length > 0) {
       return db.query[schemaName].findMany({
         where: conditions.length ? and(...conditions) : undefined,
         with: relations,
+        ...(orderBy && orderBy.length > 0 && { orderBy }),
         ...(pagination && {
           limit: pagination.limit,
           offset: pagination.offset,
         }),
       }) as Promise<InferSelectModel<TpgTableRegistry[K]>[]>;
     }
-
-    const orderBy = sortBy?.map((sort) => {
-      const col = schema[sort.column as keyof typeof schema] as AnyPgColumn;
-      return sort.order === "desc" ? desc(col) : asc(col);
-    });
 
     const query = db
       .select()

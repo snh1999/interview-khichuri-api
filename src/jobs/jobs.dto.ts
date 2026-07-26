@@ -2,6 +2,7 @@ import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { TJob } from "@/src/database/database.types";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
@@ -23,15 +24,19 @@ const baseJobSchema = z.object({
 
 export class CreateJobDto extends createZodDto(baseJobSchema) {}
 export class UpdateJobDto extends createZodDto(
-  baseJobSchema.partial().refine((obj) => Object.keys(obj).length > 0, {
-    message: "At least one field required",
-  }),
+  baseJobSchema
+    .omit({ roleId: true })
+    .partial()
+    .refine((obj) => Object.keys(obj).length > 0, {
+      message: "At least one field required",
+    }),
 ) {}
 
 const extractJobSchema = z.object({
   description: z.string().trim().min(1),
   links: z.string().optional(),
   provider: z.enum(GEN_AI_PROVIDERS),
+  model: z.string().optional(),
 });
 
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}
@@ -52,5 +57,9 @@ export type TJobExtractionResult = Omit<
   "roleName" | "topicNames"
 > & {
   roleId: number | null;
+  topicIds: number[];
+};
+
+export type TJobWithTopicIds = TJob & {
   topicIds: number[];
 };

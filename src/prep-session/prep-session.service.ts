@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -11,6 +11,7 @@ import {
   TSortBy,
 } from "@/src/database/database.types";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { LookupsService } from "@/src/lookups/lookups.service";
 
 import {
   CreateQuestionDto,
@@ -27,13 +28,14 @@ export class PrepSessionService {
   public constructor(
     private readonly db: IDatabaseService,
     private readonly genAiService: GenAiService,
+    private readonly lookupsService: LookupsService,
   ) {}
 
   public async create(
     dto: CreatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSession> {
-    const { topicIds, ...data } = dto;
+    const { topicIds, topicNames, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
       const session = await this.db.create(
@@ -41,7 +43,12 @@ export class PrepSessionService {
         { ...data, userId },
         transaction,
       );
-      await this._createSessionTopics(session.id, transaction, topicIds);
+      await this._createSessionTopics(
+        session.id,
+        transaction,
+        topicIds,
+        topicNames,
+      );
       return session;
     });
   }
@@ -51,13 +58,16 @@ export class PrepSessionService {
     pagination?: TPagination,
     sortBy?: TSortEntry[],
   ): Promise<TPrepSession[]> {
-    const sort = sortBy?.length
-      ? sortBy
-      : [{ column: "createdAt", order: "desc" as const }];
+    const sort = [
+      ...(sortBy ?? []),
+      { column: "createdAt", order: "desc" as const },
+    ];
+
     return this.db.findAllByColumn("prep_session", {
       filter: userId ? { userId } : {},
       pagination,
       sortBy: sort as TSortBy<"prep_session">[],
+      relation: { sessionTopics: true },
     });
   }
 
@@ -67,7 +77,7 @@ export class PrepSessionService {
   ): Promise<TPrepSessionWithQuestions> {
     return this.db.findById("prep_session", id, {
       filter: { ...(userId ? { userId } : {}) },
-      relation: { questions: true },
+      relation: { questions: true, sessionTopics: true },
     }) as Promise<TPrepSessionWithQuestions>;
   }
 
@@ -76,7 +86,7 @@ export class PrepSessionService {
     dto: UpdatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
-    const { topicIds, ...sessionFields } = dto;
+    const { topicIds, topicNames, ...sessionFields } = dto;
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(sessionFields).length > 0) {
@@ -87,14 +97,27 @@ export class PrepSessionService {
           transaction,
         );
       }
-      if (topicIds) {
-        await this.db.delete(
+      if (topicIds || topicNames) {
+        await this.db.syncJunctionTable(
           "session_topics",
-          { sessionId: id },
-          true,
+          { column: "sessionId", value: id },
+          "topicId",
+          topicIds ?? [],
           transaction,
         );
-        await this._createSessionTopics(id, transaction, topicIds);
+        if (topicNames?.length) {
+          const resolved = await this.lookupsService.resolveOrCreateNames(
+            "topics",
+            topicNames,
+          );
+          await this.db.syncJunctionTable(
+            "session_topics",
+            { column: "sessionId", value: id },
+            "topicId",
+            resolved,
+            transaction,
+          );
+        }
       }
     });
 
@@ -122,8 +145,8 @@ export class PrepSessionService {
     sessionId: string,
     dto: GenerateQuestionsDto,
     userId?: string,
-  ): Promise<TPrepSessionWithQuestions> {
-    const { provider, avoidRepeat, includeJobDescription } = dto;
+  ): Promise<TQuestion[]> {
+    const { provider, avoidRepeat, includeJobDescription, model } = dto;
     const session = (await this.db.findById("prep_session", sessionId, {
       filter: { ...(userId ? { userId } : {}) },
       relation: {
@@ -131,6 +154,12 @@ export class PrepSessionService {
         ...(includeJobDescription ? { job: true } : {}),
       },
     })) as TPrepSessionWithQuestions;
+
+    if (avoidRepeat && session.questions.length > 100) {
+      throw new BadRequestException(
+        "Too many questions, try without avoid repeat",
+      );
+    }
 
     const roleName = session.roleId
       ? (await this.db.findById("roles", session.roleId)).name
@@ -149,6 +178,7 @@ export class PrepSessionService {
     const generatedQuestions = await this.genAiService.generateQuestions({
       topics,
       provider,
+      model,
       roleName,
       session,
       dto,
@@ -159,12 +189,7 @@ export class PrepSessionService {
       ...question,
     }));
 
-    await this.db.createMany("questions", questions);
-
-    return this.db.findById("prep_session", sessionId, {
-      filter: { ...(userId ? { userId } : {}) },
-      relation: { questions: true },
-    }) as Promise<TPrepSessionWithQuestions>;
+    return this.db.createMany("questions", questions);
   }
 
   public async findQuestions(
@@ -174,9 +199,11 @@ export class PrepSessionService {
     sortBy?: TSortEntry[],
   ): Promise<TQuestion[]> {
     await this.findOne(sessionId, userId);
-    const sort = sortBy?.length
-      ? sortBy
-      : [{ column: "createdAt", order: "desc" as const }];
+    const sort = [
+      ...(sortBy ?? []),
+      { column: "createdAt", order: "desc" as const },
+      { column: "id" }, // required as AI will create multiple question at once
+    ];
     return this.db.findAllByColumn("questions", {
       filter: { sessionId },
       sortBy: sort as TSortBy<"questions">[],
@@ -209,9 +236,20 @@ export class PrepSessionService {
     sessionId: string,
     transaction: TDatabase,
     topicIds?: number[],
+    topicNames?: string[],
   ): Promise<void> {
-    if (topicIds?.length) {
-      const sessionTopics = topicIds.map((topicId) => ({
+    if (!topicNames && !topicIds) return;
+
+    const resolvedTopicNames = await this.lookupsService.resolveOrCreateNames(
+      "topics",
+      topicNames,
+    );
+    const allTopicIds = [
+      ...new Set([...(topicIds ?? []), ...resolvedTopicNames]),
+    ];
+
+    if (allTopicIds.length) {
+      const sessionTopics = allTopicIds.map((topicId) => ({
         sessionId,
         topicId,
       }));

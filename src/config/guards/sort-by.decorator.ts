@@ -5,6 +5,8 @@ import {
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import type { TpgCols } from "@/src/database/postgres/postgres.service";
+
 export interface TSortEntry {
   column: string;
   order?: "asc" | "desc";
@@ -14,7 +16,7 @@ const sortItemRegex = /^([a-zA-Z_]\w*)(?::(asc|desc))?$/;
 
 export const SortBy = createParamDecorator(
   (
-    allowedColumns: string[] | undefined,
+    allowedColumns: string[] | readonly string[] | undefined,
     ctx: ExecutionContext,
   ): TSortEntry[] | undefined => {
     const columns = Array.isArray(allowedColumns) ? allowedColumns : [];
@@ -56,3 +58,27 @@ export const SortBy = createParamDecorator(
     return result;
   },
 );
+
+export const JOB_SORTABLE = [
+  "title",
+  "description",
+  "status",
+  "createdAt",
+  "updatedAt",
+] as const satisfies readonly TpgCols<"jobs">[];
+
+export const SESSION_SORTABLE = [
+  "title",
+  "experience",
+  "description",
+  "createdAt",
+  "updatedAt",
+] as const satisfies readonly TpgCols<"prep_session">[];
+
+export const QUESTION_SORTABLE = [
+  "questionText",
+  "answer",
+  "isFavorite",
+  "createdAt",
+  "updatedAt",
+] as const satisfies readonly TpgCols<"questions">[];

@@ -47,7 +47,7 @@ export class GenAiService {
     return this.apiKeyService.useApiKey(
       provider,
       async ({ key, model }) => {
-        const modelName = options?.model ?? model ?? config.defaultModel;
+        const modelName = options?.model || model || config.defaultModel;
         const providerInstance =
           config.sdk === "google"
             ? createGoogleGenerativeAI({ apiKey: key })
@@ -69,10 +69,13 @@ export class GenAiService {
     description: string;
     provider: TApiKeyProvider;
     links?: string;
+    model?: string;
   }): Promise<ExtractedJob> {
-    const { description, provider, links } = options;
+    const { description, provider, links, model } = options;
     const prompt = `${EXTRACTION_PROMPT}${description}${links ? `\n\nLinks/URLs:\n${links}` : ""}`;
-    return this.generateStructured(prompt, extractedJobSchema, provider);
+    return this.generateStructured(prompt, extractedJobSchema, provider, {
+      model,
+    });
   }
 
   async extractResume(
@@ -92,8 +95,9 @@ export class GenAiService {
     roleName: string;
     session: TPrepSessionWithQuestions;
     dto: GenerateQuestionsDto;
+    model?: string;
   }): Promise<TGeneratedQuestions> {
-    const { provider, topics, roleName, session, dto } = options;
+    const { provider, topics, roleName, session, dto, model } = options;
     const { count, avoidRepeat } = dto;
 
     const topicNames = topics.map((topic) => topic.name);
@@ -117,6 +121,8 @@ export class GenAiService {
     const context = contextParts.join("\n");
 
     const prompt = `${GENERATE_INTERVIEW_QUESTIONS_PROMPT_FALLBACK}\n\n${context}`;
-    return this.generateStructured(prompt, generatedQuestionsSchema, provider);
+    return this.generateStructured(prompt, generatedQuestionsSchema, provider, {
+      model,
+    });
   }
 }

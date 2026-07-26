@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { IDatabaseService } from "@/src/database/database.service";
 import type { TPrepSessionInsert } from "@/src/database/database.types";
 import type { CreateQuestionDto } from "@/src/prep-session/dto/question.dto";
+import type { CreatePrepSessionDto } from "@/src/prep-session/dto/session.dto";
 
 import {
   expectedPrepSessionStructure,
@@ -15,7 +16,6 @@ import {
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import { bootstrapTestServer } from "../utils/bootstrap";
 import { createTestRole, createTestTopic } from "../utils/test-data";
-import { CreatePrepSessionDto } from "@/src/prep-session/dto/session.dto";
 
 const isAppMode = Boolean(process.env.IS_APP_MODE);
 
@@ -68,6 +68,7 @@ describe("PrepSession (e2e)", () => {
       expect(body.statusCode).toBe(201);
       expect(body.message).toBe("");
       expect(body.data).toMatchObject({
+        title: payload.title,
         description: payload.description,
       });
       expect(body.data.id).toEqual(expect.any(String));
@@ -78,18 +79,20 @@ describe("PrepSession (e2e)", () => {
     });
 
     it("should return 400 when description is missing", async () => {
-      await auth(httpServer.post("/prep-session")).send({}).expect(400);
+      await auth(httpServer.post("/prep-session"))
+        .send({ title: "Test" })
+        .expect(400);
     });
 
     it("should return 400 when description is empty", async () => {
       await auth(httpServer.post("/prep-session"))
-        .send({ description: "" })
+        .send({ title: "Test", description: "" })
         .expect(400);
     });
 
     it("should return 400 when description is whitespace only", async () => {
       await auth(httpServer.post("/prep-session"))
-        .send({ description: "   " })
+        .send({ title: "Test", description: "   " })
         .expect(400);
     });
 
@@ -356,14 +359,14 @@ describe("PrepSession (e2e)", () => {
       const roleId: number = role.id;
 
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
-        .send({ roleId })
+        .send({ title: "new", roleId })
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.roleId).toBe(roleId);
+          expect(data.roleId).toBeNull();
         });
     });
 
-    it("should update jobId", async () => {
+    it("should not update jobId", async () => {
       const {
         body: { data: created },
       } = await createSession();
@@ -380,10 +383,10 @@ describe("PrepSession (e2e)", () => {
       const jobId: string = jobBody.data.id;
 
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
-        .send({ jobId })
+        .send({ title: "new", jobId }) // keeping title or it would be bad request
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.jobId).toBe(jobId);
+          expect(data.jobId).toBeNull();
         });
     });
 

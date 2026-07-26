@@ -5,11 +5,12 @@ import { IDatabaseService } from "@/src/database/database.service";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
 
-import type {
+import {
   CreateJobDto,
   UpdateJobDto,
   ExtractJobDto,
   TJobExtractionResult,
+  TJobWithTopicIds,
 } from "./jobs.dto";
 import type {
   TDatabase,
@@ -72,9 +73,10 @@ export class JobsService {
     sortBy?: TSortEntry[],
   ): Promise<TJob[]> {
     const filters = userId ? { userId } : {};
-    const sort = sortBy?.length
-      ? sortBy
-      : [{ column: "createdAt", order: "desc" as const }];
+    const sort = [
+      ...(sortBy ?? []),
+      { column: "createdAt", order: "desc" as const },
+    ];
 
     if (search) {
       const result = await this.db.search(
@@ -100,18 +102,25 @@ export class JobsService {
     id: string,
     userId?: string,
     populate = true,
-  ): Promise<TJobWithTopics> {
-    return this.db.findById("jobs", id, {
+  ): Promise<TJobWithTopicIds> {
+    const job = (await this.db.findById("jobs", id, {
       filter: { ...(userId ? { userId } : {}) },
-      relation: populate ? { jobTopics: { with: { topic: true } } } : undefined,
-    }) as Promise<TJobWithTopics>;
+      relation: populate ? { jobTopics: true } : undefined,
+    })) as TJobWithTopics;
+
+    const topicIds = (job.jobTopics ?? []).map((jt) => jt.topicId);
+
+    return {
+      ...job,
+      topicIds,
+    };
   }
 
   public async update(
     id: string,
     dto: UpdateJobDto,
     userId?: string,
-  ): Promise<TJobWithTopics> {
+  ): Promise<TJob> {
     const { topicIds, topicNames, deadline, interviewDate, ...data } = dto;
     const jobFields: Record<string, unknown> = {
       ...data,

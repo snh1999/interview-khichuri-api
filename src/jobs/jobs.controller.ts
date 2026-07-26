@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 
 import { Pagination } from "@/src/config/guards/pagination.decorator";
-import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import { JOB_SORTABLE, SortBy } from "@/src/config/guards/sort-by.decorator";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type {
@@ -22,7 +22,12 @@ import type {
   TJobWithTopics,
 } from "@/src/database/database.types";
 
-import { CreateJobDto, ExtractJobDto, UpdateJobDto } from "./jobs.dto";
+import {
+  CreateJobDto,
+  ExtractJobDto,
+  TJobWithTopicIds,
+  UpdateJobDto,
+} from "./jobs.dto";
 import type { TJobExtractionResult } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 
@@ -46,7 +51,7 @@ export class JobsController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
-    @SortBy(["title", "description", "status", "createdAt", "updatedAt"])
+    @SortBy(JOB_SORTABLE)
     sortBy?: TSortEntry[],
     @Query("search") search?: string,
     @UserId() userId?: string,
@@ -58,7 +63,7 @@ export class JobsController {
   public findOne(
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
-  ): Promise<TJobWithTopics> {
+  ): Promise<TJobWithTopicIds> {
     return this.jobsService.findOne(id, userId);
   }
 
@@ -67,7 +72,7 @@ export class JobsController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateJobDto,
     @UserId() userId?: string,
-  ): Promise<TJobWithTopics> {
+  ): Promise<TJob> {
     return this.jobsService.update(id, dto, userId);
   }
 
