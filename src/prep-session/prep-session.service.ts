@@ -1,26 +1,41 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
-import type {
+import {
   TDatabase,
   TPagination,
   TPrepSession,
   TPrepSessionWithQuestions,
   TQuestion,
+  TSortBy,
 } from "@/src/database/database.types";
+import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { LookupsService } from "@/src/lookups/lookups.service";
 
-import { CreateQuestionDto, UpdateQuestionDto } from "./dto/question.dto";
-import type { PrepSessionDto, UpdatePrepSessionDto } from "./dto/session.dto";
+import {
+  CreateQuestionDto,
+  UpdateQuestionDto,
+  GenerateQuestionsDto,
+} from "./dto/question.dto";
+import type {
+  CreatePrepSessionDto,
+  UpdatePrepSessionDto,
+} from "./dto/session.dto";
 
 @Injectable()
 export class PrepSessionService {
-  public constructor(private readonly db: IDatabaseService) {}
+  public constructor(
+    private readonly db: IDatabaseService,
+    private readonly genAiService: GenAiService,
+    private readonly lookupsService: LookupsService,
+  ) {}
 
   public async create(
-    dto: PrepSessionDto,
+    dto: CreatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSession> {
-    const { topicIds, ...data } = dto;
+    const { topicIds, topicNames, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
       const session = await this.db.create(
@@ -28,29 +43,42 @@ export class PrepSessionService {
         { ...data, userId },
         transaction,
       );
-      await this._createSessionTopics(session.id, transaction, topicIds);
+      await this._createSessionTopics(
+        session.id,
+        transaction,
+        topicIds,
+        topicNames,
+      );
       return session;
     });
   }
 
-  public async findAll(userId?: string): Promise<TPrepSession[]> {
-    const filters = userId
-      ? [{ columnName: "userId" as const, value: userId }]
-      : [];
+  public async findAll(
+    userId?: string,
+    pagination?: TPagination,
+    sortBy?: TSortEntry[],
+  ): Promise<TPrepSession[]> {
+    const sort = [
+      ...(sortBy ?? []),
+      { column: "createdAt", order: "desc" as const },
+    ];
 
-    return this.db.findAllByColumn("prep_session", filters);
+    return this.db.findAllByColumn("prep_session", {
+      filter: userId ? { userId } : {},
+      pagination,
+      sortBy: sort as TSortBy<"prep_session">[],
+      relation: { sessionTopics: true },
+    });
   }
 
   public async findOne(
     id: string,
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
-    return this.db.findById(
-      "prep_session",
-      id,
-      [...(userId ? [{ columnName: "userId" as const, value: userId }] : [])],
-      { questions: true },
-    ) as Promise<TPrepSessionWithQuestions>;
+    return this.db.findById("prep_session", id, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: { questions: true, sessionTopics: true },
+    }) as Promise<TPrepSessionWithQuestions>;
   }
 
   public async update(
@@ -58,30 +86,38 @@ export class PrepSessionService {
     dto: UpdatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
-    const { topicIds, ...sessionFields } = dto;
+    const { topicIds, topicNames, ...sessionFields } = dto;
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(sessionFields).length > 0) {
         await this.db.update(
           "prep_session",
           sessionFields,
-          userId
-            ? [
-                { columnName: "id", value: id },
-                { columnName: "userId", value: userId },
-              ]
-            : [{ columnName: "id", value: id }],
+          userId ? { id, userId } : { id },
           transaction,
         );
       }
-      if (topicIds) {
-        await this.db.delete(
+      if (topicIds || topicNames) {
+        await this.db.syncJunctionTable(
           "session_topics",
-          [{ columnName: "sessionId", value: id }],
-          true,
+          { column: "sessionId", value: id },
+          "topicId",
+          topicIds ?? [],
           transaction,
         );
-        await this._createSessionTopics(id, transaction, topicIds);
+        if (topicNames?.length) {
+          const resolved = await this.lookupsService.resolveOrCreateNames(
+            "topics",
+            topicNames,
+          );
+          await this.db.syncJunctionTable(
+            "session_topics",
+            { column: "sessionId", value: id },
+            "topicId",
+            resolved,
+            transaction,
+          );
+        }
       }
     });
 
@@ -89,10 +125,10 @@ export class PrepSessionService {
   }
 
   public async delete(id: string, userId?: string): Promise<void> {
-    return this.db.delete("prep_session", [
-      { columnName: "id", value: id },
-      ...(userId ? [{ columnName: "userId" as const, value: userId }] : []),
-    ]);
+    return this.db.delete("prep_session", {
+      id,
+      ...(userId ? { userId } : {}),
+    });
   }
 
   public async addQuestion(
@@ -105,17 +141,74 @@ export class PrepSessionService {
     return this.db.create("questions", { ...dto, sessionId });
   }
 
+  public async generateQuestions(
+    sessionId: string,
+    dto: GenerateQuestionsDto,
+    userId?: string,
+  ): Promise<TQuestion[]> {
+    const { provider, avoidRepeat, includeJobDescription, model } = dto;
+    const session = (await this.db.findById("prep_session", sessionId, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: {
+        ...(avoidRepeat ? { questions: true } : {}),
+        ...(includeJobDescription ? { job: true } : {}),
+      },
+    })) as TPrepSessionWithQuestions;
+
+    if (avoidRepeat && session.questions.length > 100) {
+      throw new BadRequestException(
+        "Too many questions, try without avoid repeat",
+      );
+    }
+
+    const roleName = session.roleId
+      ? (await this.db.findById("roles", session.roleId)).name
+      : "";
+
+    const sessionTopics = await this.db.findAllByColumn("session_topics", {
+      filter: { sessionId },
+    });
+
+    const topicIds = sessionTopics.map((st) => st.topicId);
+
+    const topics = await this.db.findAllByColumn("topics", {
+      filter: { id: topicIds },
+    });
+
+    const generatedQuestions = await this.genAiService.generateQuestions({
+      topics,
+      provider,
+      model,
+      roleName,
+      session,
+      dto,
+    });
+
+    const questions = generatedQuestions.questions.map((question) => ({
+      sessionId,
+      ...question,
+    }));
+
+    return this.db.createMany("questions", questions);
+  }
+
   public async findQuestions(
     sessionId: string,
     pagination?: TPagination,
     userId?: string,
+    sortBy?: TSortEntry[],
   ): Promise<TQuestion[]> {
     await this.findOne(sessionId, userId);
-    return this.db.findAllByColumn(
-      "questions",
-      [{ columnName: "sessionId", value: sessionId }],
+    const sort = [
+      ...(sortBy ?? []),
+      { column: "createdAt", order: "desc" as const },
+      { column: "id" }, // required as AI will create multiple question at once
+    ];
+    return this.db.findAllByColumn("questions", {
+      filter: { sessionId },
+      sortBy: sort as TSortBy<"questions">[],
       pagination,
-    );
+    });
   }
 
   public async updateQuestion(
@@ -126,10 +219,7 @@ export class PrepSessionService {
   ): Promise<TQuestion> {
     await this.findOne(sessionId, userId);
 
-    const [result] = await this.db.update("questions", dto, [
-      { columnName: "id", value: id },
-      { columnName: "sessionId", value: sessionId },
-    ]);
+    const [result] = await this.db.update("questions", dto, { id, sessionId });
     return result;
   }
 
@@ -139,19 +229,27 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<void> {
     await this.findOne(sessionId, userId);
-    return this.db.delete("questions", [
-      { columnName: "sessionId", value: sessionId },
-      { columnName: "id", value: id },
-    ]);
+    return this.db.delete("questions", { sessionId, id });
   }
 
   private async _createSessionTopics(
     sessionId: string,
     transaction: TDatabase,
     topicIds?: number[],
+    topicNames?: string[],
   ): Promise<void> {
-    if (topicIds?.length) {
-      const sessionTopics = topicIds.map((topicId) => ({
+    if (!topicNames && !topicIds) return;
+
+    const resolvedTopicNames = await this.lookupsService.resolveOrCreateNames(
+      "topics",
+      topicNames,
+    );
+    const allTopicIds = [
+      ...new Set([...(topicIds ?? []), ...resolvedTopicNames]),
+    ];
+
+    if (allTopicIds.length) {
+      const sessionTopics = allTopicIds.map((topicId) => ({
         sessionId,
         topicId,
       }));

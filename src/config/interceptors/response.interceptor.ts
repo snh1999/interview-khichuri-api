@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Observable, map } from "rxjs";
 
-type WithMessage<T> = T & { message?: string };
+type WithMessage<T> = (T & { message?: string }) | undefined | null;
 
 interface ApiResponse<T> {
   statusCode: number;

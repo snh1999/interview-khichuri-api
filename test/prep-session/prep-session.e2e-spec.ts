@@ -1,9 +1,12 @@
+/* eslint-disable @typescript-eslint/no-misused-spread */
 import type { INestApplication } from "@nestjs/common";
 import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
 import type { TPrepSessionInsert } from "@/src/database/database.types";
+import type { CreateQuestionDto } from "@/src/prep-session/dto/question.dto";
+import type { CreatePrepSessionDto } from "@/src/prep-session/dto/session.dto";
 
 import {
   expectedPrepSessionStructure,
@@ -50,7 +53,7 @@ describe("PrepSession (e2e)", () => {
   };
 
   const createSession = (
-    payload: Record<string, unknown> = getPrepSessionPayload(),
+    payload: CreatePrepSessionDto = getPrepSessionPayload(),
     userCookie?: string,
   ) =>
     auth(httpServer.post("/prep-session"), userCookie)
@@ -65,6 +68,7 @@ describe("PrepSession (e2e)", () => {
       expect(body.statusCode).toBe(201);
       expect(body.message).toBe("");
       expect(body.data).toMatchObject({
+        title: payload.title,
         description: payload.description,
       });
       expect(body.data.id).toEqual(expect.any(String));
@@ -75,18 +79,20 @@ describe("PrepSession (e2e)", () => {
     });
 
     it("should return 400 when description is missing", async () => {
-      await auth(httpServer.post("/prep-session")).send({}).expect(400);
+      await auth(httpServer.post("/prep-session"))
+        .send({ title: "Test" })
+        .expect(400);
     });
 
     it("should return 400 when description is empty", async () => {
       await auth(httpServer.post("/prep-session"))
-        .send({ description: "" })
+        .send({ title: "Test", description: "" })
         .expect(400);
     });
 
     it("should return 400 when description is whitespace only", async () => {
       await auth(httpServer.post("/prep-session"))
-        .send({ description: "   " })
+        .send({ title: "Test", description: "   " })
         .expect(400);
     });
 
@@ -101,7 +107,11 @@ describe("PrepSession (e2e)", () => {
 
     it("should create a session with a valid jobId", async () => {
       const { body: jobBody } = await auth(httpServer.post("/jobs"))
-        .send({ title: "Engineer", description: "A role" })
+        .send({
+          title: "Engineer",
+          companyName: "Tech Corp",
+          description: "A role",
+        })
         .expect(201);
 
       const jobId: string = jobBody.data.id;
@@ -235,6 +245,31 @@ describe("PrepSession (e2e)", () => {
       if (isAppMode) return;
       await httpServer.get("/prep-session").expect(401);
     });
+
+    it("should paginate prep sessions", async () => {
+      await createSession();
+      await createSession();
+
+      const { body } = await auth(
+        httpServer.get("/prep-session?page=1&limit=1"),
+      ).expect(200);
+
+      expect(body.data).toHaveLength(1);
+    });
+
+    it("should sort prep sessions by description ascending", async () => {
+      const descA = "A description";
+      const descB = "B description";
+      await createSession({ ...getPrepSessionPayload(), description: descB });
+      await createSession({ ...getPrepSessionPayload(), description: descA });
+
+      const { body } = await auth(
+        httpServer.get("/prep-session?sort=description:asc"),
+      ).expect(200);
+
+      expect(body.data[0].description).toBe(descA);
+      expect(body.data[1].description).toBe(descB);
+    });
   });
 
   describe("GET /prep-session/:id", () => {
@@ -324,30 +359,34 @@ describe("PrepSession (e2e)", () => {
       const roleId: number = role.id;
 
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
-        .send({ roleId })
+        .send({ title: "new", roleId })
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.roleId).toBe(roleId);
+          expect(data.roleId).toBeNull();
         });
     });
 
-    it("should update jobId", async () => {
+    it("should not update jobId", async () => {
       const {
         body: { data: created },
       } = await createSession();
       const sessionId: string = created.id;
 
       const { body: jobBody } = await auth(httpServer.post("/jobs"))
-        .send({ title: "Engineer", description: "A role" })
+        .send({
+          title: "Engineer",
+          companyName: "Tech Corp",
+          description: "A role",
+        })
         .expect(201);
 
       const jobId: string = jobBody.data.id;
 
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
-        .send({ jobId })
+        .send({ title: "new", jobId }) // keeping title or it would be bad request
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.jobId).toBe(jobId);
+          expect(data.jobId).toBeNull();
         });
     });
 
@@ -458,9 +497,7 @@ describe("PrepSession (e2e)", () => {
       sessionId = body.data.id;
     });
 
-    const createQuestion = (
-      data: Record<string, unknown> = getQuestionPayload(),
-    ) =>
+    const createQuestion = (data: CreateQuestionDto = getQuestionPayload()) =>
       auth(httpServer.post(`/prep-session/${sessionId}/questions`))
         .send({
           ...data,
@@ -571,6 +608,20 @@ describe("PrepSession (e2e)", () => {
         ).expect(200);
 
         expect(body.data).toHaveLength(3);
+      });
+
+      it("should sort questions by questionText ascending", async () => {
+        await createQuestion({ questionText: "B question" });
+        await createQuestion({ questionText: "A question" });
+
+        const { body } = await auth(
+          httpServer.get(
+            `/prep-session/${sessionId}/questions?sort=questionText:asc`,
+          ),
+        ).expect(200);
+
+        expect(body.data[0].questionText).toBe("A question");
+        expect(body.data[1].questionText).toBe("B question");
       });
     });
 
@@ -703,24 +754,11 @@ describe("PrepSession (e2e)", () => {
         const { body } = await auth(
           httpServer.get(`/prep-session/${sessionId}/questions`),
         ).expect(200);
+
+        expect(body.data).toHaveLength(2);
+
         const ids = (body.data as { id: number }[]).map((q) => q.id);
         expect(ids).not.toContain(q1Id);
-      });
-
-      it("should not affect other questions when deleting one", async () => {
-        const { body: q1 } = await createQuestion();
-        const q1Id: number = q1.data.id;
-        await createQuestion();
-        await createQuestion();
-
-        await auth(
-          httpServer.delete(`/prep-session/${sessionId}/questions/${q1Id}`),
-        ).expect(204);
-
-        const { body } = await auth(
-          httpServer.get(`/prep-session/${sessionId}/questions`),
-        ).expect(200);
-        expect(body.data).toHaveLength(2);
       });
 
       it("should return 404 when deleting non-existent question", async () => {

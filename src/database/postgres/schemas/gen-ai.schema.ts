@@ -10,8 +10,9 @@ import {
 
 import { user } from "@/src/database/postgres/schemas/auth.schema";
 import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
+import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 
-export const platformEnum = pgEnum("platform", ["google"]);
+export const providerEnum = pgEnum("provider", GEN_AI_PROVIDERS);
 
 export const api_key = pgTable(
   "api_key",
@@ -19,14 +20,15 @@ export const api_key = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
-    platform: platformEnum("platform").notNull(),
+    provider: providerEnum("provider").notNull(),
     key: text("key").notNull(),
-    isActive: boolean("is_active"),
+    isActive: boolean("is_active").notNull().default(false),
+    model: text("model"),
     ...defaultTimeStamps,
   },
   (table) => [
     uniqueIndex("idx_active_api_key")
-      .on(table.platform, table.userId)
+      .on(table.provider, table.userId)
       .where(sql`${table.isActive} = true`),
   ],
 );

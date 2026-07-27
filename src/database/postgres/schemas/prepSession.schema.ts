@@ -25,6 +25,7 @@ export const prep_session = pgTable(
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),
+    title: text("title").notNull(),
     experience: text("experience"),
     description: text("description"),
     ...defaultTimeStamps,
@@ -57,15 +58,20 @@ export const questions = pgTable("questions", {
   sessionId: uuid("session_id")
     .notNull()
     .references(() => prep_session.id, { onDelete: "cascade" }),
+  questionText: text("question_text").notNull(),
   answer: text("answer"),
   notes: text("notes"),
   isFavorite: boolean("is_favorite").default(false),
   ...defaultTimeStamps,
 });
 
-export const sessionRelations = relations(prep_session, ({ many }) => ({
+export const sessionRelations = relations(prep_session, ({ one, many }) => ({
   sessionTopics: many(session_topics),
   questions: many(questions),
+  job: one(jobs, {
+    fields: [prep_session.jobId],
+    references: [jobs.id],
+  }),
 }));
 
 export const questionRelations = relations(questions, ({ one }) => ({

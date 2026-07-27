@@ -6,15 +6,29 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
 } from "@nestjs/common";
 
+import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { JOB_SORTABLE, SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
-import { TJob, TJobWithTopics } from "@/src/database/database.types";
+import type {
+  TPagination,
+  TJob,
+  TJobWithTopics,
+} from "@/src/database/database.types";
 
-import { CreateJobDto, UpdateJobDto } from "./jobs.dto";
+import {
+  CreateJobDto,
+  ExtractJobDto,
+  TJobWithTopicIds,
+  UpdateJobDto,
+} from "./jobs.dto";
+import type { TJobExtractionResult } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 
 @Controller("jobs")
@@ -29,35 +43,43 @@ export class JobsController {
     return this.jobsService.create(dto, userId);
   }
 
+  @Post("extract")
+  public extractJob(@Body() dto: ExtractJobDto): Promise<TJobExtractionResult> {
+    return this.jobsService.extractJob(dto);
+  }
+
   @Get()
   public findAll(
+    @Pagination() pagination?: TPagination,
+    @SortBy(JOB_SORTABLE)
+    sortBy?: TSortEntry[],
     @Query("search") search?: string,
     @UserId() userId?: string,
   ): Promise<TJob[]> {
-    return this.jobsService.findAll(userId, search);
+    return this.jobsService.findAll(userId, search, pagination, sortBy);
   }
 
   @Get(":id")
   public findOne(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
-  ): Promise<TJobWithTopics> {
+  ): Promise<TJobWithTopicIds> {
     return this.jobsService.findOne(id, userId);
   }
 
   @Patch(":id")
   public update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateJobDto,
     @UserId() userId?: string,
-  ): Promise<TJobWithTopics> {
+  ): Promise<TJob> {
     return this.jobsService.update(id, dto, userId);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   public async remove(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
     await this.jobsService.delete(id, userId);

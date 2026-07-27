@@ -1,13 +1,15 @@
 import type {
-  TColumnFilter,
+  TSingleColumnFilter,
   TColumnNames,
   TDatabase,
-  TdbWithRelations,
   TInsert,
-  TPagination,
   TReturn,
   TSearchResult,
   TSelect,
+  TFindAllByColumnOptions,
+  TFindByIdOptions,
+  TSearchOptions,
+  TColumnFilter,
 } from "@/src/database/database.types";
 import type { TpgTableKey } from "@/src/database/postgres/postgres.service";
 
@@ -49,39 +51,101 @@ export abstract class IDatabaseService {
     db?: TDatabase,
   ): TReturn<TSelect<K>[]>;
 
+  abstract count<K extends TpgTableKey>(
+    schemaName: K,
+    columns?: TColumnFilter<K>,
+    db?: TDatabase,
+  ): Promise<number>;
+
   abstract findAllByColumn<K extends TpgTableKey>(
     schemaName: K,
-    column?: TColumnFilter<K>[],
-    pagination?: TPagination,
-    relation?: TdbWithRelations<K>,
+    options?: TFindAllByColumnOptions<K>,
   ): TReturn<TSelect<K>[]>;
 
   abstract search<K extends TpgTableKey>(
     schemaName: K,
-    columnName: TColumnNames<K>[],
+    columnNames: TColumnNames<K>[],
     value: string,
-    columns?: TColumnFilter<K>[],
-    pagination?: TPagination,
+    options?: TSearchOptions<K>,
   ): TReturn<TSearchResult<K>>;
 
   abstract findById<K extends TpgTableKey>(
     schemaName: K,
     id: string | number,
-    columns?: TColumnFilter<K>[],
-    relation?: TdbWithRelations<K>,
+    options?: TFindByIdOptions<K>,
   ): TReturn<TSelect<K>>;
 
   abstract update<K extends TpgTableKey>(
     schemaName: K,
     data: Partial<TInsert<K>>,
-    columns: TColumnFilter<K>[],
+    columns: TColumnFilter<K>,
     db?: TDatabase,
   ): TReturn<TSelect<K>[]>;
 
   public abstract delete<K extends TpgTableKey>(
     schemaName: K,
-    columns: TColumnFilter<K>[],
+    columns: TColumnFilter<K>,
     silent?: boolean,
+    db?: TDatabase,
+  ): TReturn<void>;
+
+  /**
+   * Synchronizes a many-to-many junction table for a given parent.
+   *
+   * Fetches existing child IDs for the parent,
+   * - diffs against `newIds`,
+   * - deletes orphans,
+   * - inserts missing relations.
+   * Unchanged rows are left alone.
+   * The entire operation runs on the provided `db` client (uses a transaction client for atomicity).
+   *
+   * @example
+   * await this.db.syncJunctionTable(
+   *   'work_skills',
+   *   { column: 'workId', value: 42 },
+   *   'topicId',
+   *   [1, 5, 12],
+   *   transaction,
+   * );
+   */
+
+  public abstract syncJunctionTable<K extends TpgTableKey>(
+    schemaName: K,
+    parentColumn: TSingleColumnFilter<K>,
+    childColumn: TColumnNames<K>,
+    // junction table PKs are number
+    newIds: number[],
+    db?: TDatabase,
+  ): TReturn<void>;
+
+  /**
+   * Synchronizes a one-to-many array of child rows for a given parent.
+   *
+   * Compares incoming items against existing DB rows by `id`.
+   * Items with a matching existing ID are updated;
+   * items without an ID (or unknown ID) are created with the parent FK attached;
+   * existing rows not present in the input are deleted.
+   * Use `transform` to convert DTO fields (e.g. string dates to Date objects) before persistence.
+   *
+   * @example
+   * await this.db.syncArray(
+   *   'work_experience',
+   *   { column: 'profileId', value: 'user-123' },
+   *   dto.experiences,
+   *   {
+   *     transform: (item) => ({
+   *       ...item,
+   *       startDate: toDate(item.startDate),
+   *       endDate: toDate(item.endDate),
+   *     }),
+   *   },
+   *   transaction,
+   * );
+   */
+  public abstract syncOneToMany<K extends TpgTableKey>(
+    schemaName: K,
+    parentColumn: TSingleColumnFilter<K>,
+    data: (Partial<TInsert<K>> & { id?: string })[],
     db?: TDatabase,
   ): TReturn<void>;
 }

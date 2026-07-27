@@ -2,11 +2,9 @@
 import { faker } from "@faker-js/faker/locale/en";
 import { expect } from "vitest";
 
-import type {
-  TPrepSession,
-  TPrepSessionInsert,
-  TQuestion,
-} from "@/src/database/database.types";
+import type { TPrepSession, TQuestion } from "@/src/database/database.types";
+import type { CreateQuestionDto } from "@/src/prep-session/dto/question.dto";
+import type { CreatePrepSessionDto } from "@/src/prep-session/dto/session.dto";
 
 import {
   expectNullableNumber,
@@ -15,13 +13,15 @@ import {
 
 export const getPrepSessionPayload = (
   data?: Partial<TPrepSession>,
-): TPrepSessionInsert => ({
-  description: faker.string.sample(15),
+): CreatePrepSessionDto => ({
   ...data,
+  title: data?.title ?? faker.string.sample(10),
+  description: data?.description ?? faker.string.sample(15),
 });
 
 export const expectedPrepSessionStructure = () =>
   expect.objectContaining({
+    title: expect.any(String),
     description: expect.any(String),
     experience: expectNullableString,
     jobId: expectNullableString,
@@ -30,7 +30,9 @@ export const expectedPrepSessionStructure = () =>
     updatedAt: expect.any(String),
   });
 
-export const getQuestionPayload = (data?: Partial<TQuestion>) => ({
+export const getQuestionPayload = (
+  data?: Partial<TQuestion>,
+): CreateQuestionDto => ({
   questionText: faker.string.sample(),
   ...data,
 });

@@ -1,6 +1,12 @@
 {
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.82",
+    "@ai-sdk/openai": "^3.0.71",
     "@aws-sdk/client-s3": "^3.1063.0",
+    "@aws-sdk/s3-request-presigner": "^3.1064.0",
     "@better-auth/passkey": "^1.6.11",
     "@faker-js/faker": "^10.4.0",
     "@nestjs/common": "^11.0.1",
@@ -9,6 +15,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/throttler": "^6.5.0",
     "@thallesp/nestjs-better-auth": "^2.4.0",
+    "ai": "^6.0.205",
     "better-auth": "^1.4.6",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.45.2",
@@ -19,6 +26,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.3",
     "rxjs": "^7.8.1",
+    "unpdf": "^1.6.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

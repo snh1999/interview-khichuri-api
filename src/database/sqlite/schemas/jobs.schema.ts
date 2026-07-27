@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
+import { JOB_STATUS } from "@/src/jobs/jobs.dto";
 
 import { topics, roles } from "./lookups.schema";
 
@@ -16,11 +17,13 @@ export const jobs = sqliteTable("jobs", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   title: text("title").notNull(),
+  companyName: text("company_name").notNull(),
   userId: text("user_id"),
   description: text("description").notNull(),
-  status: text("status", { enum: ["applied", "saved", "scheduled"] })
-    .notNull()
-    .default("saved"),
+  location: text("location"),
+  source: text("source"),
+  interviewDate: integer("interview_date", { mode: "timestamp" }),
+  status: text("status", { enum: JOB_STATUS }).notNull().default("saved"),
   roleId: integer("role_id").references(() => roles.id, {
     onDelete: "set null",
   }),

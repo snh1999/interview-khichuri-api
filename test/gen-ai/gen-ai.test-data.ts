@@ -4,21 +4,26 @@ import { expect } from "vitest";
 
 import type {
   TApiKeyInsert,
-  TApiKeyPlatform,
+  TApiKeyProvider,
 } from "@/src/database/database.types";
-import { platformEnum } from "@/src/database/postgres/schemas";
+import { providerEnum } from "@/src/database/postgres/schemas";
+import type { CreateApiKeyDto } from "@/src/gen-ai/api-key/api-key.dto";
 
-import { expectEnum, expectNullableBoolean } from "../utils/data-helpers";
+import {
+  expectEnum,
+  expectNullableBoolean,
+  expectNullableString,
+} from "../utils/data-helpers";
 
-export const platform: TApiKeyPlatform = "google";
+export const provider: TApiKeyProvider = "google";
 
 export const getApiKeyPayload = (
   data?: Partial<TApiKeyInsert>,
-): TApiKeyInsert => ({
-  name: faker.string.alphanumeric(10),
-  platform,
-  key: faker.string.alphanumeric(20),
+): CreateApiKeyDto => ({
+  provider,
   isActive: false,
+  name: faker.string.alphanumeric(10),
+  key: faker.string.alphanumeric(20),
   ...data,
 });
 
@@ -26,8 +31,9 @@ export const expectedApiKeyStructure = () =>
   expect.objectContaining({
     id: expect.any(String),
     name: expect.any(String),
-    platform: expectEnum(platformEnum.enumValues),
+    provider: expectEnum(providerEnum.enumValues),
     isActive: expectNullableBoolean,
+    model: expectNullableString,
     createdAt: expect.any(String),
     updatedAt: expect.any(String),
   });

@@ -23,6 +23,7 @@ export const prep_session = sqliteTable(
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),
+    title: text("title").notNull(),
     experience: text("experience"),
     description: text("description"),
     ...defaultTimeStamps,
@@ -55,15 +56,20 @@ export const questions = sqliteTable("questions", {
   sessionId: text("session_id")
     .notNull()
     .references(() => prep_session.id, { onDelete: "cascade" }),
+  questionText: text("question_text").notNull(),
   answer: text("answer"),
   notes: text("notes"),
   isFavorite: integer("is_favorite", { mode: "boolean" }).default(false),
   ...defaultTimeStamps,
 });
 
-export const sessionRelations = relations(prep_session, ({ many }) => ({
+export const sessionRelations = relations(prep_session, ({ one, many }) => ({
   sessionTopics: many(session_topics),
   questions: many(questions),
+  job: one(jobs, {
+    fields: [prep_session.jobId],
+    references: [jobs.id],
+  }),
 }));
 
 export const questionRelations = relations(questions, ({ one }) => ({
