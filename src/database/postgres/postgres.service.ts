@@ -38,6 +38,7 @@ export type TdbPostgres = PostgresJsDatabase<typeof schemas>;
 
 const postgresTableRegistry = {
   [getTableName(schemas.jobs)]: schemas.jobs,
+  [getTableName(schemas.categories)]: schemas.categories,
   [getTableName(schemas.roles)]: schemas.roles,
   [getTableName(schemas.topics)]: schemas.topics,
   [getTableName(schemas.job_topics)]: schemas.job_topics,
@@ -54,6 +55,11 @@ const postgresTableRegistry = {
   [getTableName(schemas.education)]: schemas.education,
   [getTableName(schemas.job_preference)]: schemas.job_preference,
   [getTableName(schemas.preference_titles)]: schemas.preference_titles,
+  [getTableName(schemas.publications)]: schemas.publications,
+  [getTableName(schemas.projects)]: schemas.projects,
+  [getTableName(schemas.project_skills)]: schemas.project_skills,
+  [getTableName(schemas.references)]: schemas.references,
+  [getTableName(schemas.activities)]: schemas.activities,
   [getTableName(schemas.resume)]: schemas.resume,
   [getTableName(schemas.companies)]: schemas.companies,
   [getTableName(schemas.api_key)]: schemas.api_key,

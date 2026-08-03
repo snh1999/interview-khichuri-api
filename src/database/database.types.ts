@@ -10,6 +10,8 @@ import type {
   TpgWithRelations,
 } from "@/src/database/postgres/postgres.service";
 import type {
+  activities,
+  categories,
   companies,
   education,
   industries,
@@ -19,7 +21,11 @@ import type {
   prep_session,
   profile_links,
   profiles,
+  publications,
+  projects,
+  project_skills,
   questions,
+  references,
   resume,
   roles,
   api_key,
@@ -68,6 +74,7 @@ export type TPrepSessionWithQuestions = InferSelectModel<
 > & {
   questions: TQuestion[];
   job?: TJob;
+  sessionTopics?: { topicId: number }[];
 };
 
 export type TProfile = InferSelectModel<typeof profiles>;
@@ -100,6 +107,28 @@ export type TJobPreferenceInsert = InferInsertModel<typeof job_preference>;
 export type TPreferenceTitle = InferSelectModel<typeof preference_titles>;
 export type TPreferenceTitleInsert = InferInsertModel<typeof preference_titles>;
 
+export type TPublication = InferSelectModel<typeof publications>;
+export type TPublicationInsert = InferInsertModel<typeof publications>;
+
+export type TProfilePublication = Omit<TPublication, "authors"> & {
+  authors: string[];
+};
+
+export type TProject = InferSelectModel<typeof projects>;
+export type TProjectInsert = InferInsertModel<typeof projects>;
+
+export type TProjectSkill = InferSelectModel<typeof project_skills>;
+export type TProjectSkillInsert = InferInsertModel<typeof project_skills>;
+
+export type TReference = InferSelectModel<typeof references>;
+export type TReferenceInsert = InferInsertModel<typeof references>;
+
+export type TActivity = InferSelectModel<typeof activities>;
+export type TActivityInsert = InferInsertModel<typeof activities>;
+
+export type TCategories = InferSelectModel<typeof categories>;
+export type TCategoriesInsert = InferInsertModel<typeof categories>;
+
 export type TResume = InferSelectModel<typeof resume>;
 export type TResumeInsert = InferInsertModel<typeof resume>;
 
@@ -108,10 +137,19 @@ export type TCompanyInsert = InferInsertModel<typeof companies>;
 
 export type TProfilePopulated = TProfile & {
   links: TProfileLink[];
-  workOverviews: TWorkOverview[];
+  workOverviews: (TWorkOverview & {
+    skills: TWorkSkill[];
+    industries: TWorkIndustry[];
+  })[];
   workExperiences: TWorkExperience[];
   educations: TEducation[];
-  jobPreferences: TJobPreference[];
+  jobPreferences: (TJobPreference & { titles: TPreferenceTitle[] })[];
+  publications: TProfilePublication[];
+  projects: (TProject & {
+    skills: (TProjectSkill & { topic: TTopics })[];
+  })[];
+  references: TReference[];
+  activities: TActivity[];
 };
 
 interface TJobTopicRelation {
