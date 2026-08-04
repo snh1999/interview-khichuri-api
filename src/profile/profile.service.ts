@@ -9,7 +9,11 @@ import type {
 } from "@/src/database/database.types";
 
 import type {
+  ActivitiesDto,
   EducationDto,
+  PublicationsDto,
+  ReferencesDto,
+  ProjectsDto,
   UpdateJobPreferenceDto,
   UpdateProfileDto,
   ProfileLinksDto,
@@ -33,6 +37,10 @@ export class ProfileService {
         workExperiences: true,
         educations: true,
         jobPreferences: { with: { titles: true } },
+        publications: true,
+        projects: { with: { skills: { with: { topic: true } } } },
+        references: true,
+        activities: true,
       },
     })) as unknown as [TProfilePopulated | undefined];
 
@@ -48,11 +56,21 @@ export class ProfileService {
         workExperiences: [],
         educations: [],
         jobPreferences: [],
+        publications: [],
+        projects: [],
+        references: [],
+        activities: [],
         ...profile,
       };
     }
 
-    return profile;
+    return {
+      ...profile,
+      publications: profile.publications.map((publication) => ({
+        ...publication,
+        authors: this._deserializeAuthors(publication.authors),
+      })),
+    };
   }
 
   public async updateProfile(
@@ -218,6 +236,88 @@ export class ProfileService {
         await this.db.createMany("profile_links", linkData, transaction);
       }
     });
+  }
+
+  public async updatePublications(
+    userId: string,
+    dto: PublicationsDto,
+  ): Promise<void> {
+    await this.db.withTransaction(async (transaction) => {
+      await this.db.syncOneToMany(
+        "publications",
+        { column: "profileId", value: userId },
+        dto.publications.map((publication) => ({
+          ...publication,
+          authors: JSON.stringify(publication.authors ?? []),
+        })),
+        transaction,
+      );
+    });
+  }
+
+  public async updateProjects(userId: string, dto: ProjectsDto): Promise<void> {
+    await this.db.withTransaction(async (transaction) => {
+      const projectIds = await this.db.syncOneToMany(
+        "projects",
+        { column: "profileId", value: userId },
+        dto.projects.map(({ skills: _skills, ...fields }) => fields),
+        transaction,
+      );
+
+      await Promise.all(
+        dto.projects.map((project, index) =>
+          Array.isArray(project.skills)
+            ? Promise.resolve(
+                this.db.syncJunctionTable(
+                  "project_skills",
+                  { column: "projectId", value: projectIds[index] as number },
+                  "topicId",
+                  project.skills,
+                  transaction,
+                ),
+              )
+            : Promise.resolve(),
+        ),
+      );
+    });
+  }
+
+  public async updateReferences(
+    userId: string,
+    dto: ReferencesDto,
+  ): Promise<void> {
+    await this.db.withTransaction(async (transaction) => {
+      await this.db.syncOneToMany(
+        "references",
+        { column: "profileId", value: userId },
+        dto.references,
+        transaction,
+      );
+    });
+  }
+
+  public async updateActivities(
+    userId: string,
+    dto: ActivitiesDto,
+  ): Promise<void> {
+    await this.db.withTransaction(async (transaction) => {
+      await this.db.syncOneToMany(
+        "activities",
+        { column: "profileId", value: userId },
+        dto.activities,
+        transaction,
+      );
+    });
+  }
+
+  private _deserializeAuthors(value: string | string[]): string[] {
+    if (Array.isArray(value)) return value;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as string[]) : [];
+    } catch {
+      return [];
+    }
   }
 
   private async _replaceWorkOverviewRelations(
