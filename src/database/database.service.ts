@@ -125,27 +125,23 @@ export abstract class IDatabaseService {
    * Items with a matching existing ID are updated;
    * items without an ID (or unknown ID) are created with the parent FK attached;
    * existing rows not present in the input are deleted.
-   * Use `transform` to convert DTO fields (e.g. string dates to Date objects) before persistence.
+   *
+   * Returns the persisted `id` for every item in `data`, aligned to the input order.
+   * Use this when a caller needs the generated IDs of newly created rows
+   * (e.g. to sync a nested junction table afterwards).
    *
    * @example
-   * await this.db.syncArray(
+   * const ids = await this.db.syncOneToMany(
    *   'work_experience',
    *   { column: 'profileId', value: 'user-123' },
    *   dto.experiences,
-   *   {
-   *     transform: (item) => ({
-   *       ...item,
-   *       startDate: toDate(item.startDate),
-   *       endDate: toDate(item.endDate),
-   *     }),
-   *   },
    *   transaction,
    * );
    */
   public abstract syncOneToMany<K extends TpgTableKey>(
     schemaName: K,
     parentColumn: TSingleColumnFilter<K>,
-    data: (Partial<TInsert<K>> & { id?: string })[],
+    data: (Partial<TInsert<K>> & { id?: string | number })[],
     db?: TDatabase,
-  ): TReturn<void>;
+  ): TReturn<(string | number)[]>;
 }

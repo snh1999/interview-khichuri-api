@@ -3,6 +3,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -17,6 +18,7 @@ import {
   EXPERIENCE_LEVELS,
   PROFILE_LINK_TYPES,
   PROFILE_WORK_TYPES,
+  PROJECT_TYPES,
 } from "@/src/profile/profile.dto";
 
 import { user } from "./auth.schema";
@@ -31,6 +33,8 @@ export const experienceLevelEnum = pgEnum(
   "experience_level",
   EXPERIENCE_LEVELS,
 );
+
+export const projectTypeEnum = pgEnum("project_type", PROJECT_TYPES);
 
 export const profiles = pgTable("profiles", {
   id: text("id")
@@ -52,6 +56,10 @@ export const profileRelations = relations(profiles, ({ many }) => ({
   educations: many(education),
   resumes: many(resume),
   jobPreferences: many(job_preference),
+  publications: many(publications),
+  projects: many(projects),
+  references: many(references),
+  activities: many(activities),
 }));
 
 export const profile_links = pgTable(
@@ -282,16 +290,148 @@ export const resume = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    url: text("url").notNull(),
+    url: text("url"),
+    content: jsonb("content"),
+    template: text("template"),
+    isPublic: boolean("is_public").default(false).notNull(),
+    slug: text("slug"),
     isPrimary: boolean("is_primary").default(false).notNull(),
     ...defaultTimeStamps,
   },
-  (table) => [index("idx_resume_profile_id").on(table.profileId)],
+  (table) => [
+    index("idx_resume_profile_id").on(table.profileId),
+    unique("idx_resume_slug").on(table.slug),
+  ],
 );
 
 export const resumeRelations = relations(resume, ({ one }) => ({
   profile: one(profiles, {
     fields: [resume.profileId],
+    references: [profiles.id],
+  }),
+}));
+
+export const publications = pgTable(
+  "publications",
+  {
+    id: serial("id").primaryKey(),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    authors: text("authors").notNull().default("[]"),
+    notes: text("notes"),
+    link: text("link"),
+    year: integer("year"),
+    publicationType: text("publication_type"),
+  },
+  (table) => [index("idx_publications_profile_id").on(table.profileId)],
+);
+
+export const publicationRelations = relations(publications, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [publications.profileId],
+    references: [profiles.id],
+  }),
+}));
+
+export const projects = pgTable(
+  "projects",
+  {
+    id: serial("id").primaryKey(),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: projectTypeEnum("type").notNull().default("project"),
+    description: text("description"),
+    link: text("link"),
+  },
+  (table) => [index("idx_projects_profile_id").on(table.profileId)],
+);
+
+export const projectRelations = relations(projects, ({ one, many }) => ({
+  profile: one(profiles, {
+    fields: [projects.profileId],
+    references: [profiles.id],
+  }),
+  skills: many(project_skills),
+}));
+
+export const project_skills = pgTable(
+  "project_skills",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    topicId: integer("topic_id")
+      .notNull()
+      .references(() => topics.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("idx_project_skills_project_id").on(table.projectId),
+    unique("idx_project_skills_unique").on(table.projectId, table.topicId),
+  ],
+);
+
+export const projectSkillRelations = relations(project_skills, ({ one }) => ({
+  project: one(projects, {
+    fields: [project_skills.projectId],
+    references: [projects.id],
+  }),
+  topic: one(topics, {
+    fields: [project_skills.topicId],
+    references: [topics.id],
+  }),
+}));
+
+export const references = pgTable(
+  "references",
+  {
+    id: serial("id").primaryKey(),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    title: text("title"),
+    company: text("company"),
+    email: text("email"),
+    phone: text("phone"),
+    relationType: text("relation_type"),
+    notes: text("notes"),
+  },
+  (table) => [index("idx_references_profile_id").on(table.profileId)],
+);
+
+export const referenceRelations = relations(references, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [references.profileId],
+    references: [profiles.id],
+  }),
+}));
+
+export const activities = pgTable(
+  "activities",
+  {
+    id: serial("id").primaryKey(),
+    profileId: text("profile_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    organization: text("organization"),
+    position: text("position"),
+    startDate: timestamp("start_date"),
+    endDate: timestamp("end_date"),
+    isCurrent: boolean("is_current").default(false).notNull(),
+    notes: text("notes"),
+  },
+  (table) => [index("idx_activities_profile_id").on(table.profileId)],
+);
+
+export const activityRelations = relations(activities, ({ one }) => ({
+  profile: one(profiles, {
+    fields: [activities.profileId],
     references: [profiles.id],
   }),
 }));

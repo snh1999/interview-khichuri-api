@@ -457,18 +457,17 @@ export class SqliteService implements IDatabaseService {
     schemaName: K,
     parentColumn: TSingleColumnFilter<K>,
     data: (Partial<InferInsertModel<TsqliteTableRegistry[K]>> & {
-      id?: string;
+      id?: string | number;
     })[],
-    db: TdbSqlite = this.db,
-  ): void {
-    db.transaction((tx) => {
-      // sqlite
+    db?: TdbSqlite,
+  ): (string | number)[] {
+    const callbackSync = (tx: TdbSqlite) => {
       const schema = sqliteTableRegistry[schemaName];
       const schemaColumns = getTableColumns(schema);
       const parentCol = schemaColumns[
         parentColumn.column as string
-      ] as unknown as AnySQLiteColumn;
-      const idCol = schemaColumns.id as AnySQLiteColumn;
+      ] as SQLiteColumn;
+      const idCol = schemaColumns.id as SQLiteColumn;
 
       const existing = tx
         .select({ id: idCol })
@@ -476,37 +475,40 @@ export class SqliteService implements IDatabaseService {
         .where(eq(parentCol, parentColumn.value))
         .all();
 
-      const existingIds = new Set(existing.map((row) => row.id as string));
+      const existingIds = new Set(
+        existing.map((row) => row.id as string | number),
+      );
       const incomingIds = new Set(data.map((e) => e.id));
 
-      const toInsert = data.filter(
-        (item) => !item.id || !existingIds.has(item.id),
-      );
       const toUpdate = data.filter(
         (item) => item.id && existingIds.has(item.id),
+      );
+      const toInsert = data.filter(
+        (item) => !item.id || !existingIds.has(item.id),
       );
       const toDeleteIds = [...existingIds.difference(incomingIds)];
 
       for (const item of toUpdate) {
-        const { id, ...rest } = item;
+        const { id, ...updateData } = item;
         this.update(
           schemaName,
-          rest as Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
+          updateData as Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
           { id } as TColumnFilter<K>,
           tx,
         );
       }
 
+      let inserted: (string | number)[] = [];
       if (toInsert.length > 0) {
-        const insertData = toInsert.map(({ id: _id, ...rest }) => ({
-          [parentColumn.column]: parentColumn.value,
-          ...rest,
-        }));
-        this.createMany(
+        const created = this.createMany(
           schemaName,
-          insertData as InferInsertModel<TsqliteTableRegistry[K]>[],
+          toInsert.map(({ id: _id, ...insertData }) => ({
+            [parentColumn.column]: parentColumn.value,
+            ...insertData,
+          })) as InferInsertModel<TsqliteTableRegistry[K]>[],
           tx,
-        );
+        ) as { id: string | number | null }[];
+        inserted = created.flatMap((row) => (row.id === null ? [] : [row.id]));
       }
 
       if (toDeleteIds.length > 0) {
@@ -517,7 +519,15 @@ export class SqliteService implements IDatabaseService {
           tx,
         );
       }
-    });
+
+      let insertIndex = 0;
+      return data.map((item) => {
+        if (item.id && existingIds.has(item.id)) return item.id;
+        return inserted[insertIndex++];
+      });
+    };
+
+    return db ? callbackSync(db) : this.db.transaction(callbackSync);
   }
 
   private _resolveColumn<K extends TsqliteTableKey>(
