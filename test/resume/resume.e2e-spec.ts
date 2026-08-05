@@ -226,7 +226,7 @@ describe("Upload Resume (e2e)", () => {
       );
     });
 
-    it("should return 403 when resume belongs to another user", async () => {
+    it("should return 404 when resume belongs to another user", async () => {
       if (isAppMode) return;
 
       const { userId: otherUserId } = await getTestAuthHeader(
@@ -247,7 +247,7 @@ describe("Upload Resume (e2e)", () => {
         url: "resumes/other/file.pdf",
       });
 
-      await auth(httpServer.delete(`/resume/${resume.id}`)).expect(403);
+      await auth(httpServer.delete(`/resume/${resume.id}`)).expect(404);
     });
 
     it("should delete the uploaded file and remove the row", async () => {
@@ -311,7 +311,7 @@ describe("Upload Resume (e2e)", () => {
       );
     });
 
-    it("should return 403 when resume belongs to another user", async () => {
+    it("should return 404 when resume belongs to another user", async () => {
       const { userId: otherUserId } = await getTestAuthHeader(
         app,
         dbService.database(),
@@ -331,7 +331,7 @@ describe("Upload Resume (e2e)", () => {
         isPrimary: true,
       });
 
-      await auth(httpServer.get(`/resume/${resume.id}/url`)).expect(403);
+      await auth(httpServer.get(`/resume/${resume.id}/url`)).expect(404);
     });
   });
 
@@ -397,7 +397,7 @@ describe("Upload Resume (e2e)", () => {
       expect(body.statusCode).toBe(200);
     });
 
-    it("should return 403 when the resume belongs to another user", async () => {
+    it("should return 404 when the resume belongs to another user", async () => {
       if (isAppMode) return;
 
       const { userId: otherUserId } = await getTestAuthHeader(
@@ -418,7 +418,7 @@ describe("Upload Resume (e2e)", () => {
         url: "url",
       });
 
-      await auth(httpServer.patch(`/resume/${resume.id}/primary`)).expect(403);
+      await auth(httpServer.patch(`/resume/${resume.id}/primary`)).expect(404);
     });
   });
 
@@ -684,7 +684,7 @@ describe("Upload Resume (e2e)", () => {
         .expect(200);
 
       expect(body.statusCode).toBe(200);
-      expect(body.data.slug).toMatch(/^[a-z0-9-]{1,40}-[a-z0-9]{4}$/);
+      expect(body.data.slug).toMatch(/^[a-z0-9-]{1,24}-[a-z0-9]{8}$/);
     });
 
     it("should keep the existing slug when set public again", async () => {
@@ -763,7 +763,7 @@ describe("Upload Resume (e2e)", () => {
       expect(body.data.content).toBeNull();
     });
 
-    it("should return 403 when the resume belongs to another user", async () => {
+    it("should return 404 when the resume belongs to another user", async () => {
       if (isAppMode) return;
 
       const { userId: otherUserId } = await getTestAuthHeader(
@@ -786,7 +786,7 @@ describe("Upload Resume (e2e)", () => {
 
       await auth(httpServer.patch(`/resume/${resume.id}`))
         .send({ name: "Nope" })
-        .expect(403);
+        .expect(404);
     });
 
     it("should return 404 when the resume does not exist", async () => {
@@ -818,7 +818,7 @@ describe("Upload Resume (e2e)", () => {
         .expect(404);
     });
 
-    it("should return 403 when the resume belongs to another user", async () => {
+    it("should return 404 when the resume belongs to another user", async () => {
       if (isAppMode) return;
 
       const { userId: otherUserId } = await getTestAuthHeader(
@@ -841,7 +841,7 @@ describe("Upload Resume (e2e)", () => {
 
       await auth(httpServer.post(`/resume/${resume.id}/extract`))
         .send({ provider: "openai" })
-        .expect(403);
+        .expect(404);
     });
 
     it("should return 400 when the resume has no PDF file", async () => {

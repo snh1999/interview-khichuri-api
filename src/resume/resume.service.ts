@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -33,8 +32,8 @@ function generateSlug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 40);
-  return `${slug}-${crypto.randomUUID().slice(0, 4)}`;
+    .slice(0, 24);
+  return `${slug}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 @Injectable()
@@ -55,8 +54,12 @@ export class ResumeService {
     return resumes.map((resume) => this._mapResume(resume));
   }
 
-  public async findById(resumeId: string): Promise<TResumeResponse> {
-    return this._mapResume(await this.db.findById("resume", resumeId));
+  public async findById(
+    resumeId: string,
+    profileId: string,
+  ): Promise<TResumeResponse> {
+    const resume = await this._findById(resumeId, profileId);
+    return this._mapResume(resume);
   }
 
   public async findBySlug(slug: string): Promise<TResumeResponse> {
@@ -106,7 +109,7 @@ export class ResumeService {
       isPublic?: boolean;
     },
   ): Promise<TResumeResponse> {
-    const resume = await this._getResumeById(resumeId, profileId);
+    const resume = await this._findById(resumeId, profileId);
 
     if (data.content && resume.url) {
       throw new BadRequestException(
@@ -124,7 +127,7 @@ export class ResumeService {
       {
         ...data,
         slug,
-        content: data.content ? JSON.stringify(data.content) : null,
+        content: data.content ? JSON.stringify(data.content) : undefined,
       },
       {
         id: resumeId,
@@ -180,7 +183,7 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<TViewUrlResponse> {
-    const resume = await this._getResumeById(resumeId, profileId);
+    const resume = await this._findById(resumeId, profileId);
 
     if (!resume.url) {
       throw new BadRequestException(
@@ -197,7 +200,7 @@ export class ResumeService {
     resumeId: string,
     profileId: string,
   ): Promise<void> {
-    const resume = await this._getResumeById(resumeId, profileId);
+    const resume = await this._findById(resumeId, profileId);
     if (resume.isPrimary) {
       return;
     }
@@ -209,7 +212,7 @@ export class ResumeService {
   }
 
   public async delete(resumeId: string, profileId: string): Promise<void> {
-    const resume = await this._getResumeById(resumeId, profileId);
+    const resume = await this._findById(resumeId, profileId);
 
     if (resume.url) {
       await this.fileService.deleteFile(resume.url);
@@ -223,7 +226,7 @@ export class ResumeService {
     provider: TApiKeyProvider,
     profileId: string,
   ): Promise<ExtractionResult> {
-    const resume = await this._getResumeById(resumeId, profileId);
+    const resume = await this._findById(resumeId, profileId);
 
     if (!resume.url) {
       throw new BadRequestException(
@@ -295,19 +298,13 @@ export class ResumeService {
     };
   }
 
-  private async _getResumeById(
+  private async _findById(
     resumeId: string,
     profileId: string,
   ): Promise<TResume> {
-    const resume = await this.db.findById("resume", resumeId);
-
-    if (resume.profileId !== profileId) {
-      throw new ForbiddenException(
-        "You do not have permission to access this resume",
-      );
-    }
-
-    return resume;
+    return this.db.findById("resume", resumeId, {
+      filter: { profileId },
+    });
   }
 
   private _deserializeContent(value: string | null): TResumeContent | null {

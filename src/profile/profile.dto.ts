@@ -125,7 +125,7 @@ export class PublicationsDto extends createZodDto(
 export const projectSchema = z.object({
   id: z.number().int().positive().optional(),
   name: z.string().trim().min(1),
-  type: projectTypeSchema.default("project"),
+  type: projectTypeSchema.nullish(),
   description: z.string().nullish(),
   link: z.url().nullish(),
   skills: z.array(z.number().int().positive()).optional(),

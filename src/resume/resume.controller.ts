@@ -76,8 +76,9 @@ export class ResumeController {
   @Get(":id")
   public findById(
     @Param("id", ParseUUIDPipe) id: string,
+    @UserId() userId?: string,
   ): Promise<TResumeResponse> {
-    return this.resumeService.findById(id);
+    return this.resumeService.findById(id, userId ?? "app");
   }
 
   @Post(":id/extract")
