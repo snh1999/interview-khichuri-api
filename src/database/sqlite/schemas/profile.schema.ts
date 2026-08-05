@@ -296,6 +296,7 @@ export const resume = sqliteTable(
     isPrimary: integer("is_primary", { mode: "boolean" })
       .default(false)
       .notNull(),
+    ...defaultTimeStamps,
   },
   (table) => [
     index("idx_resume_profile_id").on(table.profileId),

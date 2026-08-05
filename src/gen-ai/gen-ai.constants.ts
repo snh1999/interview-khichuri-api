@@ -59,7 +59,11 @@ export const RESUME_EXTRACTION_PROMPT = `Extract structured profile information 
 Return a JSON object that matches the provided schema.
 
 Field rules:
-- For skills, industries, and job titles, return them as arrays of name strings (reasonably normalized, e.g. consistent casing and no duplicates).
+- For skills, industries, job titles, and project skills, return them as arrays of name strings (reasonably normalized, e.g. consistent casing and no duplicates).
+- For publications, return "authors" as an array of name strings (one entry per author). Keep any journal/conference/venue info in "notes", and place the URL in "link" if present.
+- For projects, use "name" for the title, "type" as "research" for academic/research work (e.g. thesis, lab project, paper implementation) or "project" otherwise, "description" for summary/overview, "link" for the URL, and "skills" as an array of skill names. Omit "type" when it cannot be determined.
+- For references, return "name" for the person, "title" for their role, "company" for where they work, "email", "phone", and "relationType" for the relationship (e.g. "manager", "colleague"). Use null/undefined for missing fields; never fabricate contact details.
+- For activities (volunteering, extracurriculars, certifications, etc.), use "name" for the activity, "organization" for the host, "position" for the role, and put any descriptive bullet points into "notes" separated by newlines ("\\n").
 - For experience/education entries, preserve the order as they appear in the resume text (do not re-sort chronologically).
 - Parse dates as ISO date strings (YYYY-MM-DD) when possible.
 - For the "country" field in personal info, use the ISO 3166-1 alpha-2 country code.
