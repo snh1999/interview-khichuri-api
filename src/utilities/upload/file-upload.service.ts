@@ -11,8 +11,6 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
-import { IDatabaseService } from "@/src/database/database.service";
-
 export interface TUploadResponse {
   success: boolean;
   filename: string;
@@ -30,10 +28,7 @@ export class FileUploadService {
   private readonly bucketName: string;
   private readonly logger = new Logger(FileUploadService.name);
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly db: IDatabaseService,
-  ) {
+  constructor(private readonly config: ConfigService) {
     this.bucketName = this.config.getOrThrow("R2_BUCKET_NAME");
     this.s3 = new S3Client({
       region: this.config.get("R2_REGION") ?? "auto",
@@ -69,19 +64,12 @@ export class FileUploadService {
   }
 
   public async deleteFile(filename: string): Promise<void> {
-    await this.s3
-      .send(
-        new DeleteObjectCommand({
-          Bucket: this.bucketName,
-          Key: filename,
-        }),
-      )
-      .catch((err: unknown) => {
-        this.logger.error("S3 rollback failed", {
-          url: filename,
-          err,
-        });
-      });
+    await this.s3.send(
+      new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: filename,
+      }),
+    );
   }
 
   public async downloadFile(key: string): Promise<Buffer> {

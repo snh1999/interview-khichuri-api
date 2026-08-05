@@ -1,5 +1,12 @@
 import { relations, sql } from "drizzle-orm";
-import { boolean, index, pgTable, serial, text } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+} from "drizzle-orm/pg-core";
 
 import { job_topics } from "./jobs.schema";
 import { session_topics } from "./prepSession.schema";
@@ -25,6 +32,9 @@ export const topics = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull().unique(),
     isApproved: boolean("isApproved"),
+    categoryId: integer("category_id").references(() => categories.id, {
+      onDelete: "set null",
+    }),
   },
   (table) => [
     index("idx_topics_name_fts").using(
@@ -34,7 +44,11 @@ export const topics = pgTable(
   ],
 );
 
-export const topicRelations = relations(topics, ({ many }) => ({
+export const topicRelations = relations(topics, ({ one, many }) => ({
+  category: one(categories, {
+    fields: [topics.categoryId],
+    references: [categories.id],
+  }),
   jobTopics: many(job_topics),
   sessionTopics: many(session_topics),
 }));
@@ -53,3 +67,22 @@ export const industries = pgTable(
     ),
   ],
 );
+
+export const categories = pgTable(
+  "categories",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull().unique(),
+    isApproved: boolean("isApproved"),
+  },
+  (table) => [
+    index("idx_categories_name_fts").using(
+      "gin",
+      sql`to_tsvector('english', ${table.name})`,
+    ),
+  ],
+);
+
+export const categoryRelations = relations(categories, ({ many }) => ({
+  topics: many(topics),
+}));

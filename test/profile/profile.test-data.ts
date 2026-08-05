@@ -56,6 +56,42 @@ export const getProfileLinkPayload = () => ({
   url: faker.internet.url(),
 });
 
+export const getProjectPayload = (skills: number[] = []) => ({
+  name: faker.lorem.words(3),
+  description: faker.lorem.paragraph(),
+  link: faker.internet.url(),
+  skills,
+});
+
+export const getPublicationPayload = () => ({
+  title: faker.lorem.words(4),
+  authors: [faker.person.fullName(), faker.person.fullName()],
+  year: faker.number.int({ min: 2010, max: 2025 }),
+  publicationType: "journal",
+  link: faker.internet.url(),
+  notes: faker.lorem.sentence(),
+});
+
+export const getReferencePayload = () => ({
+  name: faker.person.fullName(),
+  title: faker.person.jobTitle(),
+  company: faker.company.name(),
+  email: faker.internet.email(),
+  phone: faker.phone.number(),
+  relationType: "manager",
+  notes: faker.lorem.sentence(),
+});
+
+export const getActivityPayload = () => ({
+  name: faker.lorem.words(3),
+  organization: faker.company.name(),
+  position: faker.person.jobTitle(),
+  startDate: "2020-01",
+  endDate: "2022-12",
+  isCurrent: false,
+  notes: faker.lorem.sentence(),
+});
+
 export const expectedProfileStructure = () =>
   expect.objectContaining({
     id: expect.any(String),
@@ -107,4 +143,49 @@ export const expectedJobPreferenceStructure = () =>
     preferredLocation: expectNullableString,
     coverLetterTone: expectNullableString,
     coverLetterTemplate: expectNullableString,
+  });
+
+export const expectedProjectStructure = () =>
+  expect.objectContaining({
+    id: expect.any(Number),
+    name: expect.any(String),
+    type: expect.any(String),
+    description: expectNullableString,
+    link: expectNullableString,
+    skills: expect.any(Array),
+  });
+
+export const expectedPublicationStructure = () =>
+  expect.objectContaining({
+    id: expect.any(Number),
+    title: expect.any(String),
+    authors: expect.any(Array),
+    year: expectNullableNumber,
+    publicationType: expectNullableString,
+    link: expectNullableString,
+    notes: expectNullableString,
+  });
+
+export const expectedReferenceStructure = () =>
+  expect.objectContaining({
+    id: expect.any(Number),
+    name: expect.any(String),
+    title: expectNullableString,
+    company: expectNullableString,
+    email: expectNullableString,
+    phone: expectNullableString,
+    relationType: expectNullableString,
+    notes: expectNullableString,
+  });
+
+export const expectedActivityStructure = () =>
+  expect.objectContaining({
+    id: expect.any(Number),
+    name: expect.any(String),
+    organization: expectNullableString,
+    position: expectNullableString,
+    startDate: expectNullableString,
+    endDate: expectNullableString,
+    isCurrent: expect.any(Boolean),
+    notes: expectNullableString,
   });

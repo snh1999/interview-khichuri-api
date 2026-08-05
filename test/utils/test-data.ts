@@ -1,7 +1,7 @@
 import { faker } from "@faker-js/faker/locale/en";
 import type supertest from "supertest";
 
-import type { TRole, TTopics } from "@/src/database/database.types";
+import type { TIndustry, TRole, TTopics } from "@/src/database/database.types";
 
 export const createTestRole = async (
   httpServer: ReturnType<typeof supertest>,
@@ -22,4 +22,15 @@ export const createTestTopic = async (
   const { body } = await req.send({ name: faker.word.noun() }).expect(201);
 
   return body.data as TTopics;
+};
+
+export const createTestIndustry = async (
+  httpServer: ReturnType<typeof supertest>,
+  cookie: string,
+): Promise<TIndustry> => {
+  const req = httpServer.post("/lookups/industries");
+  if (cookie) req.set("Cookie", cookie);
+  const { body } = await req.send({ name: faker.word.noun() }).expect(201);
+
+  return body.data as TIndustry;
 };

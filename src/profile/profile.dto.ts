@@ -7,6 +7,7 @@ export const PROFILE_LINK_TYPES = [
   "linkedin",
   "portfolio",
   "blog",
+  "scholar",
   "other",
 ] as const;
 
@@ -20,7 +21,11 @@ export const EXPERIENCE_LEVELS = [
   "executive",
 ] as const;
 
+export const PROJECT_TYPES = ["project", "research"] as const;
+
 export const linkTypeSchema = z.enum(PROFILE_LINK_TYPES);
+
+export const projectTypeSchema = z.enum(PROJECT_TYPES);
 
 export const workTypeSchema = z.enum(PROFILE_WORK_TYPES);
 
@@ -101,4 +106,61 @@ export const profileLinkSchema = z.object({
 
 export class ProfileLinksDto extends createZodDto(
   z.object({ links: z.array(profileLinkSchema) }),
+) {}
+
+export const publicationSchema = z.object({
+  id: z.number().int().positive().optional(),
+  title: z.string().trim().min(1),
+  authors: z.array(z.string().trim().min(1)).optional(),
+  notes: z.string().nullish(),
+  link: z.url().nullish(),
+  year: z.number().int().nullish(),
+  publicationType: z.string().trim().nullish(),
+});
+
+export class PublicationsDto extends createZodDto(
+  z.object({ publications: z.array(publicationSchema) }),
+) {}
+
+export const projectSchema = z.object({
+  id: z.number().int().positive().optional(),
+  name: z.string().trim().min(1),
+  type: projectTypeSchema.nullish(),
+  description: z.string().nullish(),
+  link: z.url().nullish(),
+  skills: z.array(z.number().int().positive()).optional(),
+});
+
+export class ProjectsDto extends createZodDto(
+  z.object({ projects: z.array(projectSchema) }),
+) {}
+
+export const referenceSchema = z.object({
+  id: z.number().int().positive().optional(),
+  name: z.string().trim().min(1),
+  title: z.string().trim().nullish(),
+  company: z.string().trim().nullish(),
+  email: z.email().nullish(),
+  phone: z.string().nullish(),
+  relationType: z.string().trim().nullish(),
+  notes: z.string().nullish(),
+});
+
+export class ReferencesDto extends createZodDto(
+  z.object({ references: z.array(referenceSchema) }),
+) {}
+
+export const activitySchema = z.object({
+  id: z.number().int().positive().optional(),
+  name: z.string().trim().min(1),
+  organization: z.string().nullish(),
+  position: z.string().nullish(),
+  startDate: z.coerce.date().nullish(),
+  endDate: z.coerce.date().nullish(),
+  isCurrent: z.boolean(),
+  notes: z.string().nullish(),
+});
+
+export class ActivitiesDto extends createZodDto(
+  z.object({ activities: z.array(activitySchema) }),
 ) {}

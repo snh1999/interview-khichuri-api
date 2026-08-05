@@ -14,9 +14,16 @@ export const topics = sqliteTable("topics", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   isApproved: integer({ mode: "boolean" }),
+  categoryId: integer("category_id").references(() => categories.id, {
+    onDelete: "set null",
+  }),
 });
 
-export const topicRelations = relations(topics, ({ many }) => ({
+export const topicRelations = relations(topics, ({ one, many }) => ({
+  category: one(categories, {
+    fields: [topics.categoryId],
+    references: [categories.id],
+  }),
   jobTopics: many(job_topics),
   sessionTopics: many(session_topics),
 }));
@@ -26,3 +33,13 @@ export const industries = sqliteTable("industries", {
   name: text("name").notNull().unique(),
   isApproved: integer({ mode: "boolean" }),
 });
+
+export const categories = sqliteTable("categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  isApproved: integer({ mode: "boolean" }),
+});
+
+export const categoryRelations = relations(categories, ({ many }) => ({
+  topics: many(topics),
+}));

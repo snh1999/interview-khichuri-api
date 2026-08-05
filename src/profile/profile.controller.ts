@@ -15,7 +15,11 @@ import {
 } from "@/src/database/database.types";
 
 import {
+  ActivitiesDto,
   EducationDto,
+  PublicationsDto,
+  ReferencesDto,
+  ProjectsDto,
   UpdateJobPreferenceDto,
   UpdateProfileDto,
   ProfileLinksDto,
@@ -85,5 +89,41 @@ export class ProfileController {
     @UserId() userId?: string,
   ): Promise<void> {
     await this.profileService.updateLinks(userId ?? "app", dto);
+  }
+
+  @Put("publications")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  public async updatePublications(
+    @Body() dto: PublicationsDto,
+    @UserId() userId?: string,
+  ): Promise<void> {
+    await this.profileService.updatePublications(userId ?? "app", dto);
+  }
+
+  @Put("projects")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  public async updateProjects(
+    @Body() dto: ProjectsDto,
+    @UserId() userId?: string,
+  ): Promise<void> {
+    await this.profileService.updateProjects(userId ?? "app", dto);
+  }
+
+  @Put("references")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  public async updateReferences(
+    @Body() dto: ReferencesDto,
+    @UserId() userId?: string,
+  ): Promise<void> {
+    await this.profileService.updateReferences(userId ?? "app", dto);
+  }
+
+  @Put("activities")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  public async updateActivities(
+    @Body() dto: ActivitiesDto,
+    @UserId() userId?: string,
+  ): Promise<void> {
+    await this.profileService.updateActivities(userId ?? "app", dto);
   }
 }

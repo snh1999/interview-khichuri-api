@@ -38,6 +38,7 @@ export type TdbPostgres = PostgresJsDatabase<typeof schemas>;
 
 const postgresTableRegistry = {
   [getTableName(schemas.jobs)]: schemas.jobs,
+  [getTableName(schemas.categories)]: schemas.categories,
   [getTableName(schemas.roles)]: schemas.roles,
   [getTableName(schemas.topics)]: schemas.topics,
   [getTableName(schemas.job_topics)]: schemas.job_topics,
@@ -54,6 +55,11 @@ const postgresTableRegistry = {
   [getTableName(schemas.education)]: schemas.education,
   [getTableName(schemas.job_preference)]: schemas.job_preference,
   [getTableName(schemas.preference_titles)]: schemas.preference_titles,
+  [getTableName(schemas.publications)]: schemas.publications,
+  [getTableName(schemas.projects)]: schemas.projects,
+  [getTableName(schemas.project_skills)]: schemas.project_skills,
+  [getTableName(schemas.references)]: schemas.references,
+  [getTableName(schemas.activities)]: schemas.activities,
   [getTableName(schemas.resume)]: schemas.resume,
   [getTableName(schemas.companies)]: schemas.companies,
   [getTableName(schemas.api_key)]: schemas.api_key,
@@ -369,9 +375,9 @@ export class PostgresService implements IDatabaseService {
     parentColumn: TSingleColumnFilter<K>,
     childColumn: TpgCols<K>,
     newIds: number[],
-    db: TdbPostgres = this.db,
+    db?: TdbPostgres,
   ): Promise<void> {
-    await db.transaction(async (tx) => {
+    const callbackSync = async (tx: TdbPostgres) => {
       const schema = postgresTableRegistry[schemaName];
       const { column: parentColumnName, value: parentId } = parentColumn;
 
@@ -394,30 +400,36 @@ export class PostgresService implements IDatabaseService {
       const toDeleteIds = [...existingIds.difference(incomingIds)];
       const toInsert = [...incomingIds.difference(existingIds)];
 
-      if (toDeleteIds.length > 0) {
-        await tx
-          .delete(schema)
-          .where(and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)));
-      }
-
-      if (toInsert.length > 0) {
-        await tx.insert(schema).values(
-          toInsert.map((id) => ({
-            [parentColumnName]: parentId,
-            [childColumn]: id,
-          })) as InferInsertModel<TpgTableRegistry[K]>[],
-        );
-      }
-    });
+      await Promise.all([
+        toDeleteIds.length > 0
+          ? tx
+              .delete(schema)
+              .where(
+                and(eq(parentCol, parentId), inArray(childCol, toDeleteIds)),
+              )
+          : Promise.resolve(),
+        toInsert.length > 0
+          ? tx.insert(schema).values(
+              toInsert.map((id) => ({
+                [parentColumnName]: parentId,
+                [childColumn]: id,
+              })) as InferInsertModel<TpgTableRegistry[K]>[],
+            )
+          : Promise.resolve(),
+      ]);
+    };
+    await (db ? callbackSync(db) : this.db.transaction(callbackSync));
   }
 
   public async syncOneToMany<K extends TpgTableKey>(
     schemaName: K,
     parentColumn: TSingleColumnFilter<K>,
-    data: (Partial<InferInsertModel<TpgTableRegistry[K]>> & { id?: string })[],
-    db: TdbPostgres = this.db,
-  ): Promise<void> {
-    await db.transaction(async (tx) => {
+    data: (Partial<InferInsertModel<TpgTableRegistry[K]>> & {
+      id?: string | number;
+    })[],
+    db?: TdbPostgres,
+  ): Promise<(string | number)[]> {
+    const callbackSync = async (tx: TdbPostgres) => {
       const schema = postgresTableRegistry[schemaName];
       const schemaColumns = getTableColumns(schema);
       const parentCol = schemaColumns[
@@ -431,7 +443,9 @@ export class PostgresService implements IDatabaseService {
         .from(schema as AnyPgTable)
         .where(eq(parentCol, parentColumn.value));
 
-      const existingIds = new Set(existing.map((row) => row.id as string));
+      const existingIds = new Set(
+        existing.map((row) => row.id as string | number),
+      );
       const incomingIds = new Set(data.map((e) => e.id));
 
       const toUpdate = data.filter(
@@ -442,28 +456,33 @@ export class PostgresService implements IDatabaseService {
       );
       const toDeleteIds = [...existingIds.difference(incomingIds)];
 
-      await Promise.all(
-        toUpdate.map((item) => {
-          const { id, ...updateData } = item;
-          return this.update(
-            schemaName,
-            updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
-            { id } as TColumnFilter<K>,
-            tx,
-          );
-        }),
-      );
+      const [, created] = await Promise.all([
+        Promise.all(
+          toUpdate.map((item) => {
+            const { id, ...updateData } = item;
+            return this.update(
+              schemaName,
+              updateData as Partial<InferInsertModel<TpgTableRegistry[K]>>,
+              { id } as TColumnFilter<K>,
+              tx,
+            );
+          }),
+        ),
+        toInsert.length > 0
+          ? this.createMany(
+              schemaName,
+              toInsert.map(({ id: _id, ...insertData }) => ({
+                [parentColumn.column]: parentColumn.value,
+                ...insertData,
+              })) as InferInsertModel<TpgTableRegistry[K]>[],
+              tx,
+            )
+          : Promise.resolve([]),
+      ]);
 
-      if (toInsert.length > 0) {
-        await this.createMany(
-          schemaName,
-          toInsert.map(({ id: _id, ...insertData }) => ({
-            [parentColumn.column]: parentColumn.value,
-            ...insertData,
-          })) as InferInsertModel<TpgTableRegistry[K]>[],
-          tx,
-        );
-      }
+      const inserted = (created as { id: string | number | null }[]).flatMap(
+        (row) => (row.id === null ? [] : [row.id]),
+      );
 
       if (toDeleteIds.length > 0) {
         await this.delete(
@@ -473,7 +492,15 @@ export class PostgresService implements IDatabaseService {
           tx,
         );
       }
-    });
+
+      let insertIndex = 0;
+      return data.map((item) => {
+        if (item.id && existingIds.has(item.id)) return item.id;
+        return inserted[insertIndex++];
+      });
+    };
+
+    return db ? callbackSync(db) : this.db.transaction(callbackSync);
   }
 
   private _buildConditions(

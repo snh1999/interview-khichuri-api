@@ -12,23 +12,28 @@ import {
   ParseFilePipeBuilder,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 
 import { UserId } from "@/src/config/guards/user-id.decorator";
-import type { TResume } from "@/src/database/database.types";
-import { ExtractionResult, ExtractResumeDto } from "@/src/resume/resume.dto";
+import {
+  CreateResumeDto,
+  ExtractionResult,
+  ExtractResumeDto,
+  UpdateResumeDto,
+} from "@/src/resume/resume.dto";
 import {
   TUploadResponse,
   TViewUrlResponse,
 } from "@/src/utilities/upload/file-upload.service";
 
-import { ResumeService } from "./resume.service";
+import { ResumeService, TResumeResponse } from "./resume.service";
 
 @Controller("resume")
 export class ResumeController {
   constructor(private readonly resumeService: ResumeService) {}
 
   @Get()
-  public findAll(@UserId() userId?: string): Promise<TResume[]> {
+  public findAll(@UserId() userId?: string): Promise<TResumeResponse[]> {
     return this.resumeService.findAll(userId ?? "app");
   }
 
@@ -54,6 +59,28 @@ export class ResumeController {
     return this.resumeService.upload(file, userId ?? "app", name);
   }
 
+  @Post("create")
+  public create(
+    @Body() dto: CreateResumeDto,
+    @UserId() userId?: string,
+  ): Promise<TResumeResponse> {
+    return this.resumeService.createFromContent(userId ?? "app", dto);
+  }
+
+  @Get("slug/:slug")
+  @AllowAnonymous()
+  public findBySlug(@Param("slug") slug: string): Promise<TResumeResponse> {
+    return this.resumeService.findBySlug(slug);
+  }
+
+  @Get(":id")
+  public findById(
+    @Param("id", ParseUUIDPipe) id: string,
+    @UserId() userId?: string,
+  ): Promise<TResumeResponse> {
+    return this.resumeService.findById(id, userId ?? "app");
+  }
+
   @Post(":id/extract")
   public extractFromProfile(
     @Param("id", ParseUUIDPipe) id: string,
@@ -65,6 +92,15 @@ export class ResumeController {
       dto.provider,
       userId ?? "app",
     );
+  }
+
+  @Patch(":id")
+  public update(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: UpdateResumeDto,
+    @UserId() userId?: string,
+  ): Promise<TResumeResponse> {
+    return this.resumeService.update(id, userId ?? "app", dto);
   }
 
   @Get(":id/url")

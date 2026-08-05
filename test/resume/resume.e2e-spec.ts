@@ -12,6 +12,7 @@ import {
 
 import type { IDatabaseService } from "@/src/database/database.service";
 
+import { getResumeContentPayload } from "./resume.test-data";
 import { getTestAuthHeader } from "../utils/auth-helpers";
 import {
   bootstrapTestServer,
@@ -165,6 +166,32 @@ describe("Upload Resume (e2e)", () => {
         })
         .expect(500);
     });
+
+    it("should return 400 when the user already has 5 resumes", async () => {
+      for (let i = 0; i < 5; i++) {
+        await dbService.create("resume", {
+          profileId: testUserId ?? "app",
+          name: `resume${i}.pdf`,
+          url: `url${i}`,
+        });
+      }
+
+      await auth(httpServer.post("/resume"))
+        .attach("file", Buffer.from("%PDF-1.4\nfake pdf content"), {
+          filename: "resume.pdf",
+          contentType: "application/pdf",
+        })
+        .expect(400);
+    });
+
+    it("should return 413 when the file exceeds the 5MB limit", async () => {
+      await auth(httpServer.post("/resume"))
+        .attach("file", Buffer.alloc(5 * 1024 * 1024 + 1), {
+          filename: "large.pdf",
+          contentType: "application/pdf",
+        })
+        .expect(413);
+    });
   });
 
   describe("DELETE /resume/:id", () => {
@@ -197,6 +224,50 @@ describe("Upload Resume (e2e)", () => {
       await auth(httpServer.delete(`/resume/${crypto.randomUUID()}`)).expect(
         404,
       );
+    });
+
+    it("should return 404 when resume belongs to another user", async () => {
+      if (isAppMode) return;
+
+      const { userId: otherUserId } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      const otherProfileId = otherUserId ?? "other-user";
+      await dbService.create("profiles", {
+        id: otherProfileId,
+        firstName: "Other",
+        lastName: "User",
+      });
+
+      const resume = await dbService.create("resume", {
+        profileId: otherProfileId,
+        name: "others-resume.pdf",
+        url: "resumes/other/file.pdf",
+      });
+
+      await auth(httpServer.delete(`/resume/${resume.id}`)).expect(404);
+    });
+
+    it("should delete the uploaded file and remove the row", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "resume.pdf",
+        url: "resumes/profile/uuid.pdf",
+        isPrimary: true,
+      });
+
+      await auth(httpServer.delete(`/resume/${resume.id}`)).expect(200);
+
+      expect(mockFileUploadService.deleteFile).toHaveBeenCalledWith(
+        "resumes/profile/uuid.pdf",
+      );
+
+      const resumes = await dbService.findAllByColumn("resume", {
+        filter: { profileId: testUserId ?? "app" },
+      });
+      expect(resumes).toHaveLength(0);
     });
   });
 
@@ -240,7 +311,7 @@ describe("Upload Resume (e2e)", () => {
       );
     });
 
-    it("should return 403 when resume belongs to another user", async () => {
+    it("should return 404 when resume belongs to another user", async () => {
       const { userId: otherUserId } = await getTestAuthHeader(
         app,
         dbService.database(),
@@ -260,7 +331,7 @@ describe("Upload Resume (e2e)", () => {
         isPrimary: true,
       });
 
-      await auth(httpServer.get(`/resume/${resume.id}/url`)).expect(403);
+      await auth(httpServer.get(`/resume/${resume.id}/url`)).expect(404);
     });
   });
 
@@ -325,6 +396,30 @@ describe("Upload Resume (e2e)", () => {
 
       expect(body.statusCode).toBe(200);
     });
+
+    it("should return 404 when the resume belongs to another user", async () => {
+      if (isAppMode) return;
+
+      const { userId: otherUserId } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      const otherProfileId = otherUserId ?? "other-user";
+      await dbService.create("profiles", {
+        id: otherProfileId,
+        firstName: "Other",
+        lastName: "User",
+      });
+
+      const resume = await dbService.create("resume", {
+        profileId: otherProfileId,
+        name: "others-resume.pdf",
+        url: "url",
+      });
+
+      await auth(httpServer.patch(`/resume/${resume.id}/primary`)).expect(404);
+    });
   });
 
   describe("GET /resume", () => {
@@ -388,6 +483,398 @@ describe("Upload Resume (e2e)", () => {
       if (isAppMode) return;
 
       await httpServer.get("/resume").expect(401);
+    });
+  });
+
+  describe("POST /resume/create", () => {
+    it("should create a resume from content", async () => {
+      const content = getResumeContentPayload();
+
+      const { body } = await auth(httpServer.post("/resume/create"))
+        .send({ name: "  My Resume  ", content })
+        .expect(201);
+
+      expect(body.statusCode).toBe(201);
+      expect(body.data.name).toBe("My Resume");
+      expect(body.data.template).toBeNull();
+      expect(body.data.isPublic).toBe(false);
+      expect(body.data.slug).toBeNull();
+      expect(body.data.isPrimary).toBe(true);
+      expect(body.data.content).toEqual(content);
+
+      const stored = await dbService.findAllByColumn("resume", {
+        filter: { profileId: testUserId ?? "app" },
+      });
+      expect(stored).toHaveLength(1);
+      expect(stored[0].content).toBe(JSON.stringify(content));
+    });
+
+    it("should store the provided template", async () => {
+      const { body } = await auth(httpServer.post("/resume/create"))
+        .send({
+          name: "Resume",
+          content: getResumeContentPayload(),
+          template: "professional",
+        })
+        .expect(201);
+
+      expect(body.statusCode).toBe(201);
+      expect(body.data.template).toBe("professional");
+    });
+
+    it("should mark the resume non-primary when another resume exists", async () => {
+      await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "existing.pdf",
+        url: "url",
+        isPrimary: true,
+      });
+
+      const { body } = await auth(httpServer.post("/resume/create"))
+        .send({ name: "New", content: getResumeContentPayload() })
+        .expect(201);
+
+      expect(body.data.isPrimary).toBe(false);
+    });
+
+    it("should return 400 when the user already has 5 resumes", async () => {
+      for (let i = 0; i < 5; i++) {
+        await dbService.create("resume", {
+          profileId: testUserId ?? "app",
+          name: `resume${i}.pdf`,
+          url: `url${i}`,
+        });
+      }
+
+      await auth(httpServer.post("/resume/create"))
+        .send({ name: "One too many", content: getResumeContentPayload() })
+        .expect(400);
+    });
+
+    it("should return 400 when the name is missing", async () => {
+      await auth(httpServer.post("/resume/create"))
+        .send({ content: getResumeContentPayload() })
+        .expect(400);
+    });
+
+    it("should return 400 when the name is empty", async () => {
+      await auth(httpServer.post("/resume/create"))
+        .send({ name: "   ", content: getResumeContentPayload() })
+        .expect(400);
+    });
+
+    it("should return 400 when the content is missing", async () => {
+      await auth(httpServer.post("/resume/create"))
+        .send({ name: "My Resume" })
+        .expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .post("/resume/create")
+        .send({ name: "My Resume", content: getResumeContentPayload() })
+        .expect(401);
+    });
+  });
+
+  describe("GET /resume/slug/:slug", () => {
+    it("should return a public resume by slug without auth", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "Public Resume",
+        url: "url",
+        slug: "public-resume-1234",
+        isPublic: true,
+      });
+
+      const { body } = await httpServer
+        .get("/resume/slug/public-resume-1234")
+        .expect(200);
+
+      expect(body.statusCode).toBe(200);
+      expect(body.data.id).toBe(resume.id);
+      expect(body.data.name).toBe("Public Resume");
+    });
+
+    it("should return 404 when the resume is not public", async () => {
+      await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "Private Resume",
+        url: "url",
+        slug: "private-resume-1234",
+        isPublic: false,
+      });
+
+      await httpServer.get("/resume/slug/private-resume-1234").expect(404);
+    });
+
+    it("should return 404 when the slug does not exist", async () => {
+      await httpServer.get("/resume/slug/does-not-exist").expect(404);
+    });
+  });
+
+  describe("GET /resume/:id", () => {
+    it("should return a resume by id", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "resume.pdf",
+        url: "url",
+        isPrimary: true,
+      });
+
+      const { body } = await auth(
+        httpServer.get(`/resume/${resume.id}`),
+      ).expect(200);
+
+      expect(body.statusCode).toBe(200);
+      expect(body.data.id).toBe(resume.id);
+      expect(body.data.name).toBe("resume.pdf");
+      expect(body.data.isPrimary).toBe(true);
+    });
+
+    it("should return 400 with non-uuid resume id", async () => {
+      await auth(httpServer.get("/resume/invalid_id")).expect(400);
+    });
+
+    it("should return 404 when resume does not exist", async () => {
+      await auth(httpServer.get(`/resume/${crypto.randomUUID()}`)).expect(404);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer.get(`/resume/${crypto.randomUUID()}`).expect(401);
+    });
+  });
+
+  describe("PATCH /resume/:id", () => {
+    it("should update the resume name", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "Old Name",
+        url: "",
+      });
+
+      const { body } = await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ name: "New Name" })
+        .expect(200);
+
+      expect(body.statusCode).toBe(200);
+      expect(body.data.name).toBe("New Name");
+
+      const updated = await dbService.findAllByColumn("resume", {
+        filter: { profileId: testUserId ?? "app" },
+      });
+      expect(updated[0].name).toBe("New Name");
+    });
+
+    it("should generate a slug when the resume is made public", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "My Resume",
+        url: "",
+        isPublic: false,
+        slug: null,
+      });
+
+      const { body } = await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ isPublic: true })
+        .expect(200);
+
+      expect(body.statusCode).toBe(200);
+      expect(body.data.slug).toMatch(/^[a-z0-9-]{1,24}-[a-z0-9]{8}$/);
+    });
+
+    it("should keep the existing slug when set public again", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "My Resume",
+        url: "",
+        slug: "my-resume-ab12",
+        isPublic: true,
+      });
+
+      const { body } = await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ isPublic: true })
+        .expect(200);
+
+      expect(body.data.slug).toBe("my-resume-ab12");
+    });
+
+    it("should not generate a slug when the resume is not public", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "My Resume",
+        url: "",
+        isPublic: false,
+        slug: null,
+      });
+
+      const { body } = await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ isPublic: false })
+        .expect(200);
+
+      expect(body.data.slug).toBeNull();
+    });
+
+    it("should reject content updates on a PDF resume", async () => {
+      const content = getResumeContentPayload();
+
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "Uploaded Resume",
+        url: "resumes/profile/uuid.pdf",
+      });
+
+      const { body } = await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ name: "Edited", content })
+        .expect(400);
+
+      expect(body.statusCode).toBe(400);
+      expect(body.message).toContain("PDF upload");
+      expect(mockFileUploadService.deleteFile).not.toHaveBeenCalled();
+
+      const updated = await dbService.findById("resume", resume.id);
+      expect(updated.name).toBe("Uploaded Resume");
+      expect(updated.url).toBe("resumes/profile/uuid.pdf");
+      expect(updated.content).toBeNull();
+    });
+
+    it("should allow non-content updates on a PDF resume", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "Uploaded Resume",
+        url: "resumes/profile/uuid.pdf",
+        template: "professional",
+        isPublic: false,
+      });
+
+      const { body } = await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ name: "Renamed", template: "minimal", isPublic: true })
+        .expect(200);
+
+      expect(body.statusCode).toBe(200);
+      expect(body.data.name).toBe("Renamed");
+      expect(body.data.template).toBe("minimal");
+      expect(body.data.isPublic).toBe(true);
+      expect(body.data.url).toBe("resumes/profile/uuid.pdf");
+      expect(body.data.content).toBeNull();
+    });
+
+    it("should return 404 when the resume belongs to another user", async () => {
+      if (isAppMode) return;
+
+      const { userId: otherUserId } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      const otherProfileId = otherUserId ?? "other-user";
+      await dbService.create("profiles", {
+        id: otherProfileId,
+        firstName: "Other",
+        lastName: "User",
+      });
+
+      const resume = await dbService.create("resume", {
+        profileId: otherProfileId,
+        name: "Others Resume",
+        url: "",
+      });
+
+      await auth(httpServer.patch(`/resume/${resume.id}`))
+        .send({ name: "Nope" })
+        .expect(404);
+    });
+
+    it("should return 404 when the resume does not exist", async () => {
+      await auth(httpServer.patch(`/resume/${crypto.randomUUID()}`))
+        .send({ name: "Nope" })
+        .expect(404);
+    });
+
+    it("should return 400 with non-uuid resume id", async () => {
+      await auth(httpServer.patch("/resume/invalid_id"))
+        .send({ name: "Nope" })
+        .expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .patch(`/resume/${crypto.randomUUID()}`)
+        .send({ name: "Nope" })
+        .expect(401);
+    });
+  });
+
+  describe("POST /resume/:id/extract", () => {
+    it("should return 404 when the resume does not exist", async () => {
+      await auth(httpServer.post(`/resume/${crypto.randomUUID()}/extract`))
+        .send({ provider: "openai" })
+        .expect(404);
+    });
+
+    it("should return 404 when the resume belongs to another user", async () => {
+      if (isAppMode) return;
+
+      const { userId: otherUserId } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      const otherProfileId = otherUserId ?? "other-user";
+      await dbService.create("profiles", {
+        id: otherProfileId,
+        firstName: "Other",
+        lastName: "User",
+      });
+
+      const resume = await dbService.create("resume", {
+        profileId: otherProfileId,
+        name: "Others Resume",
+        url: "resumes/other/file.pdf",
+      });
+
+      await auth(httpServer.post(`/resume/${resume.id}/extract`))
+        .send({ provider: "openai" })
+        .expect(404);
+    });
+
+    it("should return 400 when the resume has no PDF file", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "No File",
+        url: "",
+      });
+
+      await auth(httpServer.post(`/resume/${resume.id}/extract`))
+        .send({ provider: "openai" })
+        .expect(400);
+    });
+
+    it("should return 400 with an invalid provider", async () => {
+      const resume = await dbService.create("resume", {
+        profileId: testUserId ?? "app",
+        name: "No File",
+        url: "url",
+      });
+
+      await auth(httpServer.post(`/resume/${resume.id}/extract`))
+        .send({ provider: "invalid-provider" })
+        .expect(400);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+
+      await httpServer
+        .post(`/resume/${crypto.randomUUID()}/extract`)
+        .send({ provider: "openai" })
+        .expect(401);
     });
   });
 });
