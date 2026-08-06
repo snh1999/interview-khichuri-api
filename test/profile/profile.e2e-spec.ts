@@ -205,12 +205,6 @@ describe("Profile (e2e)", () => {
         .expect(400);
     });
 
-    it("should return 400 for invalid country code", async () => {
-      await auth(httpServer.put("/profile"))
-        .send({ firstName: "Test", country: "USA" })
-        .expect(400);
-    });
-
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
       await httpServer.put("/profile").send(getProfilePayload()).expect(401);
@@ -535,7 +529,7 @@ describe("Profile (e2e)", () => {
       );
       const eduId: string = firstGet.data.educations[0].id;
       expect(firstGet.data.educations[0].fieldOfStudy).toBe(edu.fieldOfStudy);
-      expect(firstGet.data.educations[0].country).toBe(edu.country);
+      expect(firstGet.data.educations[0].location).toBe(edu.location);
 
       await auth(httpServer.put("/profile/education"))
         .send({
@@ -551,7 +545,7 @@ describe("Profile (e2e)", () => {
       expect(secondGet.data.educations).toHaveLength(1);
       expect(secondGet.data.educations[0].degreeName).toBe("PhD");
       expect(secondGet.data.educations[0].fieldOfStudy).toBe(edu.fieldOfStudy);
-      expect(secondGet.data.educations[0].country).toBe(edu.country);
+      expect(secondGet.data.educations[0].location).toBe(edu.location);
     });
 
     it("should delete education entries omitted from the array", async () => {

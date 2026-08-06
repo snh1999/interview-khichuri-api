@@ -16,7 +16,11 @@ import {
   PROVIDER_CONFIG,
   RESUME_EXTRACTION_PROMPT,
 } from "@/src/gen-ai/gen-ai.constants";
-import { ExtractedJob, extractedJobSchema } from "@/src/jobs/jobs.dto";
+import {
+  ExtractedJob,
+  extractedJobSchema,
+  ExtractJobDto,
+} from "@/src/jobs/jobs.dto";
 import {
   generatedQuestionsSchema,
   GenerateQuestionsDto,
@@ -28,7 +32,7 @@ import {
 } from "@/src/resume/resume.dto";
 
 interface IGenerateStructuredOptions {
-  model?: string;
+  model?: string | null;
 }
 
 @Injectable()
@@ -66,12 +70,7 @@ export class GenAiService {
     );
   }
 
-  async extractJob(options: {
-    description: string;
-    provider: TApiKeyProvider;
-    links?: string;
-    model?: string;
-  }): Promise<ExtractedJob> {
+  async extractJob(options: ExtractJobDto): Promise<ExtractedJob> {
     const { description, provider, links, model } = options;
     const prompt = `${EXTRACTION_PROMPT}${description}${links ? `\n\nLinks/URLs:\n${links}` : ""}`;
     return this.generateStructured(prompt, extractedJobSchema, provider, {
@@ -111,7 +110,7 @@ export class GenAiService {
     roleName: string;
     session: TPrepSessionWithQuestions;
     dto: GenerateQuestionsDto;
-    model?: string;
+    model?: string | null;
   }): Promise<TGeneratedQuestions> {
     const { provider, topics, roleName, session, dto, model } = options;
     const { count, avoidRepeat } = dto;

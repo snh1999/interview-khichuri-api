@@ -1,25 +1,34 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import {
+  MID_LENGTH,
+  SHORT_LENGTH,
+  TINY_LENGTH,
+  URL_LENGTH,
+  nullishStr,
+  requiredStr,
+  str,
+} from "@/src/common/validation";
+import type { TJob } from "@/src/database/database.types";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
-import { TJob } from "@/src/database/database.types";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
 const baseJobSchema = z.object({
-  title: z.string().trim().min(1),
-  companyName: z.string().trim().min(1),
-  description: z.string().trim().min(1),
-  status: z.enum(["applied", "saved", "scheduled"]).default("saved"),
-  roleId: z.number().int().positive().nullable().optional(),
+  title: requiredStr(SHORT_LENGTH),
+  companyName: requiredStr(SHORT_LENGTH),
+  description: requiredStr(),
+  status: z.enum(JOB_STATUS).default("saved"),
+  roleId: z.number().int().positive().nullish(),
   topicIds: z.array(z.number().int().positive()).optional(),
-  topicNames: z.array(z.string().trim().min(1)).optional(),
-  links: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
-  deadline: z.coerce.date().nullable().optional(),
-  location: z.string().nullable().optional(),
-  source: z.string().nullable().optional(),
-  interviewDate: z.coerce.date().nullable().optional(),
+  topicNames: z.array(requiredStr(TINY_LENGTH)).optional(),
+  links: nullishStr(),
+  notes: nullishStr(),
+  deadline: z.coerce.date().nullish(),
+  location: nullishStr(SHORT_LENGTH),
+  source: nullishStr(),
+  interviewDate: z.coerce.date().nullish(),
 });
 
 export class CreateJobDto extends createZodDto(baseJobSchema) {}
@@ -33,10 +42,10 @@ export class UpdateJobDto extends createZodDto(
 ) {}
 
 const extractJobSchema = z.object({
-  description: z.string().trim().min(1),
-  links: z.string().optional(),
+  description: requiredStr(),
+  links: nullishStr(),
   provider: z.enum(GEN_AI_PROVIDERS),
-  model: z.string().optional(),
+  model: nullishStr(SHORT_LENGTH),
 });
 
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}
@@ -45,9 +54,9 @@ export const extractedJobSchema = baseJobSchema
   .omit({ roleId: true, topicIds: true })
   .partial()
   .extend({
-    title: z.string(),
-    topicNames: z.array(z.string()).optional(),
-    roleName: z.string().trim().min(1).optional(),
+    title: str(SHORT_LENGTH),
+    topicNames: z.array(str(TINY_LENGTH)).optional(),
+    roleName: nullishStr(SHORT_LENGTH),
   });
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}

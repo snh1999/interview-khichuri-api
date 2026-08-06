@@ -1,14 +1,16 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import { TINY_LENGTH, str } from "@/src/common/validation";
+
 const createSchema = z.object({
-  name: z.string().trim().min(2),
+  name: str(TINY_LENGTH).min(2),
 });
 
 export class CreateLookupDto extends createZodDto(createSchema) {}
 
 const updateSchema = z.object({
-  name: z.string().trim().min(2).optional(),
+  name: str(TINY_LENGTH).min(2).nullish(),
   isApproved: z.boolean().optional(),
 });
 

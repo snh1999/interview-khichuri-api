@@ -48,10 +48,7 @@ export class JobsService {
   }
 
   public async extractJob(dto: ExtractJobDto): Promise<TJobExtractionResult> {
-    const extracted = await this.genAiService.extractJob({
-      // eslint-disable-next-line @typescript-eslint/no-misused-spread
-      ...dto,
-    });
+    const extracted = await this.genAiService.extractJob(dto);
 
     const [roleId, topicIds] = await Promise.all([
       this.lookupsService.resolveOrCreateName("roles", extracted.roleName),

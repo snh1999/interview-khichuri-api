@@ -201,7 +201,7 @@ export const education = sqliteTable(
     degreeName: text("degree_name").notNull(),
     fieldOfStudy: text("field_of_study"),
     institution: text("institution").notNull(),
-    country: text("country"), // ISO 3166-1 alpha-2
+    location: text("location"),
     startDate: integer("start_date", { mode: "timestamp" }),
     graduationDate: integer("graduation_date", { mode: "timestamp" }),
     notes: text("notes"),

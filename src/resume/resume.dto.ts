@@ -1,6 +1,7 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import { SHORT_LENGTH, TINY_LENGTH, str } from "@/src/common/validation";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
@@ -19,7 +20,7 @@ const publicationExtractionSchema = publicationSchema.partial();
 
 const projectExtractionSchema = projectSchema
   .omit({ skills: true })
-  .extend({ skills: z.array(z.string()).default([]) })
+  .extend({ skills: z.array(str(TINY_LENGTH)).default([]) })
   .partial();
 
 const referenceExtractionSchema = referenceSchema
@@ -33,8 +34,8 @@ export const extractedProfileSchema = z.object({
   professional: workOverviewSchema
     .omit({ skills: true, industries: true })
     .extend({
-      skills: z.array(z.string()).nullish(),
-      industries: z.array(z.string()).nullish(),
+      skills: z.array(str(TINY_LENGTH)).nullish(),
+      industries: z.array(str(SHORT_LENGTH)).nullish(),
     })
     .partial(),
   workExperience: z
@@ -43,7 +44,7 @@ export const extractedProfileSchema = z.object({
   education: z.array(educationSchema.omit({ id: true }).partial()).default([]),
   preferences: jobPreferenceSchema
     .omit({ coverLetterTone: true, coverLetterTemplate: true, titles: true })
-    .extend({ titles: z.array(z.string()).default([]) })
+    .extend({ titles: z.array(str(SHORT_LENGTH)).default([]) })
     .partial(),
   links: z.array(profileLinkSchema).default([]),
   publications: z.array(publicationExtractionSchema).default([]),
@@ -97,7 +98,7 @@ export type TResumeContent = z.infer<typeof resumeContentSchema>;
 export const createResumeSchema = z.object({
   name: z.string().trim().min(1, "Resume name is required").max(100),
   content: resumeContentSchema,
-  template: z.string().optional(),
+  template: str(TINY_LENGTH).optional(),
 });
 
 export class CreateResumeDto extends createZodDto(createResumeSchema) {}
@@ -105,7 +106,7 @@ export class CreateResumeDto extends createZodDto(createResumeSchema) {}
 export const updateResumeSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   content: resumeContentSchema.optional(),
-  template: z.string().optional(),
+  template: str(TINY_LENGTH).optional(),
   isPublic: z.boolean().optional(),
 });
 

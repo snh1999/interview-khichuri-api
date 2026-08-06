@@ -1,6 +1,17 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import {
+  LARGE_LENGTH,
+  MID_LENGTH,
+  SHORT_LENGTH,
+  TINY_LENGTH,
+  URL_LENGTH,
+  nullishStr,
+  requiredStr,
+  str,
+} from "@/src/common/validation";
+
 export const PROFILE_LINK_TYPES = [
   "github",
   "gitlab",
@@ -32,18 +43,18 @@ export const workTypeSchema = z.enum(PROFILE_WORK_TYPES);
 export const experienceLevelSchema = z.enum(EXPERIENCE_LEVELS);
 
 export const updateProfileSchema = z.object({
-  firstName: z.string().trim().min(1),
-  lastName: z.string().trim(),
-  phone: z.string().nullish(),
+  firstName: requiredStr(SHORT_LENGTH),
+  lastName: str(SHORT_LENGTH),
+  phone: nullishStr(TINY_LENGTH),
   email: z.email().nullish(),
-  location: z.string().nullish(),
-  country: z.string().length(2).nullish(),
+  location: nullishStr(SHORT_LENGTH),
+  country: nullishStr(SHORT_LENGTH),
 });
 
 export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
 
 export const workOverviewSchema = z.object({
-  title: z.string().trim().min(1),
+  title: requiredStr(SHORT_LENGTH),
   experienceLevel: experienceLevelSchema.nullish(),
   yearsOfExperience: z.number().int().min(0).nullish(),
   skills: z.array(z.number().int().positive()).nullish(),
@@ -54,13 +65,13 @@ export class WorkOverviewDto extends createZodDto(workOverviewSchema) {}
 
 export const workExperienceSchema = z.object({
   id: z.uuid().optional(),
-  company: z.string().trim().min(1),
+  company: requiredStr(SHORT_LENGTH),
   companyId: z.number().int().positive().nullish(),
-  title: z.string().trim().min(1),
+  title: requiredStr(MID_LENGTH),
   startDate: z.coerce.date(),
   endDate: z.coerce.date().nullish(),
   isCurrent: z.boolean(),
-  responsibilities: z.string().nullish(),
+  responsibilities: nullishStr(),
 });
 
 export class UpdateWorkExperienceDto extends createZodDto(
@@ -69,13 +80,13 @@ export class UpdateWorkExperienceDto extends createZodDto(
 
 export const educationSchema = z.object({
   id: z.uuid().optional(),
-  degreeName: z.string().trim().min(1),
-  fieldOfStudy: z.string().nullish(),
-  institution: z.string().trim().min(1),
-  country: z.string().nullish(),
+  degreeName: requiredStr(SHORT_LENGTH),
+  fieldOfStudy: nullishStr(),
+  institution: requiredStr(MID_LENGTH),
+  location: nullishStr(SHORT_LENGTH),
   startDate: z.coerce.date().nullish(),
   graduationDate: z.coerce.date().nullish(),
-  notes: z.string().nullish(),
+  notes: nullishStr(),
 });
 
 export class EducationDto extends createZodDto(
@@ -87,9 +98,9 @@ export const jobPreferenceSchema = z.object({
   salaryLower: z.number().int().min(0).nullish(),
   salaryExpected: z.number().int().min(0).nullish(),
   currency: z.string().length(3).nullish(),
-  preferredLocation: z.string().nullish(),
-  coverLetterTone: z.string().nullish(),
-  coverLetterTemplate: z.string().nullish(),
+  preferredLocation: nullishStr(SHORT_LENGTH),
+  coverLetterTone: nullishStr(),
+  coverLetterTemplate: nullishStr(),
   titles: z.array(z.number().int().positive()).nullish(),
 });
 
@@ -101,7 +112,7 @@ export class UpdateJobPreferenceDto extends createZodDto(
 
 export const profileLinkSchema = z.object({
   type: linkTypeSchema,
-  url: z.url(),
+  url: z.url().max(URL_LENGTH),
 });
 
 export class ProfileLinksDto extends createZodDto(
@@ -110,12 +121,12 @@ export class ProfileLinksDto extends createZodDto(
 
 export const publicationSchema = z.object({
   id: z.number().int().positive().optional(),
-  title: z.string().trim().min(1),
-  authors: z.array(z.string().trim().min(1)).optional(),
-  notes: z.string().nullish(),
-  link: z.url().nullish(),
+  title: requiredStr(MID_LENGTH),
+  authors: z.array(requiredStr(MID_LENGTH)).optional(),
+  notes: nullishStr(LARGE_LENGTH),
+  link: z.url().max(URL_LENGTH).nullish(),
   year: z.number().int().nullish(),
-  publicationType: z.string().trim().nullish(),
+  publicationType: nullishStr(MID_LENGTH),
 });
 
 export class PublicationsDto extends createZodDto(
@@ -124,10 +135,10 @@ export class PublicationsDto extends createZodDto(
 
 export const projectSchema = z.object({
   id: z.number().int().positive().optional(),
-  name: z.string().trim().min(1),
-  type: projectTypeSchema.nullish(),
-  description: z.string().nullish(),
-  link: z.url().nullish(),
+  name: requiredStr(SHORT_LENGTH),
+  type: projectTypeSchema.optional(),
+  description: nullishStr(),
+  link: z.url().max(URL_LENGTH).nullish(),
   skills: z.array(z.number().int().positive()).optional(),
 });
 
@@ -137,13 +148,13 @@ export class ProjectsDto extends createZodDto(
 
 export const referenceSchema = z.object({
   id: z.number().int().positive().optional(),
-  name: z.string().trim().min(1),
-  title: z.string().trim().nullish(),
-  company: z.string().trim().nullish(),
+  name: requiredStr(SHORT_LENGTH),
+  title: nullishStr(SHORT_LENGTH),
+  company: nullishStr(SHORT_LENGTH),
   email: z.email().nullish(),
-  phone: z.string().nullish(),
-  relationType: z.string().trim().nullish(),
-  notes: z.string().nullish(),
+  phone: nullishStr(TINY_LENGTH),
+  relationType: nullishStr(),
+  notes: nullishStr(LARGE_LENGTH),
 });
 
 export class ReferencesDto extends createZodDto(
@@ -152,13 +163,13 @@ export class ReferencesDto extends createZodDto(
 
 export const activitySchema = z.object({
   id: z.number().int().positive().optional(),
-  name: z.string().trim().min(1),
-  organization: z.string().nullish(),
-  position: z.string().nullish(),
+  name: requiredStr(MID_LENGTH),
+  organization: nullishStr(SHORT_LENGTH),
+  position: nullishStr(SHORT_LENGTH),
   startDate: z.coerce.date().nullish(),
   endDate: z.coerce.date().nullish(),
   isCurrent: z.boolean(),
-  notes: z.string().nullish(),
+  notes: nullishStr(),
 });
 
 export class ActivitiesDto extends createZodDto(
