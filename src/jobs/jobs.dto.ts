@@ -2,10 +2,8 @@ import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import {
-  MID_LENGTH,
   SHORT_LENGTH,
   TINY_LENGTH,
-  URL_LENGTH,
   nullishStr,
   requiredStr,
   str,
@@ -22,7 +20,6 @@ const baseJobSchema = z.object({
   status: z.enum(JOB_STATUS).default("saved"),
   roleId: z.number().int().positive().nullish(),
   topicIds: z.array(z.number().int().positive()).optional(),
-  topicNames: z.array(requiredStr(TINY_LENGTH)).optional(),
   links: nullishStr(),
   notes: nullishStr(),
   deadline: z.coerce.date().nullish(),

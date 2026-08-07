@@ -4,7 +4,7 @@ import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
-import type { TJobInsert, TJobWithTopics } from "@/src/database/database.types";
+import type { TJobInsert } from "@/src/database/database.types";
 import type { CreateJobDto } from "@/src/jobs/jobs.dto";
 
 import { expectedJobStructure, getJobPayload } from "./job.test-data";
@@ -182,11 +182,15 @@ describe("Jobs (e2e)", () => {
         .expect(400);
     });
 
-    it("should create a job with topicNames", async () => {
-      const topicNames = ["TypeScript", "React"];
+    it("should create a job with topics created via the batch endpoint", async () => {
+      const {
+        body: { data: topicIds },
+      } = await auth(httpServer.post("/lookups/topics/batch"))
+        .send({ names: ["TypeScript", "React"] })
+        .expect(201);
 
       const { body } = await auth(httpServer.post("/jobs"))
-        .send({ ...jobPayload, topicNames })
+        .send({ ...jobPayload, topicIds })
         .expect(201);
 
       const jobId: string = body.data.id;
@@ -198,15 +202,19 @@ describe("Jobs (e2e)", () => {
       expect(fetchedJob.data.topicIds).toHaveLength(2);
     });
 
-    it("should create a job with both topicIds and topicNames", async () => {
+    it("should create a job with both existing and batch-created topic ids", async () => {
       const existingTopic = await createTestTopic(httpServer, authCookie);
-      const topicNames = ["New Topic"];
+
+      const {
+        body: { data: newTopicIds },
+      } = await auth(httpServer.post("/lookups/topics/batch"))
+        .send({ names: ["New Topic"] })
+        .expect(201);
 
       const { body } = await auth(httpServer.post("/jobs"))
         .send({
           ...jobPayload,
-          topicIds: [existingTopic.id],
-          topicNames,
+          topicIds: [existingTopic.id, ...newTopicIds],
         })
         .expect(201);
 
@@ -219,10 +227,12 @@ describe("Jobs (e2e)", () => {
       expect(fetched.data.jobTopics).toHaveLength(2);
     });
 
-    it("should return 400 for topicNames with empty string", async () => {
-      await auth(httpServer.post("/jobs"))
-        .send({ ...jobPayload, topicNames: [""] })
-        .expect(400);
+    it("should ignore topicNames since only topicIds are accepted", async () => {
+      const { body } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, topicNames: ["Ignored"] })
+        .expect(201);
+
+      expect(body.data.topicIds).toBeUndefined();
     });
 
     it("should return 400 for whitespace-only title", async () => {
@@ -686,15 +696,20 @@ describe("Jobs (e2e)", () => {
         });
     });
 
-    it("should update topicNames", async () => {
+    it("should update topicIds from batch-created topics", async () => {
       const {
         body: { data: created },
       } = await createJob();
       const jobId: string = created.id;
-      const topicNames = ["FastAPI", "Docker"];
+
+      const {
+        body: { data: topicIds },
+      } = await auth(httpServer.post("/lookups/topics/batch"))
+        .send({ names: ["FastAPI", "Docker"] })
+        .expect(201);
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
-        .send({ title: "Updated Job", topicNames })
+        .send({ title: "Updated Job", topicIds })
         .expect(200)
         .expect(({ body: { data } }) => {
           expect(data.title).toBe("Updated Job");

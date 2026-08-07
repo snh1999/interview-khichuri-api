@@ -1,11 +1,7 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-import {
-  SHORT_LENGTH,
-  nullishStr,
-  requiredStr,
-} from "@/src/common/validation";
+import { SHORT_LENGTH, nullishStr, requiredStr } from "@/src/common/validation";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 
 const createQuestionSchema = z.object({

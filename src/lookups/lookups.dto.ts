@@ -15,3 +15,9 @@ const updateSchema = z.object({
 });
 
 export class UpdateLookupDto extends createZodDto(updateSchema) {}
+
+const batchCreateSchema = z.object({
+  names: z.array(str(TINY_LENGTH).min(2)).min(1).max(50),
+});
+
+export class BatchLookupNamesDto extends createZodDto(batchCreateSchema) {}

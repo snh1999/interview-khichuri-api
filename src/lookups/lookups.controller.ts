@@ -17,10 +17,17 @@ import { Pagination } from "@/src/config/guards/pagination.decorator";
 import { SortBy } from "@/src/config/guards/sort-by.decorator";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import type { TPagination } from "@/src/database/database.types";
-import { TLookupMap, LookupSchemaPipe } from "@/src/lookups/lookups.helpers";
+import {
+  LookupSchemaPipe,
+  type TLookupSchema,
+  type TLookupMap,
+} from "@/src/lookups/lookups.helpers";
 
-import { CreateLookupDto, UpdateLookupDto } from "./lookups.dto";
-import type { TLookupSchema } from "./lookups.helpers";
+import {
+  BatchLookupNamesDto,
+  CreateLookupDto,
+  UpdateLookupDto,
+} from "./lookups.dto";
 import { LookupsService } from "./lookups.service";
 
 @Controller("lookups/:schema")
@@ -33,6 +40,14 @@ export class LookupsController {
     @Body() dto: CreateLookupDto,
   ): Promise<TLookupMap[T]> {
     return this.lookupsService.create(schema, dto);
+  }
+
+  @Post("batch")
+  public createMany(
+    @Param("schema", LookupSchemaPipe) schema: TLookupSchema,
+    @Body() dto: BatchLookupNamesDto,
+  ): Promise<number[]> {
+    return this.lookupsService.createMany(schema, dto.names);
   }
 
   @Get()
