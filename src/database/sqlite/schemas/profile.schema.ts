@@ -203,7 +203,10 @@ export const education = sqliteTable(
     institution: text("institution").notNull(),
     location: text("location"),
     startDate: integer("start_date", { mode: "timestamp" }),
-    graduationDate: integer("graduation_date", { mode: "timestamp" }),
+    endDate: integer("end_date", { mode: "timestamp" }),
+    isCurrent: integer("is_current", { mode: "boolean" })
+      .notNull()
+      .default(false),
     notes: text("notes"),
     ...defaultTimeStamps,
   },

@@ -38,7 +38,8 @@ export const getEducationPayload = () => ({
   institution: faker.company.name() + " University",
   location: "US",
   startDate: "2014-09",
-  graduationDate: "2018-06",
+  endDate: "2018-06",
+  isCurrent: false,
 });
 
 export const getJobPreferencePayload = () => ({
@@ -128,7 +129,8 @@ export const expectedEducationStructure = () =>
     institution: expect.any(String),
     location: expectNullableString,
     startDate: expectNullableString,
-    graduationDate: expectNullableString,
+    endDate: expectNullableString,
+    isCurrent: expect.any(Boolean),
     notes: expectNullableString,
   });
 

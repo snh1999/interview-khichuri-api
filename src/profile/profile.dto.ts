@@ -74,8 +74,20 @@ export const workExperienceSchema = z.object({
   responsibilities: nullishStr(),
 });
 
+const filterEndDate = (
+  data: { isCurrent: boolean; endDate?: Date | null }[],
+): boolean =>
+  data.every(
+    (item) =>
+      !item.isCurrent || item.endDate === null || item.endDate === undefined,
+  );
+
 export class UpdateWorkExperienceDto extends createZodDto(
-  z.object({ experiences: z.array(workExperienceSchema) }),
+  z.object({
+    experiences: z.array(workExperienceSchema).refine(filterEndDate, {
+      message: "endDate must not be set when isCurrent is true",
+    }),
+  }),
 ) {}
 
 export const educationSchema = z.object({
@@ -85,12 +97,17 @@ export const educationSchema = z.object({
   institution: requiredStr(MID_LENGTH),
   location: nullishStr(SHORT_LENGTH),
   startDate: z.coerce.date().nullish(),
-  graduationDate: z.coerce.date().nullish(),
+  endDate: z.coerce.date().nullish(),
+  isCurrent: z.boolean(),
   notes: nullishStr(),
 });
 
 export class EducationDto extends createZodDto(
-  z.object({ education: z.array(educationSchema) }),
+  z.object({
+    education: z.array(educationSchema).refine(filterEndDate, {
+      message: "endDate must not be set when isCurrent is true",
+    }),
+  }),
 ) {}
 
 export const jobPreferenceSchema = z.object({
@@ -173,5 +190,9 @@ export const activitySchema = z.object({
 });
 
 export class ActivitiesDto extends createZodDto(
-  z.object({ activities: z.array(activitySchema) }),
+  z.object({
+    activities: z.array(activitySchema).refine(filterEndDate, {
+      message: "endDate must not be set when isCurrent is true",
+    }),
+  }),
 ) {}
