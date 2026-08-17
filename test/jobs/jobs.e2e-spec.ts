@@ -502,6 +502,28 @@ describe("Jobs (e2e)", () => {
 
       expect(body.statusCode).toBe(400);
     });
+
+    it("should sort jobs by isFavorite descending (favorites first)", async () => {
+      await createJob({ ...getJobPayload(), title: "Not Favorite" });
+      await createJob({ ...getJobPayload(), title: "Favorite Job" });
+
+      const { body: listBody } = await auth(httpServer.get("/jobs")).expect(
+        200,
+      );
+      const jobId = (listBody.data as { id: string; title: string }[]).find(
+        (j) => j.title === "Favorite Job",
+      )?.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ isFavorite: true })
+        .expect(200);
+
+      const { body } = await auth(httpServer.get("/jobs")).expect(200);
+
+      expect(body.data[0].isFavorite).toBe(true);
+      expect(body.data[0].title).toBe("Favorite Job");
+      expect(body.data[1].isFavorite).toBe(false);
+    });
   });
 
   describe("GET /jobs/:id", () => {
@@ -663,6 +685,27 @@ describe("Jobs (e2e)", () => {
 
       expect(body.data.links).toBe(links);
       expect(body.data.notes).toBe(notes);
+    });
+
+    it("should toggle isFavorite", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ isFavorite: true })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.isFavorite).toBe(true);
+        });
+
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ isFavorite: false })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.isFavorite).toBe(false);
+        });
     });
 
     it("should update deadline", async () => {

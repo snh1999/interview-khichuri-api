@@ -26,6 +26,7 @@ export const expectedJobStructure = () =>
     companyName: expect.any(String),
     description: expect.any(String),
     status: expectEnum(statusEnum.enumValues),
+    isFavorite: expect.any(Boolean),
     roleId: expectNullableNumber,
     deadline: expectNullableString,
     interviewDate: expectNullableString,
