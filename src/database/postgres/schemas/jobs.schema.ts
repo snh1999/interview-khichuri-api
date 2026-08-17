@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -36,6 +37,7 @@ export const jobs = pgTable(
     }),
     links: text("links"),
     notes: text("notes"),
+    isFavorite: boolean("is_favorite").default(false),
     deadline: timestamp("deadline"),
     appliedAt: timestamp("applied_at"),
     ...defaultTimeStamps,
@@ -50,6 +52,7 @@ export const jobs = pgTable(
       "gist",
       sql`to_tsvector('english', coalesce(${table.title},'') || ' ' || coalesce(${table.description},''))`,
     ),
+    index("idx_jobs_fav_created").on(table.isFavorite, table.createdAt),
   ],
 );
 

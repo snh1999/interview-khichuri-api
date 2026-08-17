@@ -47,7 +47,7 @@ export class LookupsController {
     @Param("schema", LookupSchemaPipe) schema: TLookupSchema,
     @Body() dto: BatchLookupNamesDto,
   ): Promise<number[]> {
-    return this.lookupsService.createMany(schema, dto.names);
+    return this.lookupsService.resolveOrCreateNames(schema, dto.names);
   }
 
   @Get()

@@ -72,6 +72,7 @@ export class JobsService {
   ): Promise<TJob[]> {
     const filters = userId ? { userId } : {};
     const sort = [
+      { column: "isFavorite", order: "desc" as const },
       ...(sortBy ?? []),
       { column: "createdAt", order: "desc" as const },
     ];

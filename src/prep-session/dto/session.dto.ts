@@ -10,6 +10,7 @@ const createPrepSessionSchema = z.object({
   jobId: z.uuid().nullish(),
   roleId: z.number().int().positive().nullish(),
   topicIds: z.array(z.number().int().positive()).optional(),
+  isFavorite: z.boolean().default(false),
 });
 
 export class CreatePrepSessionDto extends createZodDto(

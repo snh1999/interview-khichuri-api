@@ -18,18 +18,6 @@ export class LookupsService {
     return this.db.create(schema, dto as never) as Promise<TLookupMap[T]>;
   }
 
-  async createMany(schema: TLookupSchema, names: string[]): Promise<number[]> {
-    if (names.length === 0) return [];
-
-    const created = await this.db.createMany(
-      schema,
-      names.map((name) => ({ name })),
-      undefined,
-      true,
-    );
-    return created.map((record) => record.id);
-  }
-
   async findAll<T extends TLookupSchema>(
     schema: T,
     name?: string,

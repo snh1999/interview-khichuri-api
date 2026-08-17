@@ -23,6 +23,7 @@ const baseJobSchema = z.object({
   topicIds: z.array(z.number().int().positive()).optional(),
   links: nullishStr(),
   notes: nullishStr(),
+  isFavorite: z.boolean().default(false),
   deadline: z.coerce.date().nullish(),
   location: nullishStr(SHORT_LENGTH),
   source: nullishStr(),
