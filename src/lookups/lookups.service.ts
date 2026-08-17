@@ -21,15 +21,13 @@ export class LookupsService {
   async createMany(schema: TLookupSchema, names: string[]): Promise<number[]> {
     if (names.length === 0) return [];
 
-    try {
-      const created = await this.db.createMany(
-        schema,
-        names.map((name) => ({ name })),
-      );
-      return created.map((record) => record.id);
-    } catch {
-      return this.resolveOrCreateNames(schema, names);
-    }
+    const created = await this.db.createMany(
+      schema,
+      names.map((name) => ({ name })),
+      undefined,
+      true,
+    );
+    return created.map((record) => record.id);
   }
 
   async findAll<T extends TLookupSchema>(
@@ -83,7 +81,12 @@ export class LookupsService {
     }
 
     if (newRecords.length > 0) {
-      const created = await this.db.createMany(schema, newRecords);
+      const created = await this.db.createMany(
+        schema,
+        newRecords,
+        undefined,
+        true,
+      );
       for (const record of created) {
         nameIdMap.set(record.name, record.id);
       }

@@ -14,3 +14,5 @@ export const requiredStr = (max = DEFAULT_MAX_STRING_LENGTH): z.ZodString =>
 export const nullishStr = (
   max = DEFAULT_MAX_STRING_LENGTH,
 ): z.ZodOptional<z.ZodNullable<z.ZodString>> => requiredStr(max).nullish();
+
+export const dateStr = z.coerce.string().nullish();

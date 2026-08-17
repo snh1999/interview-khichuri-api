@@ -132,11 +132,13 @@ export class SqliteService implements IDatabaseService {
     schemaName: K,
     data: InferInsertModel<TsqliteTableRegistry[K]>[],
     db: TdbSqlite = this.db,
+    silent = false,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName] as SQLiteTable;
-    return db.insert(schema).values(data).returning().all() as InferSelectModel<
-      TsqliteTableRegistry[K]
-    >[];
+    const result = silent
+      ? db.insert(schema).values(data).onConflictDoNothing().returning().all()
+      : db.insert(schema).values(data).returning().all();
+    return result as InferSelectModel<TsqliteTableRegistry[K]>[];
   }
 
   public findAllByColumn<K extends TsqliteTableKey>(
