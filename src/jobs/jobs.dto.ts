@@ -7,6 +7,7 @@ import {
   nullishStr,
   requiredStr,
   str,
+  dateStr,
 } from "@/src/common/validation";
 import type { TJob } from "@/src/database/database.types";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
@@ -26,6 +27,7 @@ const baseJobSchema = z.object({
   location: nullishStr(SHORT_LENGTH),
   source: nullishStr(),
   interviewDate: z.coerce.date().nullish(),
+  appliedAt: z.coerce.date().nullish(),
 });
 
 export class CreateJobDto extends createZodDto(baseJobSchema) {}
@@ -48,12 +50,21 @@ const extractJobSchema = z.object({
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}
 
 export const extractedJobSchema = baseJobSchema
-  .omit({ roleId: true, topicIds: true })
+  .omit({
+    roleId: true,
+    topicIds: true,
+    deadline: true,
+    interviewDate: true,
+    appliedAt: true,
+  })
   .partial()
   .extend({
     title: str(SHORT_LENGTH),
     topicNames: z.array(str(TINY_LENGTH)).optional(),
     roleName: nullishStr(SHORT_LENGTH),
+    deadline: dateStr,
+    interviewDate: dateStr,
+    appliedAt: dateStr,
   });
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}

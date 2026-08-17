@@ -29,7 +29,7 @@ export class JobsService {
   ) {}
 
   public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
-    const { topicIds, deadline, interviewDate, ...data } = dto;
+    const { topicIds, deadline, interviewDate, appliedAt, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
       const job = await this.db.create(
@@ -39,6 +39,7 @@ export class JobsService {
           userId,
           deadline: deadline ? new Date(deadline) : null,
           interviewDate: interviewDate ? new Date(interviewDate) : null,
+          appliedAt: appliedAt ? new Date(appliedAt) : null,
         },
         transaction,
       );
@@ -118,11 +119,12 @@ export class JobsService {
     dto: UpdateJobDto,
     userId?: string,
   ): Promise<TJob> {
-    const { topicIds, deadline, interviewDate, ...data } = dto;
+    const { topicIds, deadline, interviewDate, appliedAt, ...data } = dto;
     const jobFields: Record<string, unknown> = {
       ...data,
       deadline: deadline ? new Date(deadline) : undefined,
       interviewDate: interviewDate ? new Date(interviewDate) : undefined,
+      appliedAt: appliedAt ? new Date(appliedAt) : undefined,
     };
 
     await this.db.withTransaction(async (transaction) => {

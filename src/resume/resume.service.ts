@@ -263,11 +263,13 @@ export class ResumeService {
       provider,
     );
 
-    const [skills, industries, titles, projectSkillIds] = await Promise.all([
-      this.lookupsService.resolveOrCreateNames(
-        "topics",
-        extracted.professional.skills,
-      ),
+    // important to keep it out of the array to avoid deadlock situation
+    const skills = await this.lookupsService.resolveOrCreateNames(
+      "topics",
+      extracted.professional.skills,
+    );
+
+    const [industries, titles, projectSkillIds] = await Promise.all([
       this.lookupsService.resolveOrCreateNames(
         "industries",
         extracted.professional.industries,

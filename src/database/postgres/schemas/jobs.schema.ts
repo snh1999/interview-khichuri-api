@@ -37,6 +37,7 @@ export const jobs = pgTable(
     links: text("links"),
     notes: text("notes"),
     deadline: timestamp("deadline"),
+    appliedAt: timestamp("applied_at"),
     ...defaultTimeStamps,
   },
   (table) => [

@@ -98,7 +98,8 @@ export class GenAiService {
         extractedProfileSchema,
         provider,
       );
-    } catch {
+    } catch (err) {
+      console.error(err);
       throw new BadRequestException(
         "Failed to extract resume data. Please try again.",
       );

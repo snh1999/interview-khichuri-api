@@ -30,6 +30,7 @@ export const jobs = sqliteTable("jobs", {
   links: text("links"),
   notes: text("notes"),
   deadline: integer("deadline", { mode: "timestamp" }),
+  appliedAt: integer("applied_at", { mode: "timestamp" }),
   ...defaultTimeStamps,
 });
 
