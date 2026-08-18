@@ -12,26 +12,34 @@ import { JOB_STATUS } from "@/src/jobs/jobs.dto";
 
 import { topics, roles } from "./lookups.schema";
 
-export const jobs = sqliteTable("jobs", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  title: text("title").notNull(),
-  companyName: text("company_name").notNull(),
-  userId: text("user_id"),
-  description: text("description").notNull(),
-  location: text("location"),
-  source: text("source"),
-  interviewDate: integer("interview_date", { mode: "timestamp" }),
-  status: text("status", { enum: JOB_STATUS }).notNull().default("saved"),
-  roleId: integer("role_id").references(() => roles.id, {
-    onDelete: "set null",
-  }),
-  links: text("links"),
-  notes: text("notes"),
-  deadline: integer("deadline", { mode: "timestamp" }),
-  ...defaultTimeStamps,
-});
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    title: text("title").notNull(),
+    companyName: text("company_name").notNull(),
+    userId: text("user_id"),
+    description: text("description").notNull(),
+    location: text("location"),
+    source: text("source"),
+    interviewDate: integer("interview_date", { mode: "timestamp" }),
+    status: text("status", { enum: JOB_STATUS }).notNull().default("saved"),
+    roleId: integer("role_id").references(() => roles.id, {
+      onDelete: "set null",
+    }),
+    links: text("links"),
+    notes: text("notes"),
+    isFavorite: integer("is_favorite", { mode: "boolean" }).default(false),
+    deadline: integer("deadline", { mode: "timestamp" }),
+    appliedAt: integer("applied_at", { mode: "timestamp" }),
+    ...defaultTimeStamps,
+  },
+  (table) => [
+    index("idx_jobs_fav_created").on(table.isFavorite, table.createdAt),
+  ],
+);
 
 export const job_topics = sqliteTable(
   "job_topics",

@@ -1,14 +1,16 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import { SHORT_LENGTH, nullishStr, requiredStr } from "@/src/common/validation";
+
 const createPrepSessionSchema = z.object({
-  title: z.string().trim().min(1),
-  description: z.string().trim().min(1),
-  experience: z.string().nullable().optional(),
-  jobId: z.uuid().nullable().optional(),
-  roleId: z.number().int().positive().nullable().optional(),
+  title: requiredStr(SHORT_LENGTH),
+  description: requiredStr(),
+  experience: nullishStr(),
+  jobId: z.uuid().nullish(),
+  roleId: z.number().int().positive().nullish(),
   topicIds: z.array(z.number().int().positive()).optional(),
-  topicNames: z.array(z.string().trim().min(1)).optional(),
+  isFavorite: z.boolean().default(false),
 });
 
 export class CreatePrepSessionDto extends createZodDto(

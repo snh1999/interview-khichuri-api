@@ -93,6 +93,53 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
     });
   });
 
+  describe(`POST /${entity}/batch`, () => {
+    const createBatch = (names: string[]) =>
+      auth(httpServer.post(`${routePath}/batch`)).send({ names });
+
+    it(`should create multiple ${entity} and return their ids`, async () => {
+      const names = ["Alpha", "Beta"];
+
+      const { body } = await createBatch(names).expect(201);
+
+      expect(body.data).toEqual(expect.any(Array));
+      expect(body.data).toHaveLength(2);
+      for (const id of body.data as number[]) {
+        expect(id).toEqual(expect.any(Number));
+      }
+
+      const { body: all } = await auth(httpServer.get(routePath)).expect(200);
+      expect(all.data).toHaveLength(2);
+      expect((all.data as { name: string }[]).map((r) => r.name)).toEqual(
+        expect.arrayContaining(names),
+      );
+    });
+
+    it("should return 400 for empty names array", async () => {
+      await createBatch([]).expect(400);
+    });
+
+    it("should return 400 for names with empty string", async () => {
+      await createBatch(["Valid", ""]).expect(400);
+    });
+
+    it("should reuse existing entries and not create duplicates", async () => {
+      await createBatch(["Deduped"]).expect(201);
+
+      const { body } = await createBatch(["Deduped"]).expect(201);
+
+      expect(body.data).toHaveLength(1);
+    });
+
+    it("should return 401 without auth cookie in web mode", async () => {
+      if (isAppMode) return;
+      await httpServer
+        .post(`${routePath}/batch`)
+        .send({ names: ["Alpha"] })
+        .expect(401);
+    });
+  });
+
   describe(`GET /${entity}`, () => {
     it(`should return empty list when no ${entity} exist`, async () => {
       const { body } = await auth(httpServer.get(routePath)).expect(200);

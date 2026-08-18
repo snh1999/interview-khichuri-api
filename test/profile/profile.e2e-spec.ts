@@ -205,12 +205,6 @@ describe("Profile (e2e)", () => {
         .expect(400);
     });
 
-    it("should return 400 for invalid country code", async () => {
-      await auth(httpServer.put("/profile"))
-        .send({ firstName: "Test", country: "USA" })
-        .expect(400);
-    });
-
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
       await httpServer.put("/profile").send(getProfilePayload()).expect(401);
@@ -411,6 +405,23 @@ describe("Profile (e2e)", () => {
       expect(secondGet.data.workExperiences[0].endDate).toBe(originalEndDate);
     });
 
+    it("should return 400 when isCurrent is true and endDate is set", async () => {
+      const profilePayload = getProfilePayload();
+      await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
+
+      await auth(httpServer.put("/profile/work-experience"))
+        .send({
+          experiences: [
+            {
+              ...getWorkExperiencePayload(),
+              endDate: "2021-01",
+              isCurrent: true,
+            },
+          ],
+        })
+        .expect(400);
+    });
+
     it("should delete experiences omitted from the array", async () => {
       const profilePayload = getProfilePayload();
       await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
@@ -509,6 +520,7 @@ describe("Profile (e2e)", () => {
         id: eduId,
         degreeName: "Master of Science",
         institution: "New University",
+        isCurrent: false,
       };
       await auth(httpServer.put("/profile/education"))
         .send({ education: [updated] })
@@ -535,12 +547,17 @@ describe("Profile (e2e)", () => {
       );
       const eduId: string = firstGet.data.educations[0].id;
       expect(firstGet.data.educations[0].fieldOfStudy).toBe(edu.fieldOfStudy);
-      expect(firstGet.data.educations[0].country).toBe(edu.country);
+      expect(firstGet.data.educations[0].location).toBe(edu.location);
 
       await auth(httpServer.put("/profile/education"))
         .send({
           education: [
-            { id: eduId, degreeName: "PhD", institution: "New University" },
+            {
+              id: eduId,
+              degreeName: "PhD",
+              institution: "New University",
+              isCurrent: false,
+            },
           ],
         })
         .expect(204);
@@ -551,7 +568,7 @@ describe("Profile (e2e)", () => {
       expect(secondGet.data.educations).toHaveLength(1);
       expect(secondGet.data.educations[0].degreeName).toBe("PhD");
       expect(secondGet.data.educations[0].fieldOfStudy).toBe(edu.fieldOfStudy);
-      expect(secondGet.data.educations[0].country).toBe(edu.country);
+      expect(secondGet.data.educations[0].location).toBe(edu.location);
     });
 
     it("should delete education entries omitted from the array", async () => {
@@ -569,7 +586,9 @@ describe("Profile (e2e)", () => {
 
       await auth(httpServer.put("/profile/education"))
         .send({
-          education: [{ degreeName: "PhD", institution: "MIT", id: keepId }],
+          education: [
+            { degreeName: "PhD", institution: "MIT", id: keepId, isCurrent: false },
+          ],
         })
         .expect(204);
 
@@ -583,6 +602,23 @@ describe("Profile (e2e)", () => {
       await auth(httpServer.put("/profile/education"))
         .send({
           education: [{ degreeName: "", institution: "" }],
+        })
+        .expect(400);
+    });
+
+    it("should return 400 when isCurrent is true and endDate is set", async () => {
+      const profilePayload = getProfilePayload();
+      await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
+
+      await auth(httpServer.put("/profile/education"))
+        .send({
+          education: [
+            {
+              ...getEducationPayload(),
+              endDate: "2018-06",
+              isCurrent: true,
+            },
+          ],
         })
         .expect(400);
     });
@@ -916,6 +952,19 @@ describe("Profile (e2e)", () => {
       );
       expect(secondGet.data.activities).toHaveLength(1);
       expect(secondGet.data.activities[0].id).toBe(keepId);
+    });
+
+    it("should return 400 when isCurrent is true and endDate is set", async () => {
+      const profilePayload = getProfilePayload();
+      await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
+
+      await auth(httpServer.put("/profile/activities"))
+        .send({
+          activities: [
+            { ...getActivityPayload(), endDate: "2021-01", isCurrent: true },
+          ],
+        })
+        .expect(400);
     });
 
     it("should clear all activities when empty array is sent", async () => {

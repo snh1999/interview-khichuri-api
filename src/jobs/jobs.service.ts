@@ -29,29 +29,21 @@ export class JobsService {
   ) {}
 
   public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
-    const { topicIds, topicNames, deadline, interviewDate, ...data } = dto;
+    const { topicIds, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
       const job = await this.db.create(
         "jobs",
-        {
-          ...data,
-          userId,
-          deadline: deadline ? new Date(deadline) : null,
-          interviewDate: interviewDate ? new Date(interviewDate) : null,
-        },
+        { ...data, userId },
         transaction,
       );
-      await this._createJobTopics(job.id, transaction, topicIds, topicNames);
+      await this._createJobTopics(job.id, transaction, topicIds);
       return job;
     });
   }
 
   public async extractJob(dto: ExtractJobDto): Promise<TJobExtractionResult> {
-    const extracted = await this.genAiService.extractJob({
-      // eslint-disable-next-line @typescript-eslint/no-misused-spread
-      ...dto,
-    });
+    const extracted = await this.genAiService.extractJob(dto);
 
     const [roleId, topicIds] = await Promise.all([
       this.lookupsService.resolveOrCreateName("roles", extracted.roleName),
@@ -74,6 +66,7 @@ export class JobsService {
   ): Promise<TJob[]> {
     const filters = userId ? { userId } : {};
     const sort = [
+      { column: "isFavorite", order: "desc" as const },
       ...(sortBy ?? []),
       { column: "createdAt", order: "desc" as const },
     ];
@@ -121,23 +114,18 @@ export class JobsService {
     dto: UpdateJobDto,
     userId?: string,
   ): Promise<TJob> {
-    const { topicIds, topicNames, deadline, interviewDate, ...data } = dto;
-    const jobFields: Record<string, unknown> = {
-      ...data,
-      deadline: deadline ? new Date(deadline) : undefined,
-      interviewDate: interviewDate ? new Date(interviewDate) : undefined,
-    };
+    const { topicIds, ...data } = dto;
 
     await this.db.withTransaction(async (transaction) => {
-      if (Object.keys(jobFields).length > 0) {
+      if (Object.keys(data).length > 0) {
         await this.db.update(
           "jobs",
-          jobFields,
+          data,
           userId ? { id, userId } : { id },
           transaction,
         );
       }
-      await this._createJobTopics(id, transaction, topicIds, topicNames);
+      await this._createJobTopics(id, transaction, topicIds);
     });
 
     return this.findOne(id, userId);
@@ -154,23 +142,14 @@ export class JobsService {
     jobId: string,
     transaction: TDatabase,
     topicIds?: number[],
-    topicNames?: string[],
   ) {
-    if (!topicNames && !topicIds) return;
-
-    const resolvedTopicNames = await this.lookupsService.resolveOrCreateNames(
-      "topics",
-      topicNames,
-    );
-    const allTopicIds = [
-      ...new Set([...(topicIds ?? []), ...resolvedTopicNames]),
-    ];
+    if (!topicIds) return;
 
     await this.db.syncJunctionTable(
       "job_topics",
       { column: "jobId", value: jobId },
       "topicId",
-      allTopicIds,
+      topicIds,
       transaction,
     );
   }

@@ -208,9 +208,10 @@ export const education = pgTable(
     degreeName: text("degree_name").notNull(),
     fieldOfStudy: text("field_of_study"),
     institution: text("institution").notNull(),
-    country: text("country"), // ISO 3166-1 alpha-2
+    location: text("location"),
     startDate: timestamp("start_date"),
-    graduationDate: timestamp("graduation_date"),
+    endDate: timestamp("end_date"),
+    isCurrent: boolean("is_current").notNull().default(false),
     notes: text("notes"),
     ...defaultTimeStamps,
   },

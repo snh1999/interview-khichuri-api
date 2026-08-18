@@ -36,9 +36,10 @@ export const getEducationPayload = () => ({
   degreeName: "Bachelor of Science",
   fieldOfStudy: "Computer Science",
   institution: faker.company.name() + " University",
-  country: "US",
+  location: "US",
   startDate: "2014-09",
-  graduationDate: "2018-06",
+  endDate: "2018-06",
+  isCurrent: false,
 });
 
 export const getJobPreferencePayload = () => ({
@@ -126,9 +127,10 @@ export const expectedEducationStructure = () =>
     degreeName: expect.any(String),
     fieldOfStudy: expectNullableString,
     institution: expect.any(String),
-    country: expectNullableString,
+    location: expectNullableString,
     startDate: expectNullableString,
-    graduationDate: expectNullableString,
+    endDate: expectNullableString,
+    isCurrent: expect.any(Boolean),
     notes: expectNullableString,
   });
 

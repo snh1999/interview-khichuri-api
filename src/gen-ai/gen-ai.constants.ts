@@ -66,7 +66,7 @@ Field rules:
 - For activities (volunteering, extracurriculars, certifications, etc.), use "name" for the activity, "organization" for the host, "position" for the role, and put any descriptive bullet points into "notes" separated by newlines ("\\n").
 - For experience/education entries, preserve the order as they appear in the resume text (do not re-sort chronologically).
 - Parse dates as ISO date strings (YYYY-MM-DD) when possible.
-- For the "country" field in personal info, use the ISO 3166-1 alpha-2 country code.
+- For the "country" field in personal info, return the country as it appears in the resume (e.g. a country name or code).
 - Keep all extracted text in its original language; do not translate.
 - Skip/Use undefined for any field that cannot be determined from the resume.
 - If the input text is empty, garbled, or not a usable resume, skip or return all fields as undefined. Do not invent or hallucinate content.

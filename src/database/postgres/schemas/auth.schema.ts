@@ -68,6 +68,8 @@ export const twoFactor = pgTable("two_factor", {
   secret: text("secret").notNull(),
   backupCodes: text("backup_codes").notNull(),
   verified: boolean("verified").notNull(),
+  failedVerificationCount: integer("failed_verification_count").default(0),
+  lockedUntil: timestamp("locked_until", { precision: 6, withTimezone: true }),
 });
 
 export const passkey = pgTable("passkey", {
