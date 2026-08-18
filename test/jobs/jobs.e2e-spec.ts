@@ -170,6 +170,16 @@ describe("Jobs (e2e)", () => {
       expect(body.data.deadline).toEqual(expect.any(String));
     });
 
+    it("should create a job with appliedAt", async () => {
+      const appliedAt = "2025-06-15T10:30:00.000Z";
+
+      const { body } = await auth(httpServer.post("/jobs"))
+        .send({ ...jobPayload, appliedAt })
+        .expect(201);
+
+      expect(body.data.appliedAt).toEqual(appliedAt);
+    });
+
     it("should return 400 for non-integer topicIds", async () => {
       await auth(httpServer.post("/jobs"))
         .send({ ...jobPayload, topicIds: ["abc"] })
@@ -721,6 +731,86 @@ describe("Jobs (e2e)", () => {
         .expect(200);
 
       expect(body.data.deadline).toEqual(expect.any(String));
+    });
+
+    it("should update appliedAt", async () => {
+      const {
+        body: { data: created },
+      } = await createJob();
+      const jobId: string = created.id;
+
+      const appliedAt = "2025-07-01T14:00:00.000Z";
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ appliedAt })
+        .expect(200);
+
+      expect(body.data.appliedAt).toEqual(appliedAt);
+    });
+
+    it("should clear appliedAt by setting null", async () => {
+      const {
+        body: { data: created },
+      } = await createJob({
+        ...jobPayload,
+        appliedAt: "2025-06-15T00:00:00.000Z",
+      });
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ appliedAt: null })
+        .expect(200);
+
+      expect(body.data.appliedAt).toBeNull();
+    });
+
+    it("should clear deadline by setting null", async () => {
+      const {
+        body: { data: created },
+      } = await createJob({
+        ...jobPayload,
+        deadline: "2025-12-31T23:59:59.000Z",
+      });
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ deadline: null })
+        .expect(200);
+
+      expect(body.data.deadline).toBeNull();
+    });
+
+    it("should clear interviewDate by setting null", async () => {
+      const {
+        body: { data: created },
+      } = await createJob({
+        ...jobPayload,
+        interviewDate: "2025-08-01T09:00:00.000Z",
+      });
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ interviewDate: null })
+        .expect(200);
+
+      expect(body.data.interviewDate).toBeNull();
+    });
+
+    it("should not clear appliedAt when patching other fields", async () => {
+      const {
+        body: { data: created },
+      } = await createJob({
+        ...jobPayload,
+        appliedAt: "2025-06-15T00:00:00.000Z",
+      });
+      const jobId: string = created.id;
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ title: "Updated Title" })
+        .expect(200);
+
+      expect(body.data.appliedAt).toEqual("2025-06-15T00:00:00.000Z");
+      expect(body.data.title).toBe("Updated Title");
     });
 
     it("should update only topicIds", async () => {

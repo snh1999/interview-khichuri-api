@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { generateText, Output } from "ai";
 import type { z } from "zod";
 
@@ -37,6 +37,8 @@ interface IGenerateStructuredOptions {
 
 @Injectable()
 export class GenAiService {
+  private readonly logger = new Logger(GenAiService.name);
+
   constructor(private readonly apiKeyService: ApiKeyService) {}
 
   async generateStructured<T>(
@@ -99,7 +101,10 @@ export class GenAiService {
         provider,
       );
     } catch (err) {
-      console.error(err);
+      this.logger.error("Failed to extract resume data", {
+        message: err instanceof Error ? err.message : String(err),
+        provider,
+      });
       throw new BadRequestException(
         "Failed to extract resume data. Please try again.",
       );

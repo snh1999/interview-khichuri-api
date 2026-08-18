@@ -248,7 +248,9 @@ export class ResumeService {
       );
       extractedText = result.text.trim();
     } catch (err) {
-      console.error(err);
+      this.logger.error("Failed to extract text from PDF", {
+        message: err instanceof Error ? err.message : String(err),
+      });
       throw new BadRequestException("Failed to extract text from PDF");
     }
 

@@ -78,6 +78,18 @@ export class LookupsService {
       for (const record of created) {
         nameIdMap.set(record.name, record.id);
       }
+
+      if (created.length < newRecords.length) {
+        const missing = newRecords
+          .filter((r) => !nameIdMap.has(r.name))
+          .map((r) => r.name);
+        const found = await this.db.findAllByColumn(schema, {
+          filter: { name: missing },
+        });
+        for (const record of found) {
+          nameIdMap.set(record.name, record.id);
+        }
+      }
     }
 
     return names.map((n) => {
