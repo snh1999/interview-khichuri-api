@@ -217,11 +217,22 @@ export interface TSortBy<K extends TpgTableKey> {
   order?: TSortOrder;
 }
 
+export interface IDateRange {
+  from?: Date;
+  to?: Date;
+}
+
+export interface TDateRangeOption<K extends TpgTableKey> {
+  column: TColumnNames<K>;
+  range: IDateRange;
+}
+
 export interface TFindAllByColumnOptions<K extends TpgTableKey> {
   filter?: TColumnFilter<K>;
   sortBy?: TSortBy<K>[];
   pagination?: TPagination;
   relation?: TdbWithRelations<K>;
+  dateRanges?: TDateRangeOption<K>[];
 }
 
 export interface TFindByIdOptions<K extends TpgTableKey> {

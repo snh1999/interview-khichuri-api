@@ -16,11 +16,16 @@ import {
   inArray,
   desc,
   asc,
+  gte,
+  lte,
 } from "drizzle-orm";
 import { AnyPgColumn, AnyPgTable, PgTable } from "drizzle-orm/pg-core";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
-import { IDatabaseService } from "@/src/database/database.service";
+import {
+  buildConditions,
+  IDatabaseService,
+} from "@/src/database/database.service";
 
 import { DATABASE_CONNECTION } from "../database.constants";
 import {
@@ -31,6 +36,7 @@ import {
   TFindByIdOptions,
   TSearchOptions,
   TColumnFilter,
+  TDateRangeOption,
 } from "../database.types";
 import * as schemas from "./schemas";
 
@@ -137,11 +143,14 @@ export class PostgresService implements IDatabaseService {
       sortBy,
       pagination,
       relation: relations,
+      dateRanges,
     } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
-      : [];
+
+    const conditions = [
+      ...(columns ? buildConditions(schema, columns) : []),
+      ...(dateRanges ? this._buildDateRangeConditions(schema, dateRanges) : []),
+    ];
 
     const orderBy = sortBy?.map((sort) => {
       const col = schema[sort.column as keyof typeof schema] as AnyPgColumn;
@@ -180,9 +189,7 @@ export class PostgresService implements IDatabaseService {
     db: TdbPostgres = this.db,
   ): Promise<number> {
     const schema = postgresTableRegistry[schemaName];
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
-      : [];
+    const conditions = columns ? buildConditions(schema, columns) : [];
 
     return db.$count(
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
@@ -198,9 +205,7 @@ export class PostgresService implements IDatabaseService {
   ): Promise<InferSelectModel<TpgTableRegistry[K]>> {
     const { filter, relation: relations } = options ?? {};
     const schema = postgresTableRegistry[schemaName] as PgTableWithId;
-    const conditions = filter
-      ? this._buildConditions(schema, filter, getTableName(schema))
-      : [];
+    const conditions = filter ? buildConditions(schema, filter) : [];
 
     const allConditions = [...conditions, eq(schema.id, id)];
 
@@ -255,9 +260,7 @@ export class PostgresService implements IDatabaseService {
 
     const ftsWhere = sql`${vectorExpr} @@ ${queryExpr}`;
 
-    const conditions = filter
-      ? this._buildConditions(schema, filter, getTableName(schema))
-      : [];
+    const conditions = filter ? buildConditions(schema, filter) : [];
 
     const whereClause = conditions.length
       ? and(ftsWhere, ...conditions)
@@ -314,11 +317,7 @@ export class PostgresService implements IDatabaseService {
     columns: TSchemaColumnFilter<T>,
     db: TdbPostgres = this.db,
   ): Promise<InferSelectModel<T>[]> {
-    const conditions = this._buildConditions(
-      schema,
-      columns,
-      getTableName(schema),
-    );
+    const conditions = buildConditions(schema, columns);
 
     const result = await db
       .update(schema)
@@ -339,11 +338,7 @@ export class PostgresService implements IDatabaseService {
     db: TdbPostgres = this.db,
   ): Promise<void> {
     const schema = postgresTableRegistry[schemaName];
-    const conditions = this._buildConditions(
-      schema,
-      columns,
-      getTableName(schema),
-    );
+    const conditions = buildConditions(schema, columns);
 
     const result = await db
       .delete(schema)
@@ -506,22 +501,20 @@ export class PostgresService implements IDatabaseService {
     return db ? callbackSync(db) : this.db.transaction(callbackSync);
   }
 
-  private _buildConditions(
+  private _buildDateRangeConditions<K extends TpgTableKey>(
     schema: AnyPgTable,
-    columns: Record<string, unknown>,
-    schemaName: string,
+    dateRanges: TDateRangeOption<K>[],
   ): ReturnType<typeof eq>[] {
     const schemaColumns = getTableColumns(schema);
-    return Object.entries(columns).map(([colName, value]) => {
-      if (!(colName in schemaColumns)) {
-        throw new BadRequestException(
-          `Column "${colName}" not supported by ${schemaName}`,
-        );
+    const conditions: ReturnType<typeof eq>[] = [];
+    for (const { column, range } of dateRanges) {
+      const col = schemaColumns[column as string] as AnyPgColumn | undefined;
+      if (col) {
+        if (range.from) conditions.push(gte(col, range.from));
+        if (range.to) conditions.push(lte(col, range.to));
       }
-      return Array.isArray(value)
-        ? inArray(schemaColumns[colName], value)
-        : eq(schemaColumns[colName], value);
-    });
+    }
+    return conditions;
   }
 
   private _resolveColumn<K extends TpgTableKey>(
