@@ -10,6 +10,7 @@ import { ResumeService } from "./resume.service";
 @Module({
   controllers: [ResumeController],
   providers: [ResumeService],
+  exports: [ResumeService],
   imports: [UtilitiesModule, GenAiModule, LookupsModule],
 })
 export class ResumeModule {}
