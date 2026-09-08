@@ -1,0 +1,299 @@
+import { BadRequestException, Injectable } from "@nestjs/common";
+
+import { IDatabaseService } from "@/src/database/database.service";
+import {
+  TInterview,
+  TJob,
+  TPrepSessionWithQuestions,
+  TQuestion,
+  TTopics,
+  type TApiKeyProvider,
+} from "@/src/database/database.types";
+import { INTERVIEW_EVALUATION_PROMPT } from "@/src/gen-ai/gen-ai.constants";
+import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { ResumeService } from "@/src/resume/resume.service";
+
+import {
+  CompleteInterviewDto,
+  CreateInterviewDto,
+  interviewEvaluationSchema,
+  FollowUpDto,
+  IInterviewWithQuestions,
+  TInterviewFocusType,
+  TInterviewQuestion,
+} from "../dto/interview.dto";
+
+@Injectable()
+export class InterviewService {
+  public constructor(
+    private readonly db: IDatabaseService,
+    private readonly genAiService: GenAiService,
+    private readonly resumeService: ResumeService,
+  ) {}
+
+  public async create(
+    dto: CreateInterviewDto,
+    userId?: string,
+  ): Promise<IInterviewWithQuestions> {
+    const session = await this._findSession(dto.sessionId, userId);
+    const { context, sessionQuestions } = await this._buildContextSections(
+      session,
+      dto,
+    );
+
+    const { provider, model, ...interviewDto } = dto;
+
+    const interview = await this.db.create("interviews", {
+      userId,
+      ...interviewDto,
+    });
+
+    const questions =
+      sessionQuestions.length > 0
+        ? // TODO: pick random number of them, in case the limit exists
+          sessionQuestions.map((q) => ({
+            questionText: q.questionText,
+          }))
+        : (
+            await this.genAiService.generateInterviewQuestions({
+              provider,
+              model,
+              context,
+            })
+          ).questions;
+
+    return { interview, questions };
+  }
+
+  public async followUps(
+    id: string,
+    dto: FollowUpDto,
+    userId?: string,
+  ): Promise<TInterviewQuestion[]> {
+    const interview = await this._findById(id, userId);
+    if (interview.completedAt) {
+      throw new BadRequestException("Interview already completed");
+    }
+
+    const session = await this._findSession(interview.sessionId, userId);
+    const context = await this._buildContext(interview, session, dto.provider);
+
+    const qaHistory = dto.answers
+      .map((item) => `Q: ${item.question}\nA: ${item.answer ?? "(no answer)"}`)
+      .join("\n\n");
+
+    const result = await this.genAiService.generateInterviewFollowUps({
+      provider: dto.provider,
+      conversation:
+        (context ? `Context:\n${context}\n\n` : "") +
+        `Recent Q&A and conversation:\n${qaHistory}`,
+      model: dto.model,
+    });
+
+    return result.questions;
+  }
+
+  public async complete(
+    id: string,
+    dto: CompleteInterviewDto,
+    userId?: string,
+  ): Promise<TInterview> {
+    const interview = await this._findById(id, userId);
+    if (interview.completedAt) {
+      throw new BadRequestException("Interview already completed");
+    }
+
+    const transcript = dto.transcript
+      .map(
+        (item) =>
+          `Question: ${item.question}\nAnswer: ${item.answer ?? "(no answer)"} (time: ${item.seconds}s)`,
+      )
+      .join("\n\n");
+
+    const session = await this._findSession(interview.sessionId, userId);
+    const context = await this._buildContext(interview, session, dto.provider);
+    const prompt =
+      `${INTERVIEW_EVALUATION_PROMPT}\n` +
+      `${context}\n\nInterview transcript:\n${transcript}`;
+
+    const evaluation = await this.genAiService.generateStructured(
+      prompt,
+      interviewEvaluationSchema,
+      dto.provider,
+      { model: dto.model },
+      userId,
+    );
+
+    const [updated] = await this.db.update(
+      "interviews",
+      {
+        completedAt: new Date(),
+        overallScore: evaluation.overall,
+        technicalScore: evaluation.technical,
+        communicationScore: evaluation.communication,
+        elapsedSeconds: dto.elapsedSeconds,
+        summaryMarkdown: evaluation.summaryMarkdown,
+        strengths: evaluation.strengths,
+        improvements: evaluation.improvements,
+      },
+      { id },
+    );
+
+    return updated;
+  }
+
+  public async findById(id: string, userId?: string): Promise<TInterview> {
+    return this._findById(id, userId);
+  }
+
+  public async findBySession(
+    sessionId: string,
+    userId?: string,
+  ): Promise<TInterview[]> {
+    await this._findSession(sessionId, userId);
+
+    return this.db.findAllByColumn("interviews", {
+      filter: { sessionId },
+      sortBy: [{ column: "createdAt", order: "desc" }],
+    });
+  }
+
+  public async remove(id: string, userId?: string): Promise<void> {
+    await this._findById(id, userId);
+
+    return this.db.delete("interviews", { id });
+  }
+
+  private async _findById(id: string, userId?: string): Promise<TInterview> {
+    return this.db.findById("interviews", id, {
+      filter: { ...(userId ? { userId } : {}) },
+    });
+  }
+
+  private async _findSession(
+    sessionId: string,
+    userId?: string,
+  ): Promise<TPrepSessionWithQuestions> {
+    return this.db.findById("prep_session", sessionId, {
+      filter: { ...(userId ? { userId } : {}) },
+      relation: { questions: true, sessionTopics: true, job: true },
+    }) as Promise<TPrepSessionWithQuestions>;
+  }
+
+  private async _loadTopics(
+    session: TPrepSessionWithQuestions,
+  ): Promise<TTopics[]> {
+    const sessionTopics = session.sessionTopics ?? [];
+    const topicIds = sessionTopics.map((st) => st.topicId);
+    if (topicIds.length === 0) {
+      return [];
+    }
+    return this.db.findAllByColumn("topics", { filter: { id: topicIds } });
+  }
+
+  private async _buildContext(
+    interview: TInterview,
+    session: TPrepSessionWithQuestions,
+    provider: TApiKeyProvider,
+  ): Promise<string> {
+    const { context } = await this._buildContextSections(session, {
+      focusTypes: (interview.focusTypes ?? []) as TInterviewFocusType[],
+      topicNames: interview.topicNames ?? [],
+      provider,
+    });
+    return context;
+  }
+
+  // eslint-disable-next-line sonarjs/cognitive-complexity
+  private async _buildContextSections(
+    session: TPrepSessionWithQuestions,
+    dto: { provider: TApiKeyProvider } & Partial<CreateInterviewDto>,
+  ): Promise<{ context: string; sessionQuestions: TQuestion[] }> {
+    const focusTypes = dto.focusTypes ?? [];
+    const topicNames = dto.topicNames ?? [];
+
+    const roleName = session.roleId
+      ? (await this.db.findById("roles", session.roleId)).name
+      : "";
+
+    const allTopics = await this._loadTopics(session);
+    const topics = topicNames.length
+      ? allTopics.filter((t) => topicNames.includes(t.name))
+      : allTopics;
+
+    const focusSet = new Set<TInterviewFocusType>(focusTypes);
+
+    const job = session.job;
+    const reuseSessionQuestions = focusSet.has("prepsession");
+
+    const resumeText = focusSet.has("resume")
+      ? await this._primaryResumeText(dto.provider, session.userId ?? undefined)
+      : null;
+
+    const context = [
+      session.description ? `Description: ${session.description}` : "",
+      roleName ? `Target role: ${roleName}` : "",
+      session.experience ? `Experience level: ${session.experience}` : "",
+      topics.length > 0
+        ? `Topics: ${topics.map((t) => t.name).join(", ")}`
+        : "",
+      focusSet.has("job_description") && job?.description
+        ? `Job description:\n${job.description}`
+        : "",
+      focusSet.has("company") && job ? await this._companyContext(job) : "",
+      reuseSessionQuestions && session.questions.length > 0
+        ? `Session questions:\n${session.questions
+            .map((q, index) => `${index}. ${q.questionText}`)
+            .join("\n")}`
+        : "",
+      focusSet.has("question_bank")
+        ? "Question scope: generate the most commonly asked interview questions for this role and experience level."
+        : "",
+      resumeText ? `Candidate resume:\n${resumeText}` : "",
+      dto.questionCount
+        ? `Number of questions needed: ${dto.questionCount}`
+        : "",
+      dto.maxDurationMinutes
+        ? `Expected interview length: ${dto.maxDurationMinutes} minutes. Pace the questions to fit comfortably within this duration.`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    return {
+      context,
+      sessionQuestions: reuseSessionQuestions ? session.questions : [],
+    };
+  }
+
+  private async _companyContext(job: TJob): Promise<string> {
+    const parts: string[] = [`Company: ${job.companyName}`];
+
+    if (job.companyId) {
+      const company = await this.db.findById("companies", job.companyId);
+      if (company.careerPageUrl) {
+        parts.push(`Career page: ${company.careerPageUrl}`);
+      }
+      if (company.researchDossier) {
+        parts.push(
+          `Company research:\n${JSON.stringify(company.researchDossier, null, 2)}`,
+        );
+      }
+    }
+
+    return parts.join("\n");
+  }
+
+  private async _primaryResumeText(
+    provider: TApiKeyProvider,
+    userId?: string,
+  ): Promise<string> {
+    try {
+      return userId
+        ? await this.resumeService.resumeToText({ userId, provider })
+        : "";
+    } catch {
+      return "";
+    }
+  }
+}

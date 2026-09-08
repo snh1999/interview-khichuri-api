@@ -15,6 +15,7 @@ import type {
   companies,
   education,
   industries,
+  interviews,
   job_preference,
   jobs,
   preference_titles,
@@ -63,6 +64,9 @@ export type TPrepSession = InferSelectModel<typeof prep_session>;
 export type TPrepSessionInsert = InferInsertModel<typeof prep_session>;
 export type TQuestion = InferSelectModel<typeof questions>;
 export type TQuestionInsert = InferInsertModel<typeof questions>;
+
+export type TInterview = InferSelectModel<typeof interviews>;
+export type TInterviewInsert = InferInsertModel<typeof interviews>;
 
 export type TApiKeyInsecure = InferSelectModel<typeof api_key>;
 export type TApiKeyInsert = InferInsertModel<typeof api_key>;

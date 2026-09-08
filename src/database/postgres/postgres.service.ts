@@ -51,6 +51,7 @@ const postgresTableRegistry = {
   [getTableName(schemas.prep_session)]: schemas.prep_session,
   [getTableName(schemas.session_topics)]: schemas.session_topics,
   [getTableName(schemas.questions)]: schemas.questions,
+  [getTableName(schemas.interviews)]: schemas.interviews,
   [getTableName(schemas.profiles)]: schemas.profiles,
   [getTableName(schemas.profile_links)]: schemas.profile_links,
   [getTableName(schemas.work_overview)]: schemas.work_overview,

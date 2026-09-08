@@ -46,11 +46,17 @@ export class PrepSessionService {
     });
   }
 
-  public async findAll(
-    userId?: string,
-    pagination?: TPagination,
-    sortBy?: TSortEntry[],
-  ): Promise<TPrepSession[]> {
+  public async findAll({
+    userId,
+    jobId,
+    pagination,
+    sortBy,
+  }: {
+    userId?: string;
+    jobId?: string;
+    pagination?: TPagination;
+    sortBy?: TSortEntry[];
+  }): Promise<TPrepSession[]> {
     const sort = [
       { column: "isFavorite", order: "desc" as const },
       ...(sortBy ?? []),
@@ -58,7 +64,10 @@ export class PrepSessionService {
     ];
 
     return this.db.findAllByColumn("prep_session", {
-      filter: userId ? { userId } : {},
+      filter: {
+        ...(userId ? { userId } : {}),
+        ...(jobId ? { jobId } : {}),
+      },
       pagination,
       sortBy: sort as TSortBy<"prep_session">[],
       relation: { sessionTopics: true },
