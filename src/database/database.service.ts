@@ -1,3 +1,8 @@
+import { BadRequestException } from "@nestjs/common";
+import { eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
+import type { AnyPgTable } from "drizzle-orm/pg-core";
+import type { SQLiteTable } from "drizzle-orm/sqlite-core";
+
 import type {
   TSingleColumnFilter,
   TColumnNames,
@@ -12,10 +17,6 @@ import type {
   TColumnFilter,
 } from "@/src/database/database.types";
 import type { TpgTableKey } from "@/src/database/postgres/postgres.service";
-import { AnyPgTable } from "drizzle-orm/pg-core";
-import { eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
-import { BadRequestException } from "@nestjs/common";
-import { SQLiteTable } from "drizzle-orm/sqlite-core";
 
 /**
  * Abstract database service. Wraps required drizzle operations behind a driver-agnostic interface.

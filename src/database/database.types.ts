@@ -18,6 +18,7 @@ import type {
   interviews,
   job_preference,
   jobs,
+  notes,
   preference_titles,
   prep_session,
   profile_links,
@@ -64,6 +65,10 @@ export type TPrepSession = InferSelectModel<typeof prep_session>;
 export type TPrepSessionInsert = InferInsertModel<typeof prep_session>;
 export type TQuestion = InferSelectModel<typeof questions>;
 export type TQuestionInsert = InferInsertModel<typeof questions>;
+
+export type TNote = InferSelectModel<typeof notes>;
+export type TNoteInsert = InferInsertModel<typeof notes>;
+export type TNoteWithJobTitle = TNote & { jobTitle?: string };
 
 export type TInterview = InferSelectModel<typeof interviews>;
 export type TInterviewInsert = InferInsertModel<typeof interviews>;
