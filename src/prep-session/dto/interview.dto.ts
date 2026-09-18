@@ -59,10 +59,22 @@ const followUpSchema = z.object({
 
 export class FollowUpDto extends createZodDto(followUpSchema) {}
 
+const listInterviewsQuerySchema = z.object({
+  sessionId: z.uuid().optional(),
+  completed: z.coerce.boolean().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+});
+
+export class ListInterviewsQuery extends createZodDto(
+  listInterviewsQuerySchema,
+) {}
+
 export const interviewEvaluationSchema = z.object({
   overall: z.number().int().min(0).max(100),
   technical: z.number().int().min(0).max(100),
   communication: z.number().int().min(0).max(100),
+  problemSolving: z.number().int().min(0).max(100),
+  leadershipFit: z.number().int().min(0).max(100),
   summaryMarkdown: z.string(),
   strengths: z.array(z.string()),
   improvements: z.array(z.string()),

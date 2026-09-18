@@ -11,8 +11,6 @@ import {
   Post,
 } from "@nestjs/common";
 
-import { JobsQuery } from "@/src/config/guards/jobs-query.decorator";
-import type { TJobsQuery } from "@/src/config/guards/jobs-query.decorator";
 import { Pagination } from "@/src/config/guards/pagination.decorator";
 import {
   JOB_SORTABLE,
@@ -22,13 +20,14 @@ import {
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type { TPagination, TJob } from "@/src/database/database.types";
 
+import { JobsQuery } from "./jobs-query.decorator";
 import {
   CreateJobDto,
   ExtractJobDto,
   TJobWithTopicIds,
   UpdateJobDto,
 } from "./jobs.dto";
-import type { TJobExtractionResult } from "./jobs.dto";
+import type { TJobExtractionResult, TJobsQuery } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 
 @Controller("jobs")

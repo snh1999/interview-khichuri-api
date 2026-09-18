@@ -1,6 +1,5 @@
 import { ConflictException, Injectable } from "@nestjs/common";
 
-import type { TJobsQuery } from "@/src/config/guards/jobs-query.decorator";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
@@ -13,6 +12,7 @@ import {
   TJobExtractionResult,
   TJobWithTopicIds,
 } from "./jobs.dto";
+import type { TDateFilter, TJobsQuery } from "./jobs.dto";
 import type {
   TDatabase,
   TJob,
@@ -23,6 +23,15 @@ import type {
 } from "../database/database.types";
 
 const MAX_JOBS_PER_USER = 200;
+
+const DATE_TYPE_COLUMN: Record<
+  TDateFilter["type"],
+  "deadline" | "interviewDate" | "appliedAt"
+> = {
+  deadline: "deadline",
+  interview: "interviewDate",
+  applied: "appliedAt",
+};
 
 @Injectable()
 export class JobsService {
@@ -94,12 +103,7 @@ export class JobsService {
 
     const dateRanges: TDateRangeOption<"jobs">[] = dateFilters
       ? dateFilters.map(({ type, from, to }) => ({
-          column:
-            type === "interview"
-              ? "interviewDate"
-              : type === "applied"
-                ? "appliedAt"
-                : "deadline",
+          column: DATE_TYPE_COLUMN[type],
           range: { from, to },
         }))
       : [];

@@ -115,6 +115,8 @@ export const interviews = sqliteTable(
     overallScore: integer("overall_score"),
     technicalScore: integer("technical_score"),
     communicationScore: integer("communication_score"),
+    problemSolvingScore: integer("problem_solving_score"),
+    leadershipFitScore: integer("leadership_fit_score"),
     elapsedSeconds: integer("elapsed_seconds"),
     summaryMarkdown: text("summary_markdown"),
     strengths: text("strengths", { mode: "json" }).$type<string[]>(),

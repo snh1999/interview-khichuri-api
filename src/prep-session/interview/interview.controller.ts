@@ -20,6 +20,7 @@ import {
   CreateInterviewDto,
   FollowUpDto,
   IInterviewWithQuestions,
+  ListInterviewsQuery,
   TInterviewQuestion,
 } from "../dto/interview.dto";
 
@@ -71,10 +72,15 @@ export class InterviewController {
   }
 
   @Get()
-  public findBySession(
-    @Query("sessionId", ParseUUIDPipe) sessionId: string,
+  public findMany(
+    @Query() query: ListInterviewsQuery,
     @UserId() userId?: string,
   ): Promise<TInterview[]> {
-    return this.interviewService.findBySession(sessionId, userId);
+    const { sessionId, completed, limit } = query;
+    return this.interviewService.findMany(
+      sessionId,
+      { completed, limit },
+      userId,
+    );
   }
 }

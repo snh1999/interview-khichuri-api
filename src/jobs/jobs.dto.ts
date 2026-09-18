@@ -14,6 +14,40 @@ import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
+export const JOB_DATE_TYPES = ["deadline", "interview", "applied"] as const;
+
+const dateFilterSchema = z.array(
+  z.object({
+    type: z.enum(JOB_DATE_TYPES),
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
+  }),
+);
+
+export type TDateFilter = z.infer<typeof dateFilterSchema>[number];
+
+const parseJson = z.string().transform((val, ctx) => {
+  try {
+    return JSON.parse(val) as unknown;
+  } catch {
+    ctx.addIssue({ code: "custom", message: "Invalid filters format" });
+    return z.NEVER;
+  }
+});
+
+export const jobsQuerySchema = z
+  .object({
+    search: z.string().trim().max(100).optional(),
+    status: z.enum(JOB_STATUS).optional(),
+    filters: parseJson.pipe(dateFilterSchema).optional(),
+  })
+  .transform(({ filters, ...rest }) => ({
+    ...rest,
+    dateFilter: filters ?? [],
+  }));
+
+export type TJobsQuery = z.infer<typeof jobsQuerySchema>;
+
 const baseJobSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
   companyName: requiredStr(SHORT_LENGTH),
