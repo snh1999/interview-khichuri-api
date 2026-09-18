@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,12 +9,16 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
 } from "@nestjs/common";
 
 import { JobsQuery } from "@/src/config/guards/jobs-query.decorator";
 import type { TJobsQuery } from "@/src/config/guards/jobs-query.decorator";
 import { Pagination } from "@/src/config/guards/pagination.decorator";
+import {
+  JOB_SORTABLE,
+  SortBy,
+  TSortEntry,
+} from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type { TPagination, TJob } from "@/src/database/database.types";
 
@@ -27,14 +30,6 @@ import {
 } from "./jobs.dto";
 import type { TJobExtractionResult } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
-import {
-  JOB_SORTABLE,
-  SortBy,
-  TSortEntry,
-} from "@/src/config/guards/sort-by.decorator";
-import { AnyPgTable } from "drizzle-orm/pg-core";
-import { eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
-import { SQLiteTable } from "drizzle-orm/sqlite-core";
 
 @Controller("jobs")
 export class JobsController {

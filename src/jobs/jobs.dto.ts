@@ -17,6 +17,7 @@ export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 const baseJobSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
   companyName: requiredStr(SHORT_LENGTH),
+  companyId: z.number().int().positive().nullish(),
   description: requiredStr(),
   status: z.enum(JOB_STATUS).default("saved"),
   roleId: z.number().int().positive().nullish(),
@@ -31,13 +32,26 @@ const baseJobSchema = z.object({
   appliedAt: z.coerce.date().nullish(),
 });
 
-export class CreateJobDto extends createZodDto(baseJobSchema) {}
+const deadlineBeforeInterview = (data: {
+  deadline?: Date | null;
+  interviewDate?: Date | null;
+}): boolean =>
+  !data.interviewDate || !data.deadline || data.deadline < data.interviewDate;
+
+export class CreateJobDto extends createZodDto(
+  baseJobSchema.refine(deadlineBeforeInterview, {
+    message: "Deadline must be before the interview date",
+  }),
+) {}
 export class UpdateJobDto extends createZodDto(
   baseJobSchema
     .omit({ roleId: true })
     .partial()
     .refine((obj) => Object.keys(obj).length > 0, {
       message: "At least one field required",
+    })
+    .refine(deadlineBeforeInterview, {
+      message: "Deadline must be before the interview date",
     }),
 ) {}
 

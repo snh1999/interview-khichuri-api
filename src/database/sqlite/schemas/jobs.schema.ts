@@ -10,6 +10,7 @@ import {
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
 import { JOB_STATUS } from "@/src/jobs/jobs.dto";
 
+import { companies } from "./company.schema";
 import { topics, roles } from "./lookups.schema";
 
 export const jobs = sqliteTable(
@@ -20,6 +21,9 @@ export const jobs = sqliteTable(
       .$defaultFn(() => crypto.randomUUID()),
     title: text("title").notNull(),
     companyName: text("company_name").notNull(),
+    companyId: integer("company_id").references(() => companies.id, {
+      onDelete: "set null",
+    }),
     userId: text("user_id"),
     description: text("description").notNull(),
     location: text("location"),
@@ -58,8 +62,12 @@ export const job_topics = sqliteTable(
   ],
 );
 
-export const jobRelations = relations(jobs, ({ many }) => ({
+export const jobRelations = relations(jobs, ({ one, many }) => ({
   jobTopics: many(job_topics),
+  company: one(companies, {
+    fields: [jobs.companyId],
+    references: [companies.id],
+  }),
 }));
 
 export const jobTopicRelations = relations(job_topics, ({ one }) => ({
