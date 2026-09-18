@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { UtilitiesModule } from "@/src/utilities/utilities.module";
 
 import { BetterAuthModule } from "./better-auth/better-auth.module";
+import { CalendarModule } from "./calendar/calendar.module";
 import { CompanyModule } from "./company/company.module";
 import { ResponseTransformInterceptor } from "./config/interceptors/response.interceptor";
 import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
@@ -43,6 +44,7 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     ...(isApplicationMode ? [] : [BetterAuthModule, EmailModule]),
     HealthModule,
     JobsModule,
+    CalendarModule,
     LookupsModule,
     PrepSessionModule,
     GenAiModule,

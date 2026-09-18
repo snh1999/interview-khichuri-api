@@ -71,6 +71,7 @@ const postgresTableRegistry = {
   [getTableName(schemas.resume)]: schemas.resume,
   [getTableName(schemas.companies)]: schemas.companies,
   [getTableName(schemas.api_key)]: schemas.api_key,
+  [getTableName(schemas.calendar_events)]: schemas.calendar_events,
 } as const;
 
 type TdbQuery = TdbPostgres extends { query: infer Q } ? Q : never;

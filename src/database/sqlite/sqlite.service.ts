@@ -76,6 +76,7 @@ const sqliteTableRegistry = {
   [getTableName(schemas.resume)]: schemas.resume,
   [getTableName(schemas.companies)]: schemas.companies,
   [getTableName(schemas.api_key)]: schemas.api_key,
+  [getTableName(schemas.calendar_events)]: schemas.calendar_events,
 } as const;
 
 export type TdbSqlite = BetterSQLite3Database<typeof schemas>;

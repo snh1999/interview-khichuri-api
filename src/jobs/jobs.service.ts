@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -11,6 +15,7 @@ import {
   ExtractJobDto,
   TJobExtractionResult,
   TJobWithTopicIds,
+  deadlineBeforeInterview,
 } from "./jobs.dto";
 import type { TDateFilter, TJobsQuery } from "./jobs.dto";
 import type {
@@ -167,6 +172,19 @@ export class JobsService {
     userId?: string,
   ): Promise<TJob> {
     const { topicIds, ...data } = dto;
+
+    const existing = await this.findOne(id, userId);
+
+    if (
+      deadlineBeforeInterview({
+        deadline: data.deadline ?? existing.deadline,
+        interviewDate: data.interviewDate ?? existing.interviewDate,
+      })
+    ) {
+      throw new BadRequestException(
+        "Deadline must be before the interview date",
+      );
+    }
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(data).length > 0) {

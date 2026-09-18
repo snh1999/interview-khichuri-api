@@ -66,7 +66,7 @@ const baseJobSchema = z.object({
   appliedAt: z.coerce.date().nullish(),
 });
 
-const deadlineBeforeInterview = (data: {
+export const deadlineBeforeInterview = (data: {
   deadline?: Date | null;
   interviewDate?: Date | null;
 }): boolean =>

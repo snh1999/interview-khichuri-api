@@ -11,6 +11,7 @@ import type {
 } from "@/src/database/postgres/postgres.service";
 import type {
   activities,
+  calendar_events,
   categories,
   companies,
   education,
@@ -48,8 +49,7 @@ export type TReturn<T> = Promise<T> | T;
 export type TDatabase = TdbPostgres | TdbSqlite;
 
 export type TdbWithRelations<K extends TpgTableKey> =
-  | TsqliteWithRelations<K>
-  | TpgWithRelations<K>;
+  TsqliteWithRelations<K> | TpgWithRelations<K>;
 
 // postgres schema get precedence over sqlite for extra FK userId (optional),
 export type TJob = InferSelectModel<typeof jobs>;
@@ -143,6 +143,9 @@ export type TResumeInsert = InferInsertModel<typeof resume>;
 
 export type TCompany = InferSelectModel<typeof companies>;
 export type TCompanyInsert = InferInsertModel<typeof companies>;
+
+export type TCalendarEvent = InferSelectModel<typeof calendar_events>;
+export type TCalendarEventInsert = InferInsertModel<typeof calendar_events>;
 
 export type TProfilePopulated = TProfile & {
   links: TProfileLink[];
