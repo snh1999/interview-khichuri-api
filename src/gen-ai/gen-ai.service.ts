@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { generateText, Output } from "ai";
@@ -57,7 +57,7 @@ export class GenAiService {
         const modelName = options?.model || model || config.defaultModel;
         const providerInstance =
           config.sdk === "google"
-            ? createGoogleGenerativeAI({ apiKey: key })
+            ? createGoogle({ apiKey: key })
             : createOpenAI({ apiKey: key, baseURL: config.baseURL });
 
         const result = await generateText({
