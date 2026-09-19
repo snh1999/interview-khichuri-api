@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogle } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import {
   BadRequestException,
@@ -167,7 +167,7 @@ export class ApiKeyService {
     const config = PROVIDER_CONFIG[provider];
     const providerInstance =
       config.sdk === "google"
-        ? createGoogleGenerativeAI({ apiKey: key })
+        ? createGoogle({ apiKey: key })
         : createOpenAI({ apiKey: key, baseURL: config.baseURL });
 
     try {
