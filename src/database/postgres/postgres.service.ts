@@ -118,9 +118,12 @@ export class PostgresService implements IDatabaseService {
     schemaName: K,
     data: InferInsertModel<TpgTableRegistry[K]>[],
     db: TdbPostgres = this.db,
+    silent = false,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const schema = postgresTableRegistry[schemaName];
-    const result = await db.insert(schema).values(data).returning();
+    const result = silent
+      ? await db.insert(schema).values(data).onConflictDoNothing().returning()
+      : await db.insert(schema).values(data).returning();
     return result as InferSelectModel<TpgTableRegistry[K]>[];
   }
 

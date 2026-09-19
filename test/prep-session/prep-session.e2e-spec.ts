@@ -270,6 +270,34 @@ describe("PrepSession (e2e)", () => {
       expect(body.data[0].description).toBe(descA);
       expect(body.data[1].description).toBe(descB);
     });
+
+    it("should sort prep sessions by isFavorite descending (favorites first)", async () => {
+      await createSession({
+        ...getPrepSessionPayload(),
+        title: "Not Favorite",
+      });
+      await createSession({
+        ...getPrepSessionPayload(),
+        title: "Favorite Session",
+      });
+
+      const { body: listBody } = await auth(
+        httpServer.get("/prep-session"),
+      ).expect(200);
+      const sessionId = (listBody.data as { id: string; title: string }[]).find(
+        (s) => s.title === "Favorite Session",
+      )?.id;
+
+      await auth(httpServer.patch(`/prep-session/${sessionId}`))
+        .send({ isFavorite: true })
+        .expect(200);
+
+      const { body } = await auth(httpServer.get("/prep-session")).expect(200);
+
+      expect(body.data[0].isFavorite).toBe(true);
+      expect(body.data[0].title).toBe("Favorite Session");
+      expect(body.data[1].isFavorite).toBe(false);
+    });
   });
 
   describe("GET /prep-session/:id", () => {
@@ -399,6 +427,27 @@ describe("PrepSession (e2e)", () => {
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
         .send({ description: "" })
         .expect(400);
+    });
+
+    it("should toggle isFavorite", async () => {
+      const {
+        body: { data: created },
+      } = await createSession();
+      const sessionId: string = created.id;
+
+      await auth(httpServer.patch(`/prep-session/${sessionId}`))
+        .send({ isFavorite: true })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.isFavorite).toBe(true);
+        });
+
+      await auth(httpServer.patch(`/prep-session/${sessionId}`))
+        .send({ isFavorite: false })
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data.isFavorite).toBe(false);
+        });
     });
 
     it("should return 404 when patching non-existent session", async () => {

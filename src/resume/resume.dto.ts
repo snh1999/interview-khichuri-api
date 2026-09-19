@@ -1,6 +1,12 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
+import {
+  SHORT_LENGTH,
+  TINY_LENGTH,
+  str,
+  dateStr,
+} from "@/src/common/validation";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
@@ -15,41 +21,61 @@ import {
   workExperienceSchema,
 } from "@/src/profile/profile.dto";
 
-const publicationExtractionSchema = publicationSchema.partial();
+export const omitDate = { startDate: true, endDate: true } as const;
+export const extendDate = { startDate: dateStr, endDate: dateStr } as const;
+
+const publicationExtractionSchema = publicationSchema
+  .omit({ id: true })
+  .partial();
 
 const projectExtractionSchema = projectSchema
-  .omit({ skills: true })
-  .extend({ skills: z.array(z.string()).default([]) })
+  .omit({ id: true, skills: true })
+  .extend({ skills: z.array(str(TINY_LENGTH)).default([]) })
   .partial();
 
 const referenceExtractionSchema = referenceSchema
+  .omit({ id: true })
   .extend({ email: z.string().nullish() })
   .partial();
 
-const activityExtractionSchema = activitySchema.partial();
+const activityExtractionSchema = activitySchema.omit({ id: true }).partial();
 
 export const extractedProfileSchema = z.object({
   personal: updateProfileSchema.partial(),
   professional: workOverviewSchema
     .omit({ skills: true, industries: true })
     .extend({
-      skills: z.array(z.string()).nullish(),
-      industries: z.array(z.string()).nullish(),
+      skills: z.array(str(TINY_LENGTH)).nullish(),
+      industries: z.array(str(SHORT_LENGTH)).nullish(),
     })
     .partial(),
   workExperience: z
-    .array(workExperienceSchema.omit({ id: true, companyId: true }).partial())
+    .array(
+      workExperienceSchema
+        .omit({ id: true, companyId: true, ...omitDate })
+        .extend(extendDate)
+        .partial(),
+    )
     .default([]),
-  education: z.array(educationSchema.omit({ id: true }).partial()).default([]),
+  education: z
+    .array(
+      educationSchema
+        .omit({ id: true, ...omitDate })
+        .extend(extendDate)
+        .partial(),
+    )
+    .default([]),
   preferences: jobPreferenceSchema
     .omit({ coverLetterTone: true, coverLetterTemplate: true, titles: true })
-    .extend({ titles: z.array(z.string()).default([]) })
+    .extend({ titles: z.array(str(SHORT_LENGTH)).default([]) })
     .partial(),
-  links: z.array(profileLinkSchema).default([]),
-  publications: z.array(publicationExtractionSchema).default([]),
-  projects: z.array(projectExtractionSchema).default([]),
-  references: z.array(referenceExtractionSchema).default([]),
-  activities: z.array(activityExtractionSchema).default([]),
+  links: z.array(profileLinkSchema.partial()).default([]),
+  publications: z.array(publicationExtractionSchema.partial()).default([]),
+  projects: z.array(projectExtractionSchema.partial()).default([]),
+  references: z.array(referenceExtractionSchema.partial()).default([]),
+  activities: z
+    .array(activityExtractionSchema.omit(omitDate).extend(extendDate).partial())
+    .default([]),
 });
 
 export type TExtractedProfile = z.infer<typeof extractedProfileSchema>;
@@ -97,7 +123,7 @@ export type TResumeContent = z.infer<typeof resumeContentSchema>;
 export const createResumeSchema = z.object({
   name: z.string().trim().min(1, "Resume name is required").max(100),
   content: resumeContentSchema,
-  template: z.string().optional(),
+  template: str(TINY_LENGTH).optional(),
 });
 
 export class CreateResumeDto extends createZodDto(createResumeSchema) {}
@@ -105,7 +131,7 @@ export class CreateResumeDto extends createZodDto(createResumeSchema) {}
 export const updateResumeSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   content: resumeContentSchema.optional(),
-  template: z.string().optional(),
+  template: str(TINY_LENGTH).optional(),
   isPublic: z.boolean().optional(),
 });
 

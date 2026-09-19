@@ -26,11 +26,13 @@ export const prep_session = sqliteTable(
     title: text("title").notNull(),
     experience: text("experience"),
     description: text("description"),
+    isFavorite: integer("is_favorite", { mode: "boolean" }).default(false),
     ...defaultTimeStamps,
   },
   (table) => [
     index("idx_session_user_id").on(table.userId),
     index("idx_job_session").on(table.jobId),
+    index("idx_session_fav_created").on(table.isFavorite, table.createdAt),
   ],
 );
 

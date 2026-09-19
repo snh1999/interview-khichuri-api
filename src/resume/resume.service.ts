@@ -248,7 +248,9 @@ export class ResumeService {
       );
       extractedText = result.text.trim();
     } catch (err) {
-      console.error(err);
+      this.logger.error("Failed to extract text from PDF", {
+        message: err instanceof Error ? err.message : String(err),
+      });
       throw new BadRequestException("Failed to extract text from PDF");
     }
 
@@ -263,11 +265,13 @@ export class ResumeService {
       provider,
     );
 
-    const [skills, industries, titles, projectSkillIds] = await Promise.all([
-      this.lookupsService.resolveOrCreateNames(
-        "topics",
-        extracted.professional.skills,
-      ),
+    // important to keep it out of the array to avoid deadlock situation
+    const skills = await this.lookupsService.resolveOrCreateNames(
+      "topics",
+      extracted.professional.skills,
+    );
+
+    const [industries, titles, projectSkillIds] = await Promise.all([
       this.lookupsService.resolveOrCreateNames(
         "industries",
         extracted.professional.industries,

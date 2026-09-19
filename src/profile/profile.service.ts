@@ -94,6 +94,9 @@ export class ProfileService {
       });
       const overviewId = existing[0]?.id;
 
+      const shouldSyncSkills = Array.isArray(skills);
+      const shouldSyncIndustries = Array.isArray(industries);
+
       if (overviewId) {
         if (Object.keys(overviewFields).length > 0) {
           await this.db.update(
@@ -104,11 +107,11 @@ export class ProfileService {
           );
         }
 
-        if (Array.isArray(skills) || Array.isArray(industries)) {
+        if (shouldSyncSkills || shouldSyncIndustries) {
           await this._replaceWorkOverviewRelations(
             overviewId,
             transaction,
-            skills,
+            shouldSyncSkills ? skills : undefined,
             industries,
           );
         }
@@ -119,11 +122,11 @@ export class ProfileService {
           transaction,
         )) as unknown as { id: number };
 
-        if (Array.isArray(skills) || Array.isArray(industries)) {
+        if (shouldSyncSkills || shouldSyncIndustries) {
           await this._replaceWorkOverviewRelations(
             created.id,
             transaction,
-            skills,
+            shouldSyncSkills ? skills : undefined,
             industries,
           );
         }

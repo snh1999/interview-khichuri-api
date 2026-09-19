@@ -49,6 +49,7 @@ export abstract class IDatabaseService {
     schemaName: K,
     data: TInsert<K>[],
     db?: TDatabase,
+    silent?: boolean,
   ): TReturn<TSelect<K>[]>;
 
   abstract count<K extends TpgTableKey>(

@@ -11,7 +11,6 @@ import {
   TSortBy,
 } from "@/src/database/database.types";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
-import { LookupsService } from "@/src/lookups/lookups.service";
 
 import {
   CreateQuestionDto,
@@ -28,14 +27,13 @@ export class PrepSessionService {
   public constructor(
     private readonly db: IDatabaseService,
     private readonly genAiService: GenAiService,
-    private readonly lookupsService: LookupsService,
   ) {}
 
   public async create(
     dto: CreatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSession> {
-    const { topicIds, topicNames, ...data } = dto;
+    const { topicIds, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
       const session = await this.db.create(
@@ -43,12 +41,7 @@ export class PrepSessionService {
         { ...data, userId },
         transaction,
       );
-      await this._createSessionTopics(
-        session.id,
-        transaction,
-        topicIds,
-        topicNames,
-      );
+      await this._createSessionTopics(session.id, transaction, topicIds);
       return session;
     });
   }
@@ -59,6 +52,7 @@ export class PrepSessionService {
     sortBy?: TSortEntry[],
   ): Promise<TPrepSession[]> {
     const sort = [
+      { column: "isFavorite", order: "desc" as const },
       ...(sortBy ?? []),
       { column: "createdAt", order: "desc" as const },
     ];
@@ -86,7 +80,7 @@ export class PrepSessionService {
     dto: UpdatePrepSessionDto,
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
-    const { topicIds, topicNames, ...sessionFields } = dto;
+    const { topicIds, ...sessionFields } = dto;
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(sessionFields).length > 0) {
@@ -97,27 +91,14 @@ export class PrepSessionService {
           transaction,
         );
       }
-      if (topicIds || topicNames) {
+      if (topicIds) {
         await this.db.syncJunctionTable(
           "session_topics",
           { column: "sessionId", value: id },
           "topicId",
-          topicIds ?? [],
+          topicIds,
           transaction,
         );
-        if (topicNames?.length) {
-          const resolved = await this.lookupsService.resolveOrCreateNames(
-            "topics",
-            topicNames,
-          );
-          await this.db.syncJunctionTable(
-            "session_topics",
-            { column: "sessionId", value: id },
-            "topicId",
-            resolved,
-            transaction,
-          );
-        }
       }
     });
 
@@ -236,24 +217,13 @@ export class PrepSessionService {
     sessionId: string,
     transaction: TDatabase,
     topicIds?: number[],
-    topicNames?: string[],
   ): Promise<void> {
-    if (!topicNames && !topicIds) return;
+    if (!topicIds?.length) return;
 
-    const resolvedTopicNames = await this.lookupsService.resolveOrCreateNames(
-      "topics",
-      topicNames,
-    );
-    const allTopicIds = [
-      ...new Set([...(topicIds ?? []), ...resolvedTopicNames]),
-    ];
-
-    if (allTopicIds.length) {
-      const sessionTopics = allTopicIds.map((topicId) => ({
-        sessionId,
-        topicId,
-      }));
-      await this.db.createMany("session_topics", sessionTopics, transaction);
-    }
+    const sessionTopics = topicIds.map((topicId) => ({
+      sessionId,
+      topicId,
+    }));
+    await this.db.createMany("session_topics", sessionTopics, transaction);
   }
 }

@@ -31,6 +31,7 @@ import { EmailService } from "../email/email.service";
         emailService: EmailService,
       ) => ({
         auth: betterAuth({
+          appName: "Interview Khichuri",
           database: drizzleAdapter(db, { provider: "pg" }),
           trustedOrigins: [config.get("FRONTEND_URL")],
           plugins: [
@@ -44,6 +45,8 @@ import { EmailService } from "../email/email.service";
                 "/admin/set-user-password",
               ],
             }),
+            // TODO: add a cron job to purge abandoned 2FA setup rows
+            // (two_factor with verified = false) older than a TTL.
             twoFactor(),
             passkey(),
           ],

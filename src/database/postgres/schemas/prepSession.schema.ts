@@ -28,11 +28,13 @@ export const prep_session = pgTable(
     title: text("title").notNull(),
     experience: text("experience"),
     description: text("description"),
+    isFavorite: boolean("is_favorite").default(false),
     ...defaultTimeStamps,
   },
   (table) => [
     index("idx_session_user_id").on(table.userId),
     index("idx_job_session").on(table.jobId),
+    index("idx_session_fav_created").on(table.isFavorite, table.createdAt),
   ],
 );
 
