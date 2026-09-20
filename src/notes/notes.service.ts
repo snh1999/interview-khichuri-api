@@ -10,6 +10,7 @@ import {
   TNote,
   TNoteWithJobTitle,
   TPagination,
+  TQuestion,
   TSortBy,
 } from "@/src/database/database.types";
 import { EXPLAIN_INTERVIEW_QUESTION_PROMPT } from "@/src/gen-ai/gen-ai.constants";
@@ -25,6 +26,9 @@ import {
 } from "./notes.dto";
 
 type TNoteWithJobRelation = TNote & { job: { title: string | null } | null };
+type TQuestionWithSession = TQuestion & {
+  session: { userId: string | null } | null;
+};
 
 @Injectable()
 export class NotesService {
@@ -40,10 +44,26 @@ export class NotesService {
       );
     }
 
+    const user = userId ? { userId } : {};
+
+    if (dto.jobId) {
+      await this.db.findById("jobs", dto.jobId, { filter: user });
+    }
+
+    if (dto.questionId) {
+      const question = (await this.db.findById("questions", dto.questionId, {
+        relation: { session: { columns: { userId: true } } },
+      })) as unknown as TQuestionWithSession;
+
+      if (userId && question.session?.userId !== userId) {
+        throw new ForbiddenException("Question not found");
+      }
+    }
+
     return this.db.create("notes", {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       ...dto,
-      userId: userId ?? null,
+      ...user,
     });
   }
 

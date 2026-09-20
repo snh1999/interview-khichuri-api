@@ -8,7 +8,7 @@ export const calendar_events = sqliteTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    userId: text("user_id").notNull(),
+    userId: text("user_id"),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
     startDate: integer("start_date", { mode: "timestamp" }).notNull(),

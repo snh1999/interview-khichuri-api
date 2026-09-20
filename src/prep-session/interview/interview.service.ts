@@ -178,9 +178,14 @@ export class InterviewService {
       sortBy: [{ column: "createdAt", order: "desc" }],
     });
 
-    const items = options.completed
-      ? all.filter((interview) => interview.completedAt)
-      : all;
+    const items =
+      options.completed === undefined
+        ? all
+        : all.filter((interview) =>
+            options.completed
+              ? Boolean(interview.completedAt)
+              : !interview.completedAt,
+          );
     return options.limit ? items.slice(0, options.limit) : items;
   }
 

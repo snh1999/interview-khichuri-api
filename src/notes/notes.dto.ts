@@ -1,7 +1,12 @@
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-import { SHORT_LENGTH, requiredStr, str } from "@/src/common/validation";
+import {
+  SHORT_LENGTH,
+  queryBool,
+  requiredStr,
+  str,
+} from "@/src/common/validation";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 
 const createNoteSchema = z.object({
@@ -24,7 +29,7 @@ const updateNoteSchema = createNoteSchema
 export class UpdateNoteDto extends createZodDto(updateNoteSchema) {}
 
 const listNotesQuerySchema = z.object({
-  isFavorite: z.coerce.boolean().optional(),
+  isFavorite: queryBool(),
   search: str(SHORT_LENGTH).optional(),
 });
 

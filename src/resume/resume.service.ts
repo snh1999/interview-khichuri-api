@@ -386,13 +386,17 @@ export class ResumeService {
     userId: string;
     provider: TApiKeyProvider;
   }): Promise<string> {
-    const resume = resumeId
-      ? await this._findById(resumeId, userId)
-      : (
-          await this.db.findAllByColumn("resume", {
-            filter: { profileId: userId, isPrimary: true },
-          })
-        )[0];
+    const [resume] = resumeId
+      ? [await this._findById(resumeId, userId)]
+      : await this.db.findAllByColumn("resume", {
+          filter: { profileId: userId, isPrimary: true },
+        });
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (!resume) {
+      throw new NotFoundException("No primary resume found");
+    }
+
     const content = this._deserializeContent(resume.content);
     if (content) {
       return this._contentToJson(content);

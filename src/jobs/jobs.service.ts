@@ -118,6 +118,8 @@ export class JobsService {
     };
 
     if (search) {
+      // TODO: combined search + dateFilter breaks pagination, low priority for now as we are not using pagination in FE yet
+      //  Fix: add an optional `search` option to findAllByColumn and fold FTS/LIKE into a single query with sortBy + dateRanges + pagination;
       const result = await this.db.search(
         "jobs",
         ["title", "description"],
@@ -176,7 +178,7 @@ export class JobsService {
     const existing = await this.findOne(id, userId);
 
     if (
-      deadlineBeforeInterview({
+      !deadlineBeforeInterview({
         deadline: data.deadline ?? existing.deadline,
         interviewDate: data.interviewDate ?? existing.interviewDate,
       })
