@@ -1,4 +1,3 @@
-import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import {
@@ -8,6 +7,7 @@ import {
   requiredStr,
   str,
 } from "@/src/common/validation";
+import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TApiKeyInsert } from "@/src/database/database.types";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 

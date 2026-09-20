@@ -101,7 +101,6 @@ export default tseslint.config(
       "n/prefer-node-protocol": "error",
 
       "unicorn/prefer-node-protocol": "off", // covered by n/
-      "unicorn/no-array-for-each": "error",
       "unicorn/no-for-loop": "error",
       "unicorn/prefer-includes": "error",
       "unicorn/prefer-string-slice": "error",

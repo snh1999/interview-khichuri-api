@@ -1,10 +1,10 @@
-import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import {
   DEFAULT_MAX_STRING_LENGTH,
   requiredStr,
 } from "@/src/common/validation";
+import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TCalendarEventInsert } from "@/src/database/database.types";
 
 export const CALENDAR_EVENT_COLOR_KEYS = [

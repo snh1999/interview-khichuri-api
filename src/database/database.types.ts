@@ -54,6 +54,7 @@ export type TdbWithRelations<K extends TpgTableKey> =
 // postgres schema get precedence over sqlite for extra FK userId (optional),
 export type TJob = InferSelectModel<typeof jobs>;
 export type TJobInsert = InferInsertModel<typeof jobs>;
+export type TJobWithCompany = TJob & { company?: TCompany };
 
 export type TRole = InferSelectModel<typeof roles>;
 export type TRoleInsert = InferInsertModel<typeof roles>;
@@ -197,12 +198,18 @@ export interface TSearchResult<K extends TpgTableKey> {
 export type TColumnNames<K extends TpgTableKey> = TpgCols<K> | TSqliteCols<K>;
 
 type TColumnValue<K extends TpgTableKey, C extends TColumnNames<K>> =
-  | (C extends keyof InferSelectModel<TpgTableRegistry[K]>
-      ? InferSelectModel<TpgTableRegistry[K]>[C]
-      : never)
-  | (C extends keyof InferSelectModel<TsqliteTableRegistry[K]>
-      ? InferSelectModel<TsqliteTableRegistry[K]>[C]
-      : never);
+  | (Extract<C, keyof InferSelectModel<TpgTableRegistry[K]>> extends never
+      ? never
+      : InferSelectModel<TpgTableRegistry[K]>[Extract<
+          C,
+          keyof InferSelectModel<TpgTableRegistry[K]>
+        >])
+  | (Extract<C, keyof InferSelectModel<TsqliteTableRegistry[K]>> extends never
+      ? never
+      : InferSelectModel<TsqliteTableRegistry[K]>[Extract<
+          C,
+          keyof InferSelectModel<TsqliteTableRegistry[K]>
+        >]);
 
 export type TSingleColumnFilter<K extends TpgTableKey> = {
   [C in TColumnNames<K>]: {
@@ -213,8 +220,8 @@ export type TSingleColumnFilter<K extends TpgTableKey> = {
 
 export type TSchemaColumnFilter<T extends AnyPgTable | SQLiteTable> = {
   [C in keyof T["_"]["columns"]]?:
-    | InferSelectModel<T>[C & keyof InferSelectModel<T>]
-    | InferSelectModel<T>[C & keyof InferSelectModel<T>][];
+    | InferSelectModel<T>[Extract<C, keyof InferSelectModel<T>>]
+    | InferSelectModel<T>[Extract<C, keyof InferSelectModel<T>>][];
 };
 
 // No clear path to derive from TSchemaColumnFilter as we need both pg and sqlite registry

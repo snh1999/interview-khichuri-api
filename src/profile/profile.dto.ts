@@ -1,4 +1,3 @@
-import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import {
@@ -11,6 +10,7 @@ import {
   requiredStr,
   str,
 } from "@/src/common/validation";
+import { createZodDto } from "@/src/config/utils/zod-dto";
 
 export const PROFILE_LINK_TYPES = [
   "github",
