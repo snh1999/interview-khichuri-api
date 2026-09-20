@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from "@nestjs/common";
 
 import { Pagination } from "@/src/config/guards/pagination.decorator";
@@ -50,11 +51,17 @@ export class PrepSessionController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
+    @Query("jobId", new ParseUUIDPipe({ optional: true })) jobId?: string,
     @SortBy(SESSION_SORTABLE)
     sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TPrepSession[]> {
-    return this.prepSessionService.findAll(userId, pagination, sortBy);
+    return this.prepSessionService.findAll({
+      userId,
+      jobId,
+      pagination,
+      sortBy,
+    });
   }
 
   @Get(":id")

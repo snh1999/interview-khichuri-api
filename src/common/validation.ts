@@ -16,3 +16,12 @@ export const nullishStr = (
 ): z.ZodOptional<z.ZodNullable<z.ZodString>> => requiredStr(max).nullish();
 
 export const dateStr = z.coerce.string().nullish();
+
+export const queryBool = (): z.ZodType<
+  boolean | undefined,
+  "true" | "false" | undefined
+> =>
+  z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional();

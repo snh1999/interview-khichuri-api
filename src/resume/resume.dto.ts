@@ -142,3 +142,70 @@ export const RESUME_TEMPLATES = [
   "minimal",
   "technical",
 ] as const;
+
+const tipSchema = z.object({
+  type: z.enum(["good", "improve"]),
+  tip: z.string(),
+  explanation: z.string(),
+});
+
+export type TAtsTip = z.infer<typeof tipSchema>;
+
+export const atsScoreSchema = z.object({
+  overall: z.number().min(0).max(100),
+  categories: z.array(
+    z.object({
+      key: z.enum([
+        "skillsMatch",
+        "keywordHitRate",
+        "experienceFit",
+        "roleAlignment",
+      ]),
+      score: z.number().min(0).max(100),
+      tips: z.array(tipSchema),
+    }),
+  ),
+  recommendations: z.array(z.string()),
+  matchedKeywords: z.array(z.string()),
+  missingKeywords: z.array(z.string()),
+  tailoringNotes: z.string(),
+});
+
+export type TAtsScore = z.infer<typeof atsScoreSchema>;
+
+export const STANDALONE_CATEGORY_KEYS = [
+  "toneAndStyle",
+  "content",
+  "structure",
+  "skills",
+] as const;
+
+export const standaloneReviewSchema = z.object({
+  overall: z.number().min(0).max(100),
+  categories: z.array(
+    z.object({
+      key: z.enum(STANDALONE_CATEGORY_KEYS),
+      score: z.number().min(0).max(100),
+      tips: z.array(tipSchema),
+    }),
+  ),
+});
+
+export type TStandaloneReview = z.infer<typeof standaloneReviewSchema>;
+
+const scoreResumeSchema = z.object({
+  jobId: z.uuid(),
+  resumeId: z.uuid(),
+  provider: z.enum(GEN_AI_PROVIDERS),
+  model: str(SHORT_LENGTH).nullish(),
+});
+
+export class ScoreResumeDto extends createZodDto(scoreResumeSchema) {}
+
+const reviewStandaloneSchema = z.object({
+  resumeId: z.uuid(),
+  provider: z.enum(GEN_AI_PROVIDERS),
+  model: str(SHORT_LENGTH).nullish(),
+});
+
+export class ReviewStandaloneDto extends createZodDto(reviewStandaloneSchema) {}

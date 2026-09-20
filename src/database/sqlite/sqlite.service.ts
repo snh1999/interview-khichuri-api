@@ -9,9 +9,11 @@ import {
   asc,
   desc,
   eq,
+  gte,
   getTableColumns,
   getTableName,
   inArray,
+  lte,
   InferInsertModel,
   InferSelectModel,
   is,
@@ -26,7 +28,10 @@ import {
   SQLiteTable,
 } from "drizzle-orm/sqlite-core";
 
-import { IDatabaseService } from "@/src/database/database.service";
+import {
+  buildConditions,
+  IDatabaseService,
+} from "@/src/database/database.service";
 import { TpgTableKey } from "@/src/database/postgres/postgres.service";
 
 import { DATABASE_CONNECTION } from "../database.constants";
@@ -38,6 +43,7 @@ import {
   TFindByIdOptions,
   TSearchOptions,
   TColumnFilter,
+  TDateRangeOption,
 } from "../database.types";
 import * as schemas from "./schemas";
 
@@ -50,6 +56,8 @@ const sqliteTableRegistry = {
   [getTableName(schemas.prep_session)]: schemas.prep_session,
   [getTableName(schemas.session_topics)]: schemas.session_topics,
   [getTableName(schemas.questions)]: schemas.questions,
+  [getTableName(schemas.notes)]: schemas.notes,
+  [getTableName(schemas.interviews)]: schemas.interviews,
   [getTableName(schemas.profiles)]: schemas.profiles,
   [getTableName(schemas.profile_links)]: schemas.profile_links,
   [getTableName(schemas.work_overview)]: schemas.work_overview,
@@ -68,6 +76,7 @@ const sqliteTableRegistry = {
   [getTableName(schemas.resume)]: schemas.resume,
   [getTableName(schemas.companies)]: schemas.companies,
   [getTableName(schemas.api_key)]: schemas.api_key,
+  [getTableName(schemas.calendar_events)]: schemas.calendar_events,
 } as const;
 
 export type TdbSqlite = BetterSQLite3Database<typeof schemas>;
@@ -151,12 +160,14 @@ export class SqliteService implements IDatabaseService {
       sortBy,
       pagination,
       relation: relations,
+      dateRanges,
     } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
 
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
-      : [];
+    const conditions = [
+      ...(columns ? buildConditions(schema, columns) : []),
+      ...(dateRanges ? this._buildDateRangeConditions(schema, dateRanges) : []),
+    ];
 
     const orderBy = sortBy?.map((s) => {
       const col = schema[s.column as keyof typeof schema] as SQLiteColumn;
@@ -172,7 +183,6 @@ export class SqliteService implements IDatabaseService {
           limit: pagination.limit,
           offset: pagination.offset,
         }),
-        // returns SQLiteSyncRelationalQuery,
       }) as unknown as InferSelectModel<TsqliteTableRegistry[K]>[];
     }
 
@@ -195,9 +205,7 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): Promise<number> {
     const schema = sqliteTableRegistry[schemaName];
-    const conditions = columns
-      ? this._buildConditions(schema, columns, getTableName(schema))
-      : [];
+    const conditions = columns ? buildConditions(schema, columns) : [];
 
     return db.$count(
       schema,
@@ -227,9 +235,7 @@ export class SqliteService implements IDatabaseService {
       return like(schemaColumns[colName] as AnySQLiteColumn, `%${value}%`);
     });
 
-    const exactConditions = filter
-      ? this._buildConditions(schema, filter, tableName)
-      : [];
+    const exactConditions = filter ? buildConditions(schema, filter) : [];
 
     const whereClause = and(
       ...(likeConditions.length ? [or(...likeConditions)] : []),
@@ -267,9 +273,7 @@ export class SqliteService implements IDatabaseService {
     const { filter, relation: relations } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
 
-    const conditions = filter
-      ? this._buildConditions(schema, filter, getTableName(schema))
-      : [];
+    const conditions = filter ? buildConditions(schema, filter) : [];
 
     const allConditions = [...conditions, eq(schema.id, id)];
 
@@ -317,11 +321,7 @@ export class SqliteService implements IDatabaseService {
     columns: TSchemaColumnFilter<T>,
     db: TdbSqlite = this.db,
   ): InferSelectModel<T>[] {
-    const conditions = this._buildConditions(
-      schema,
-      columns,
-      getTableName(schema),
-    );
+    const conditions = buildConditions(schema, columns);
 
     const result = db
       .update(schema)
@@ -343,11 +343,7 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): void {
     const schema = sqliteTableRegistry[schemaName];
-    const conditions = this._buildConditions(
-      schema,
-      columns,
-      getTableName(schema),
-    );
+    const conditions = buildConditions(schema, columns);
 
     const result = db
       .delete(schema)
@@ -389,22 +385,18 @@ export class SqliteService implements IDatabaseService {
     }
   }
 
-  private _buildConditions(
+  private _buildDateRangeConditions<K extends TsqliteTableKey>(
     schema: SQLiteTable,
-    columns: Record<string, unknown>,
-    serviceName: string,
+    dateRanges: TDateRangeOption<K>[],
   ): ReturnType<typeof eq>[] {
     const schemaColumns = getTableColumns(schema);
-    return Object.entries(columns).map(([colName, value]) => {
-      if (!(colName in schemaColumns)) {
-        throw new BadRequestException(
-          `Column "${colName}" not supported by ${serviceName}`,
-        );
-      }
-      return Array.isArray(value)
-        ? inArray(schemaColumns[colName], value)
-        : eq(schemaColumns[colName], value);
-    });
+    const conditions: ReturnType<typeof eq>[] = [];
+    for (const { column, range } of dateRanges) {
+      const col = schemaColumns[column as string];
+      if (range.from) conditions.push(gte(col, range.from));
+      if (range.to) conditions.push(lte(col, range.to));
+    }
+    return conditions;
   }
 
   public syncJunctionTable<K extends TsqliteTableKey>(

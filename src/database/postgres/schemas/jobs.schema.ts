@@ -16,6 +16,7 @@ import { defaultTimeStamps } from "@/src/database/postgres/schemas/helper";
 import { JOB_STATUS } from "@/src/jobs/jobs.dto";
 
 import { user } from "./auth.schema";
+import { companies } from "./company.schema";
 import { roles, topics } from "./lookups.schema";
 
 export const statusEnum = pgEnum("status", JOB_STATUS);
@@ -27,6 +28,9 @@ export const jobs = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     companyName: text("company_name").notNull(),
+    companyId: integer("company_id").references(() => companies.id, {
+      onDelete: "set null",
+    }),
     description: text("description").notNull(),
     location: text("location"),
     source: text("source"),
@@ -73,8 +77,12 @@ export const job_topics = pgTable(
   ],
 );
 
-export const jobRelations = relations(jobs, ({ many }) => ({
+export const jobRelations = relations(jobs, ({ one, many }) => ({
   jobTopics: many(job_topics),
+  company: one(companies, {
+    fields: [jobs.companyId],
+    references: [companies.id],
+  }),
 }));
 
 export const jobTopicRelations = relations(job_topics, ({ one }) => ({

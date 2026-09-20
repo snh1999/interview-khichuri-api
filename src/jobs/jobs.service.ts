@@ -1,4 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -11,14 +15,28 @@ import {
   ExtractJobDto,
   TJobExtractionResult,
   TJobWithTopicIds,
+  deadlineBeforeInterview,
 } from "./jobs.dto";
+import type { TDateFilter, TJobsQuery } from "./jobs.dto";
 import type {
   TDatabase,
   TJob,
   TJobWithTopics,
   TPagination,
   TSortBy,
+  TDateRangeOption,
 } from "../database/database.types";
+
+const MAX_JOBS_PER_USER = 200;
+
+const DATE_TYPE_COLUMN: Record<
+  TDateFilter["type"],
+  "deadline" | "interviewDate" | "appliedAt"
+> = {
+  deadline: "deadline",
+  interview: "interviewDate",
+  applied: "appliedAt",
+};
 
 @Injectable()
 export class JobsService {
@@ -29,6 +47,17 @@ export class JobsService {
   ) {}
 
   public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
+    if (userId) {
+      const existing = await this.db.findAllByColumn("jobs", {
+        filter: { userId },
+      });
+      if (existing.length >= MAX_JOBS_PER_USER) {
+        throw new ConflictException(
+          `You can only have up to ${MAX_JOBS_PER_USER} jobs`,
+        );
+      }
+    }
+
     const { topicIds, ...data } = dto;
 
     return this.db.withTransaction(async (transaction) => {
@@ -58,36 +87,65 @@ export class JobsService {
     };
   }
 
-  public async findAll(
-    userId?: string,
-    search?: string,
-    pagination?: TPagination,
-    sortBy?: TSortEntry[],
-  ): Promise<TJob[]> {
-    const filters = userId ? { userId } : {};
-    const sort = [
+  public async findAll({
+    userId,
+    query,
+    pagination,
+    sort,
+  }: {
+    userId?: string;
+    query?: TJobsQuery;
+    pagination?: TPagination;
+    sort?: TSortEntry[];
+  }): Promise<TJob[]> {
+    const { search, status, dateFilter: dateFilters } = query ?? {};
+
+    const sortBy = [
       { column: "isFavorite", order: "desc" as const },
-      ...(sortBy ?? []),
+      ...(sort ?? []),
       { column: "createdAt", order: "desc" as const },
-    ];
+    ] as TSortBy<"jobs">[];
+
+    const dateRanges: TDateRangeOption<"jobs">[] = dateFilters
+      ? dateFilters.map(({ type, from, to }) => ({
+          column: DATE_TYPE_COLUMN[type],
+          range: { from, to },
+        }))
+      : [];
+    const filter = {
+      ...(userId ? { userId } : {}),
+      ...(status ? { status } : {}),
+    };
 
     if (search) {
+      // TODO: combined search + dateFilter breaks pagination, low priority for now as we are not using pagination in FE yet
+      //  Fix: add an optional `search` option to findAllByColumn and fold FTS/LIKE into a single query with sortBy + dateRanges + pagination;
       const result = await this.db.search(
         "jobs",
         ["title", "description"],
         search,
-        {
-          filter: filters,
-          pagination,
-        },
+        { filter, pagination },
       );
-      return result.data;
+
+      if (dateRanges.length === 0) {
+        return result.data;
+      }
+
+      const allJobs = await this.db.findAllByColumn("jobs", {
+        filter,
+        sortBy,
+        dateRanges,
+      });
+
+      const searchIds = new Set(result.data.map((j: TJob) => j.id));
+      return allJobs.filter((j: TJob) => searchIds.has(j.id));
     }
 
     return this.db.findAllByColumn("jobs", {
-      filter: filters,
-      sortBy: sort as TSortBy<"jobs">[],
+      filter,
+      sortBy,
       pagination,
+      ...(dateRanges.length > 0 && { dateRanges }),
     });
   }
 
@@ -101,6 +159,7 @@ export class JobsService {
       relation: populate ? { jobTopics: true } : undefined,
     })) as TJobWithTopics;
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const topicIds = (job.jobTopics ?? []).map((jt) => jt.topicId);
 
     return {
@@ -115,6 +174,19 @@ export class JobsService {
     userId?: string,
   ): Promise<TJob> {
     const { topicIds, ...data } = dto;
+
+    const existing = await this.findOne(id, userId);
+
+    if (
+      !deadlineBeforeInterview({
+        deadline: data.deadline ?? existing.deadline,
+        interviewDate: data.interviewDate ?? existing.interviewDate,
+      })
+    ) {
+      throw new BadRequestException(
+        "Deadline must be before the interview date",
+      );
+    }
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(data).length > 0) {

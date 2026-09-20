@@ -11,12 +11,15 @@ import type {
 } from "@/src/database/postgres/postgres.service";
 import type {
   activities,
+  calendar_events,
   categories,
   companies,
   education,
   industries,
+  interviews,
   job_preference,
   jobs,
+  notes,
   preference_titles,
   prep_session,
   profile_links,
@@ -46,8 +49,7 @@ export type TReturn<T> = Promise<T> | T;
 export type TDatabase = TdbPostgres | TdbSqlite;
 
 export type TdbWithRelations<K extends TpgTableKey> =
-  | TsqliteWithRelations<K>
-  | TpgWithRelations<K>;
+  TsqliteWithRelations<K> | TpgWithRelations<K>;
 
 // postgres schema get precedence over sqlite for extra FK userId (optional),
 export type TJob = InferSelectModel<typeof jobs>;
@@ -63,6 +65,13 @@ export type TPrepSession = InferSelectModel<typeof prep_session>;
 export type TPrepSessionInsert = InferInsertModel<typeof prep_session>;
 export type TQuestion = InferSelectModel<typeof questions>;
 export type TQuestionInsert = InferInsertModel<typeof questions>;
+
+export type TNote = InferSelectModel<typeof notes>;
+export type TNoteInsert = InferInsertModel<typeof notes>;
+export type TNoteWithJobTitle = TNote & { jobTitle?: string };
+
+export type TInterview = InferSelectModel<typeof interviews>;
+export type TInterviewInsert = InferInsertModel<typeof interviews>;
 
 export type TApiKeyInsecure = InferSelectModel<typeof api_key>;
 export type TApiKeyInsert = InferInsertModel<typeof api_key>;
@@ -134,6 +143,9 @@ export type TResumeInsert = InferInsertModel<typeof resume>;
 
 export type TCompany = InferSelectModel<typeof companies>;
 export type TCompanyInsert = InferInsertModel<typeof companies>;
+
+export type TCalendarEvent = InferSelectModel<typeof calendar_events>;
+export type TCalendarEventInsert = InferInsertModel<typeof calendar_events>;
 
 export type TProfilePopulated = TProfile & {
   links: TProfileLink[];
@@ -217,11 +229,22 @@ export interface TSortBy<K extends TpgTableKey> {
   order?: TSortOrder;
 }
 
+export interface IDateRange {
+  from?: Date;
+  to?: Date;
+}
+
+export interface TDateRangeOption<K extends TpgTableKey> {
+  column: TColumnNames<K>;
+  range: IDateRange;
+}
+
 export interface TFindAllByColumnOptions<K extends TpgTableKey> {
   filter?: TColumnFilter<K>;
   sortBy?: TSortBy<K>[];
   pagination?: TPagination;
   relation?: TdbWithRelations<K>;
+  dateRanges?: TDateRangeOption<K>[];
 }
 
 export interface TFindByIdOptions<K extends TpgTableKey> {

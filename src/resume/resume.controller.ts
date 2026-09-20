@@ -10,6 +10,8 @@ import {
   UseInterceptors,
   UploadedFile,
   ParseFilePipeBuilder,
+  HttpCode,
+  HttpStatus,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
@@ -19,6 +21,10 @@ import {
   CreateResumeDto,
   ExtractionResult,
   ExtractResumeDto,
+  ReviewStandaloneDto,
+  ScoreResumeDto,
+  TAtsScore,
+  TStandaloneReview,
   UpdateResumeDto,
 } from "@/src/resume/resume.dto";
 import {
@@ -64,7 +70,7 @@ export class ResumeController {
     @Body() dto: CreateResumeDto,
     @UserId() userId?: string,
   ): Promise<TResumeResponse> {
-    return this.resumeService.createFromContent(userId ?? "app", dto);
+    return this.resumeService.create(userId ?? "app", dto);
   }
 
   @Get("slug/:slug")
@@ -82,16 +88,30 @@ export class ResumeController {
   }
 
   @Post(":id/extract")
-  public extractFromProfile(
+  public extractResume(
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: ExtractResumeDto,
     @UserId() userId?: string,
   ): Promise<ExtractionResult> {
-    return this.resumeService.extractFromProfile(
-      id,
-      dto.provider,
-      userId ?? "app",
-    );
+    return this.resumeService.extractResume(id, dto.provider, userId ?? "app");
+  }
+
+  @Post("score")
+  @HttpCode(HttpStatus.OK)
+  public scoreResumeForJob(
+    @Body() dto: ScoreResumeDto,
+    @UserId() userId?: string,
+  ): Promise<TAtsScore> {
+    return this.resumeService.scoreResumeForJob(dto, userId ?? "app");
+  }
+
+  @Post("review-standalone")
+  @HttpCode(HttpStatus.OK)
+  public reviewResumeStandalone(
+    @Body() dto: ReviewStandaloneDto,
+    @UserId() userId?: string,
+  ): Promise<TStandaloneReview> {
+    return this.resumeService.reviewResumeStandalone(dto, userId ?? "app");
   }
 
   @Patch(":id")

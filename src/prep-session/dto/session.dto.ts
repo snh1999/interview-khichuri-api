@@ -5,7 +5,7 @@ import { SHORT_LENGTH, nullishStr, requiredStr } from "@/src/common/validation";
 
 const createPrepSessionSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
-  description: requiredStr(),
+  description: nullishStr(),
   experience: nullishStr(),
   jobId: z.uuid().nullish(),
   roleId: z.number().int().positive().nullish(),

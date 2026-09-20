@@ -9,26 +9,25 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
 } from "@nestjs/common";
 
 import { Pagination } from "@/src/config/guards/pagination.decorator";
-import { JOB_SORTABLE, SortBy } from "@/src/config/guards/sort-by.decorator";
-import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import {
+  JOB_SORTABLE,
+  SortBy,
+  TSortEntry,
+} from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
-import type {
-  TPagination,
-  TJob,
-  TJobWithTopics,
-} from "@/src/database/database.types";
+import type { TPagination, TJob } from "@/src/database/database.types";
 
+import { JobsQuery } from "./jobs-query.decorator";
 import {
   CreateJobDto,
   ExtractJobDto,
   TJobWithTopicIds,
   UpdateJobDto,
 } from "./jobs.dto";
-import type { TJobExtractionResult } from "./jobs.dto";
+import type { TJobExtractionResult, TJobsQuery } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 
 @Controller("jobs")
@@ -52,11 +51,11 @@ export class JobsController {
   public findAll(
     @Pagination() pagination?: TPagination,
     @SortBy(JOB_SORTABLE)
-    sortBy?: TSortEntry[],
-    @Query("search") search?: string,
+    sort?: TSortEntry[],
+    @JobsQuery() query?: TJobsQuery,
     @UserId() userId?: string,
   ): Promise<TJob[]> {
-    return this.jobsService.findAll(userId, search, pagination, sortBy);
+    return this.jobsService.findAll({ userId, query, pagination, sort });
   }
 
   @Get(":id")

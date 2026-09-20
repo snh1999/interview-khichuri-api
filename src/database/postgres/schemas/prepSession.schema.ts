@@ -6,6 +6,7 @@ import {
   pgTable,
   serial,
   text,
+  timestamp,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -70,6 +71,7 @@ export const questions = pgTable("questions", {
 export const sessionRelations = relations(prep_session, ({ one, many }) => ({
   sessionTopics: many(session_topics),
   questions: many(questions),
+  interviews: many(interviews),
   job: one(jobs, {
     fields: [prep_session.jobId],
     references: [jobs.id],
@@ -91,5 +93,48 @@ export const sessionTopicRelations = relations(session_topics, ({ one }) => ({
   topic: one(topics, {
     fields: [session_topics.topicId],
     references: [topics.id],
+  }),
+}));
+
+export const interviews = pgTable(
+  "interviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => prep_session.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "cascade",
+    }),
+    mode: text("mode").default("qa_flow").notNull(),
+    focusTypes: text("focus_types").array(),
+    topicNames: text("topic_names").array(),
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+    overallScore: integer("overall_score"),
+    technicalScore: integer("technical_score"),
+    communicationScore: integer("communication_score"),
+    problemSolvingScore: integer("problem_solving_score"),
+    leadershipFitScore: integer("leadership_fit_score"),
+    elapsedSeconds: integer("elapsed_seconds"),
+    summaryMarkdown: text("summary_markdown"),
+    strengths: text("strengths").array(),
+    improvements: text("improvements").array(),
+    ...defaultTimeStamps,
+  },
+  (table) => [
+    index("idx_interview_session_id").on(table.sessionId),
+    index("idx_interview_user_id").on(table.userId),
+  ],
+);
+
+export const interviewRelations = relations(interviews, ({ one }) => ({
+  session: one(prep_session, {
+    fields: [interviews.sessionId],
+    references: [prep_session.id],
+  }),
+  user: one(user, {
+    fields: [interviews.userId],
+    references: [user.id],
   }),
 }));

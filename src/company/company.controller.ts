@@ -26,6 +26,7 @@ export class CompanyController {
   public constructor(private readonly companyService: CompanyService) {}
 
   @Post()
+  @Roles(["admin"])
   @HttpCode(HttpStatus.CREATED)
   public create(@Body() dto: CreateCompanyDto): Promise<TCompany> {
     return this.companyService.create(dto);

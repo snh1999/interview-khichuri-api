@@ -1,3 +1,8 @@
+import { BadRequestException } from "@nestjs/common";
+import { eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
+import type { AnyPgTable } from "drizzle-orm/pg-core";
+import type { SQLiteTable } from "drizzle-orm/sqlite-core";
+
 import type {
   TSingleColumnFilter,
   TColumnNames,
@@ -145,4 +150,21 @@ export abstract class IDatabaseService {
     data: (Partial<TInsert<K>> & { id?: string | number })[],
     db?: TDatabase,
   ): TReturn<(string | number)[]>;
+}
+
+export function buildConditions(
+  schema: AnyPgTable | SQLiteTable,
+  columns: Record<string, unknown>,
+): ReturnType<typeof eq>[] {
+  const schemaColumns = getTableColumns(schema);
+  return Object.entries(columns).map(([colName, value]) => {
+    if (!(colName in schemaColumns)) {
+      throw new BadRequestException(
+        `Column "${colName}" not supported by ${getTableName(schema)}`,
+      );
+    }
+    return Array.isArray(value)
+      ? inArray(schemaColumns[colName], value)
+      : eq(schemaColumns[colName], value);
+  });
 }
