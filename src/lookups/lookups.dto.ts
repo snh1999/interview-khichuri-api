@@ -1,7 +1,7 @@
-import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import { TINY_LENGTH, str } from "@/src/common/validation";
+import { createZodDto } from "@/src/config/utils/zod-dto";
 
 const createSchema = z.object({
   name: str(TINY_LENGTH).min(2),
