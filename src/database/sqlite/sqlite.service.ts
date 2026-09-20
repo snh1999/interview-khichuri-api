@@ -26,6 +26,7 @@ import {
   AnySQLiteColumn,
   SQLiteColumn,
   SQLiteTable,
+  SQLiteUpdateSetSource,
 } from "drizzle-orm/sqlite-core";
 
 import {
@@ -37,7 +38,6 @@ import { TpgTableKey } from "@/src/database/postgres/postgres.service";
 import { DATABASE_CONNECTION } from "../database.constants";
 import {
   TSingleColumnFilter,
-  TSchemaColumnFilter,
   TSearchResult,
   TFindAllByColumnOptions,
   TFindByIdOptions,
@@ -92,8 +92,6 @@ export type TsqliteWithRelations<K extends TsqliteTableKey> =
         : never
       : never
     : never;
-
-export type TSqliteTableWithId = SQLiteTable & { id: SQLiteColumn };
 
 export type TSqliteCols<K extends TpgTableKey> =
   keyof TsqliteTableRegistry[K]["_"]["columns"];
@@ -306,29 +304,14 @@ export class SqliteService implements IDatabaseService {
     db: TdbSqlite = this.db,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName];
-
-    return this._update(
-      schema,
-      data,
-      columns as TSchemaColumnFilter<typeof schema>,
-      db,
-    );
-  }
-
-  private _update<T extends TSqliteTableWithId>(
-    schema: T,
-    data: Partial<InferInsertModel<T>>,
-    columns: TSchemaColumnFilter<T>,
-    db: TdbSqlite = this.db,
-  ): InferSelectModel<T>[] {
     const conditions = buildConditions(schema, columns);
 
     const result = db
       .update(schema)
-      .set(data)
+      .set(data as SQLiteUpdateSetSource<typeof schema>)
       .where(and(...conditions))
       .returning()
-      .all() as InferSelectModel<T>[] | undefined;
+      .all() as InferSelectModel<TsqliteTableRegistry[K]>[] | undefined;
 
     if (!result || result.length === 0) {
       throw new NotFoundException(`Failed to update ${getTableName(schema)}`);

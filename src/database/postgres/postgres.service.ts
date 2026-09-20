@@ -19,7 +19,12 @@ import {
   gte,
   lte,
 } from "drizzle-orm";
-import { AnyPgColumn, AnyPgTable, PgTable } from "drizzle-orm/pg-core";
+import {
+  AnyPgColumn,
+  AnyPgTable,
+  PgTable,
+  PgUpdateSetSource,
+} from "drizzle-orm/pg-core";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 import {
@@ -30,7 +35,6 @@ import {
 import { DATABASE_CONNECTION } from "../database.constants";
 import {
   TSingleColumnFilter,
-  TSchemaColumnFilter,
   TSearchResult,
   TFindAllByColumnOptions,
   TFindByIdOptions,
@@ -305,33 +309,18 @@ export class PostgresService implements IDatabaseService {
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const schema = postgresTableRegistry[schemaName] as TpgTableRegistry[K] &
       PgTableWithId;
-
-    return this._update(
-      schema,
-      data,
-      columns as TSchemaColumnFilter<typeof schema>,
-      db,
-    );
-  }
-
-  private async _update<T extends PgTableWithId>(
-    schema: T,
-    data: Partial<InferInsertModel<T>>,
-    columns: TSchemaColumnFilter<T>,
-    db: TdbPostgres = this.db,
-  ): Promise<InferSelectModel<T>[]> {
     const conditions = buildConditions(schema, columns);
 
     const result = await db
       .update(schema)
-      .set(data)
+      .set(data as PgUpdateSetSource<typeof schema>)
       .where(and(...conditions))
       .returning();
 
     if (result.length === 0) {
       throw new NotFoundException(`Could not update ${getTableName(schema)}`);
     }
-    return result;
+    return result as InferSelectModel<TpgTableRegistry[K]>[];
   }
 
   public async delete<K extends TpgTableKey>(

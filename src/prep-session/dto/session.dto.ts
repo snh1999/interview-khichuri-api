@@ -1,7 +1,7 @@
-import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import { SHORT_LENGTH, nullishStr, requiredStr } from "@/src/common/validation";
+import { createZodDto } from "@/src/config/utils/zod-dto";
 
 const createPrepSessionSchema = z.object({
   title: requiredStr(SHORT_LENGTH),

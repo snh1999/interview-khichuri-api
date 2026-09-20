@@ -1,4 +1,3 @@
-import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
 import {
@@ -7,6 +6,7 @@ import {
   str,
   dateStr,
 } from "@/src/common/validation";
+import { createZodDto } from "@/src/config/utils/zod-dto";
 import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
