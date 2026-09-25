@@ -13,11 +13,15 @@ import {
 
 export const getPrepSessionPayload = (
   data?: Partial<TPrepSession>,
-): CreatePrepSessionDto => ({
-  ...data,
-  title: data?.title ?? faker.string.sample(10),
-  description: data?.description ?? faker.string.sample(15),
-});
+): CreatePrepSessionDto => {
+  const { isFavorite, title, description, ...rest } = data ?? {};
+  return {
+    ...rest,
+    title: title ?? faker.string.sample(10),
+    description: description ?? faker.string.sample(15),
+    isFavorite: isFavorite ?? false,
+  };
+};
 
 export const expectedPrepSessionStructure = () =>
   expect.objectContaining({

@@ -48,7 +48,17 @@ describe("Jobs (e2e)", () => {
   };
 
   const createJob = (
-    payload: Partial<CreateJobDto> = getJobPayload(),
+    payload: Partial<
+      Omit<
+        CreateJobDto,
+        "appliedAt" | "deadline" | "interviewDate" | "isFavorite"
+      >
+    > & {
+      appliedAt?: string | Date | null;
+      deadline?: string | Date | null;
+      interviewDate?: string | Date | null;
+      isFavorite?: boolean | null;
+    } = getJobPayload(),
     userCookie?: string,
   ) => auth(httpServer.post("/jobs"), userCookie).send(payload).expect(201);
 

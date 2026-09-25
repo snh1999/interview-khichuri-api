@@ -78,10 +78,13 @@ describe("PrepSession (e2e)", () => {
       if (!isAppMode) expect(body.data.userId).toEqual(expect.any(String));
     });
 
-    it("should return 400 when description is missing", async () => {
-      await auth(httpServer.post("/prep-session"))
+    it("should create a session when description is missing", async () => {
+      const { body } = await auth(httpServer.post("/prep-session"))
         .send({ title: "Test" })
-        .expect(400);
+        .expect(201);
+
+      expect(body.data.title).toBe("Test");
+      expect(body.data.description).toBeNull();
     });
 
     it("should return 400 when description is empty", async () => {
