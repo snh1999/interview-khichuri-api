@@ -19,6 +19,7 @@ import {
   UpdateApiKeyDto,
 } from "@/src/gen-ai/api-key/api-key.dto";
 import { PROVIDER_CONFIG } from "@/src/gen-ai/gen-ai.constants";
+import { toQuotaExceededHttpException } from "@/src/gen-ai/gen-ai.errors";
 
 import { EncryptionService } from "./encryption.service";
 
@@ -176,6 +177,15 @@ export class ApiKeyService {
         prompt: "Reply with just the word: ok",
       });
     } catch (error) {
+      const quotaException = toQuotaExceededHttpException(
+        error,
+        provider,
+        model ?? config.defaultModel,
+      );
+      if (quotaException) {
+        throw quotaException;
+      }
+
       // wraps the 403: to preserve project api conventions
       if (error instanceof APICallError) {
         throw new BadRequestException(error.message);
