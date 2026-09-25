@@ -587,7 +587,12 @@ describe("Profile (e2e)", () => {
       await auth(httpServer.put("/profile/education"))
         .send({
           education: [
-            { degreeName: "PhD", institution: "MIT", id: keepId, isCurrent: false },
+            {
+              degreeName: "PhD",
+              institution: "MIT",
+              id: keepId,
+              isCurrent: false,
+            },
           ],
         })
         .expect(204);
