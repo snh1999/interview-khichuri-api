@@ -6,3 +6,4 @@ export * from "./notes.schema";
 export * from "./profile.schema";
 export * from "./company.schema";
 export * from "./gen-ai.schema";
+export * from "./prompts.schema";
