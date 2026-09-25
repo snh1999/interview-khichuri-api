@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  MessageEvent,
 } from "@nestjs/common";
+import { concat, from, map, mergeAll, Observable, of } from "rxjs";
 
 import { IDatabaseService } from "@/src/database/database.service";
 import {
@@ -152,5 +154,53 @@ export class NotesService {
       provider,
       { model },
     );
+  }
+
+  learnMoreStream(dto: LearnMoreDto): Observable<MessageEvent> {
+    const { questionText, provider, model } = dto;
+    const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
+
+    return new Observable<MessageEvent>((subscriber) => {
+      const controller = new AbortController();
+      let cancelled = false;
+
+      const sub = concat(
+        from(
+          this.genAiService.streamMarkdown(prompt, provider, {
+            model,
+            signal: controller.signal,
+          }),
+        ).pipe(
+          mergeAll(),
+          map((text) => ({ data: { type: "text", text } })),
+        ),
+        of({ data: { type: "finish" } }),
+      ).subscribe({
+        next: (event) => {
+          if (!cancelled) subscriber.next(event);
+        },
+        error: (error) => {
+          // The abort-induced error is expected on disconnect — drop it silently.
+          if (cancelled) {
+            return;
+          }
+          const message =
+            error instanceof BadRequestException
+              ? error.message
+              : "Could not generate explanation";
+          subscriber.next({ data: { type: "error", message } });
+          subscriber.complete();
+        },
+        complete: () => {
+          if (!cancelled) subscriber.complete();
+        },
+      });
+
+      return () => {
+        cancelled = true;
+        controller.abort();
+        sub.unsubscribe();
+      };
+    });
   }
 }

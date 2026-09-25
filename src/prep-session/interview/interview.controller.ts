@@ -5,13 +5,17 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  type MessageEvent,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
+  Sse,
 } from "@nestjs/common";
+import { Observable } from "rxjs";
 
 import { UserId } from "@/src/config/guards/user-id.decorator";
+import { SkipEnvelope } from "@/src/config/interceptors/skip-envelope.decorator";
 import { TInterview } from "@/src/database/database.types";
 import { InterviewService } from "@/src/prep-session/interview/interview.service";
 
@@ -52,6 +56,17 @@ export class InterviewController {
     @UserId() userId?: string,
   ): Promise<TInterviewQuestion[]> {
     return this.interviewService.followUps(id, dto, userId);
+  }
+
+  @Post(":id/follow-ups/stream")
+  @SkipEnvelope()
+  @Sse()
+  public followUpsStream(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: FollowUpDto,
+    @UserId() userId?: string,
+  ): Observable<MessageEvent> {
+    return this.interviewService.followUpsStream(id, dto, userId);
   }
 
   @Get(":id")
