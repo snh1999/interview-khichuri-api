@@ -66,6 +66,8 @@ export const JOB_SORTABLE = [
   "status",
   "createdAt",
   "updatedAt",
+  "deadline",
+  "interviewDate",
 ] as const satisfies readonly TpgCols<"jobs">[];
 
 export const SESSION_SORTABLE = [

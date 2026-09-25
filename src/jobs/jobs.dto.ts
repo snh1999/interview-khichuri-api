@@ -108,12 +108,14 @@ export const extractedJobSchema = baseJobSchema
   })
   .partial()
   .extend({
-    title: str(SHORT_LENGTH),
-    topicNames: z.array(str(TINY_LENGTH)).optional(),
-    roleName: nullishStr(SHORT_LENGTH),
+    companyName: str(SHORT_LENGTH).nullish(),
+    status: z.enum(JOB_STATUS).nullish(),
+    location: str(SHORT_LENGTH).nullish(),
+    source: str().nullish(),
+    topicNames: z.array(str(TINY_LENGTH)).max(40).nullish(),
+    roleName: str(SHORT_LENGTH).nullish(),
     deadline: dateStr,
     interviewDate: dateStr,
-    appliedAt: dateStr,
   });
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}
@@ -122,6 +124,7 @@ export type TJobExtractionResult = Omit<
   ExtractedJob,
   "roleName" | "topicNames"
 > & {
+  title?: string;
   roleId: number | null;
   topicIds: number[];
 };
