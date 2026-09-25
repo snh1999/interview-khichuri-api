@@ -63,13 +63,13 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
 
   describe(`POST /${entity}`, () => {
     it(`should create a ${singular}`, async () => {
-      const payload = getLookupPayload();
+      const payload = getLookupPayload({ name: "Frontend Developer" });
       const { body } = await create(payload);
 
       expect(body.statusCode).toBe(201);
       expect(body.message).toBe("");
       expect(body.data).toMatchObject({
-        name: payload.name,
+        name: "frontend developer",
       });
       expect(body.data.id).toEqual(expect.any(Number));
       expect(body.data.isApproved).toBeNull();
@@ -111,7 +111,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       const { body: all } = await auth(httpServer.get(routePath)).expect(200);
       expect(all.data).toHaveLength(2);
       expect((all.data as { name: string }[]).map((r) => r.name)).toEqual(
-        expect.arrayContaining(names),
+        expect.arrayContaining(["alpha", "beta"]),
       );
     });
 
@@ -188,7 +188,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       ).expect(200);
 
       expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe("Frontend Developer");
+      expect(body.data[0].name).toBe("frontend developer");
     });
 
     it(`should return empty list when search name does not match`, async () => {
@@ -229,8 +229,8 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
         httpServer.get(`${routePath}?sort=name:asc`),
       ).expect(200);
 
-      expect(body.data[0].name).toBe("Alpha");
-      expect(body.data[1].name).toBe("Beta");
+      expect(body.data[0].name).toBe("alpha");
+      expect(body.data[1].name).toBe("beta");
     });
   });
 
@@ -245,7 +245,7 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
         .send({ name: updatedName })
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.name).toBe(updatedName);
+          expect(data.name).toBe(`updated ${singular} name`);
         });
     });
 

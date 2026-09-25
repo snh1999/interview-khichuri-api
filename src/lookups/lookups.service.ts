@@ -7,6 +7,13 @@ import { CreateLookupDto, UpdateLookupDto } from "@/src/lookups/lookups.dto";
 
 import { TLookupMap, TLookupSchema } from "./lookups.helpers";
 
+export const normalizeName = (name: string): string =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[._\-(),]/g, "")
+    .replace(/\s+/g, " ");
+
 @Injectable()
 export class LookupsService {
   public constructor(private readonly db: IDatabaseService) {}
@@ -15,7 +22,9 @@ export class LookupsService {
     schema: T,
     dto: CreateLookupDto,
   ): Promise<TLookupMap[T]> {
-    return this.db.create(schema, dto as never) as Promise<TLookupMap[T]>;
+    return this.db.create(schema, {
+      name: normalizeName(dto.name),
+    } as never) as Promise<TLookupMap[T]>;
   }
 
   async findAll<T extends TLookupSchema>(
@@ -39,7 +48,11 @@ export class LookupsService {
     id: number,
     dto: UpdateLookupDto,
   ): Promise<TLookupMap[T]> {
-    const result = await this.db.update(schema, dto as never, { id } as never);
+    const data: { name?: string; isApproved?: boolean } = {
+      ...(dto.name && { name: normalizeName(dto.name) }),
+      ...(dto.isApproved !== undefined && { isApproved: dto.isApproved }),
+    };
+    const result = await this.db.update(schema, data as never, { id } as never);
     return result[0] as TLookupMap[T];
   }
 
@@ -53,7 +66,7 @@ export class LookupsService {
   ): Promise<number[]> {
     if (!names || names.length === 0) return [];
 
-    const uniqueNames = [...new Set(names)];
+    const uniqueNames = [...new Set(names.map(normalizeName).filter(Boolean))];
 
     const existing = await this.db.findAllByColumn(schema, {
       filter: { name: uniqueNames },
@@ -92,7 +105,7 @@ export class LookupsService {
       }
     }
 
-    return names.map((n) => {
+    return uniqueNames.map((n) => {
       const id = nameIdMap.get(n);
       if (id === undefined) throw new Error(`Failed to resolve name: ${n}`);
       return id;
@@ -103,14 +116,17 @@ export class LookupsService {
     schema: TLookupSchema,
     name?: string | null,
   ): Promise<number | null> {
-    if (!name) return null;
+    const normalized = name ? normalizeName(name) : "";
+    if (!normalized) return null;
 
     const existing = await this.db.findAllByColumn(schema, {
-      filter: { name },
+      filter: { name: normalized },
     });
 
     if (existing.length === 0) {
-      const created = await this.db.create(schema, { name });
+      const created = await this.db.create(schema, {
+        name: normalized,
+      });
       return created.id;
     }
 
