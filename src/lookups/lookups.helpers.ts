@@ -16,6 +16,13 @@ export interface TLookupMap {
 
 export type TLookupSchema = keyof TLookupMap;
 
+export const normalizeName = (name: string): string =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[._\-(),]/g, "")
+    .replace(/\s+/g, " ");
+
 @Injectable()
 export class LookupSchemaPipe implements PipeTransform {
   private valid = new Set(["categories", "roles", "topics", "industries"]);

@@ -2,6 +2,10 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("unpdf", () => ({
+  extractText: vi.fn().mockResolvedValue({ text: "resume text" }),
+}));
+
 import { IDatabaseService } from "@/src/database/database.service";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
@@ -65,6 +69,7 @@ describe("ResumeService", () => {
   };
   const mockLookupsService = {
     resolveOrCreateNames: vi.fn().mockResolvedValue([]),
+    resolveNameIds: vi.fn().mockResolvedValue([]),
     resolveOrCreateName: vi.fn().mockResolvedValue(null),
   };
 
@@ -317,6 +322,48 @@ describe("ResumeService", () => {
 
       expect(mockFileService.deleteFile).not.toHaveBeenCalled();
       expect(mockDb.delete).toHaveBeenCalledWith("resume", { id: "r1" });
+    });
+  });
+
+  describe("extractResume", () => {
+    // Resolved lookup ids are deduplicated, so a skill shared across two
+    // projects used to shift every later project's ids onto the wrong skills.
+    it("should map project skill ids by name when projects share a skill", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        profileId: "user-1",
+        url: "resumes/file.pdf",
+        content: null,
+      });
+      mockFileService.downloadFile.mockResolvedValue(
+        Buffer.from("%PDF-1.4 resume text"),
+      );
+      mockGenAiService.extractResume.mockResolvedValue({
+        ...makeContent(),
+        projects: [
+          { name: "A", skills: ["React", "Node"] },
+          { name: "B", skills: ["react", "GraphQL"] },
+        ],
+      });
+      // Deduplicated: the two "react" entries collapse to one id.
+      mockLookupsService.resolveNameIds.mockResolvedValue([
+        { name: "react", id: 1 },
+        { name: "node", id: 2 },
+        { name: "graphql", id: 3 },
+      ]);
+      mockDb.update.mockResolvedValue([]);
+
+      const result = await service.extractResume("r1", "google", "user-1");
+
+      expect(result.projects).toEqual([
+        { name: "A", skills: [1, 2] },
+        { name: "B", skills: [1, 3] },
+      ]);
+      expect(mockDb.update).toHaveBeenCalledWith(
+        "resume",
+        { content: JSON.stringify(result) },
+        { id: "r1" },
+      );
     });
   });
 });

@@ -13,6 +13,7 @@ import type {
   TResume,
 } from "@/src/database/database.types";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { normalizeName } from "@/src/lookups/lookups.helpers";
 import { LookupsService } from "@/src/lookups/lookups.service";
 import {
   CreateResumeDto,
@@ -257,7 +258,7 @@ export class ResumeService {
       extracted.professional.skills,
     );
 
-    const [industries, titles, projectSkillIds] = await Promise.all([
+    const [industries, titles, projectSkills] = await Promise.all([
       this.lookupsService.resolveOrCreateNames(
         "industries",
         extracted.professional.industries,
@@ -266,19 +267,20 @@ export class ResumeService {
         "roles",
         extracted.preferences.titles,
       ),
-      this.lookupsService.resolveOrCreateNames(
+      this.lookupsService.resolveNameIds(
         "topics",
         extracted.projects.flatMap((project) => project.skills ?? []),
       ),
     ]);
 
-    let skillIndex = 0;
-    const projects = extracted.projects.map((project) => {
-      const count = (project.skills ?? []).length;
-      const resolved = projectSkillIds.slice(skillIndex, skillIndex + count);
-      skillIndex += count;
-      return { ...project, skills: resolved };
-    });
+    const skillIdByName = new Map(projectSkills.map((s) => [s.name, s.id]));
+
+    const projects = extracted.projects.map((project) => ({
+      ...project,
+      skills: (project.skills ?? [])
+        .map((skill) => skillIdByName.get(normalizeName(skill)))
+        .filter((id): id is number => id !== undefined),
+    }));
 
     const result = {
       ...extracted,

@@ -57,7 +57,10 @@ describe("Company (e2e)", () => {
   const create = (
     payload: CreateCompanyDto = getCompanyPayload(),
     userCookie?: string,
-  ) => auth(httpServer.post(routePath), userCookie).send(payload).expect(201);
+  ) =>
+    auth(httpServer.post(routePath), userCookie ?? adminAuthCookie)
+      .send(payload)
+      .expect(201);
 
   describe("POST /company", () => {
     it("should create a company", async () => {
@@ -72,13 +75,17 @@ describe("Company (e2e)", () => {
     });
 
     it("should return 400 when name is missing", async () =>
-      auth(httpServer.post(routePath)).send({}).expect(400));
+      auth(httpServer.post(routePath), adminAuthCookie).send({}).expect(400));
 
     it("should return 400 when name is empty", async () =>
-      auth(httpServer.post(routePath)).send({ name: "" }).expect(400));
+      auth(httpServer.post(routePath), adminAuthCookie)
+        .send({ name: "" })
+        .expect(400));
 
     it("should return 400 when name is whitespace only", async () =>
-      auth(httpServer.post(routePath)).send({ name: "   " }).expect(400));
+      auth(httpServer.post(routePath), adminAuthCookie)
+        .send({ name: "   " })
+        .expect(400));
 
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;

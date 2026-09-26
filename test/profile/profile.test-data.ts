@@ -48,7 +48,6 @@ export const getJobPreferencePayload = () => ({
   salaryExpected: 150000,
   currency: "USD",
   preferredLocation: "San Francisco, CA",
-  coverLetterTone: "enthusiastic",
   titles: [],
 });
 
@@ -143,8 +142,6 @@ export const expectedJobPreferenceStructure = () =>
     salaryExpected: expectNullableNumber,
     currency: expect.any(String),
     preferredLocation: expectNullableString,
-    coverLetterTone: expectNullableString,
-    coverLetterTemplate: expectNullableString,
   });
 
 export const expectedProjectStructure = () =>
