@@ -102,8 +102,11 @@ export class PromptsController {
   }
 
   @Get(":id")
-  findOne(@Param("id", ParseIntPipe) id: number): Promise<TPrompt> {
-    return this.promptsService.findById(id);
+  findOne(
+    @Param("id", ParseIntPipe) id: number,
+    @UserId() userId?: string,
+  ): Promise<TPrompt> {
+    return this.promptsService.findById(id, userId);
   }
 
   @Patch(":id")

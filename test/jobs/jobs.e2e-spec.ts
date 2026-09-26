@@ -523,6 +523,101 @@ describe("Jobs (e2e)", () => {
       expect(body.statusCode).toBe(400);
     });
 
+    it("should honor createdAt ascending sort (oldest first)", async () => {
+      const {
+        body: { data: older },
+      } = await createJob({ ...getJobPayload(), title: "Older Job" });
+      const {
+        body: { data: newer },
+      } = await createJob({ ...getJobPayload(), title: "Newer Job" });
+
+      await dbService.update(
+        "jobs",
+        { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+        { id: older.id },
+      );
+      await dbService.update(
+        "jobs",
+        { createdAt: new Date("2026-06-01T00:00:00.000Z") },
+        { id: newer.id },
+      );
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=createdAt:asc"),
+      ).expect(200);
+
+      expect(body.data[0].title).toBe("Older Job");
+      expect(body.data[1].title).toBe("Newer Job");
+    });
+
+    it("should treat a bare createdAt sort as ascending", async () => {
+      const {
+        body: { data: older },
+      } = await createJob({ ...getJobPayload(), title: "Older Job" });
+      const {
+        body: { data: newer },
+      } = await createJob({ ...getJobPayload(), title: "Newer Job" });
+
+      await dbService.update(
+        "jobs",
+        { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+        { id: older.id },
+      );
+      await dbService.update(
+        "jobs",
+        { createdAt: new Date("2026-06-01T00:00:00.000Z") },
+        { id: newer.id },
+      );
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=createdAt"),
+      ).expect(200);
+
+      expect(body.data[0].title).toBe("Older Job");
+      expect(body.data[1].title).toBe("Newer Job");
+    });
+
+    it("should honor createdAt descending sort (newest first)", async () => {
+      const {
+        body: { data: older },
+      } = await createJob({ ...getJobPayload(), title: "Older Job" });
+      const {
+        body: { data: newer },
+      } = await createJob({ ...getJobPayload(), title: "Newer Job" });
+
+      await dbService.update(
+        "jobs",
+        { createdAt: new Date("2026-01-01T00:00:00.000Z") },
+        { id: older.id },
+      );
+      await dbService.update(
+        "jobs",
+        { createdAt: new Date("2026-06-01T00:00:00.000Z") },
+        { id: newer.id },
+      );
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=createdAt:desc"),
+      ).expect(200);
+
+      expect(body.data[0].title).toBe("Newer Job");
+      expect(body.data[1].title).toBe("Older Job");
+    });
+
+    it("should keep descending sorts on non-createdAt columns", async () => {
+      // inserted oldest-first so a dropped `:desc` entry falls back to
+      // createdAt:desc and returns the opposite order
+      await createJob({ ...getJobPayload(), title: "B Job" });
+      await createJob({ ...getJobPayload(), title: "A Job" });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=title:desc"),
+      ).expect(200);
+
+      expect(body.data[0].title).toBe("B Job");
+      expect(body.data[1].title).toBe("A Job");
+    });
+
     it("should sort jobs by isFavorite descending (favorites first)", async () => {
       await createJob({ ...getJobPayload(), title: "Not Favorite" });
       await createJob({ ...getJobPayload(), title: "Favorite Job" });

@@ -112,8 +112,10 @@ export class JobsService {
 
     const sortBy = [
       ...(sort?.length
-        ? sort.filter((s) => s.column !== "createdAt")
+        ? sort
         : [{ column: "isFavorite", order: "desc" as const }]),
+      // trailing tiebreaker for stable pagination; a client-requested
+      // `createdAt` sort stays first and wins, mirroring prep-session.findAll
       { column: "createdAt", order: "desc" as const },
     ] as TSortBy<"jobs">[];
 

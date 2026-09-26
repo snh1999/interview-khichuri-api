@@ -308,6 +308,45 @@ describe("Prompts (e2e)", () => {
       expect(body.data.prompt).toBe(created.prompt);
     });
 
+    it("should return another user's public prompt", async () => {
+      if (isAppMode) return;
+
+      const {
+        body: { data: created },
+      } = await create({ ...getPromptPayload(), isPublic: true });
+      const { cookie: otherUserCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}/${created.id}`),
+        otherUserCookie,
+      ).expect(200);
+
+      expect(body.data.id).toBe(created.id);
+      expect(body.data.prompt).toBe(created.prompt);
+    });
+
+    it("should not return another user's private prompt", async () => {
+      if (isAppMode) return;
+
+      const {
+        body: { data: created },
+      } = await create({ ...getPromptPayload(), isPublic: false });
+      const { cookie: otherUserCookie } = await getTestAuthHeader(
+        app,
+        dbService.database(),
+      );
+
+      const { body } = await auth(
+        httpServer.get(`${routePath}/${created.id}`),
+        otherUserCookie,
+      ).expect(403);
+
+      expect(body.data).toBeUndefined();
+    });
+
     it("should return 404 when prompt does not exist", async () => {
       const { body } = await auth(httpServer.get(`${routePath}/0`)).expect(404);
       expect(body.statusCode).toBe(404);

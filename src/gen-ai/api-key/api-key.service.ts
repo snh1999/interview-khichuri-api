@@ -134,6 +134,13 @@ export class ApiKeyService {
     }
   }
 
+  async assertActiveKey(
+    provider: TApiKeyProvider,
+    userId?: string,
+  ): Promise<void> {
+    await this._findActiveKey(provider, userId);
+  }
+
   async useApiKey<T>(
     provider: TApiKeyProvider,
     operation: (keyInfo: { key: string; model: string | null }) => Promise<T>,

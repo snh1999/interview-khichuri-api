@@ -5,14 +5,11 @@ import { IDatabaseService } from "@/src/database/database.service";
 import type { TPagination, TSortBy } from "@/src/database/database.types";
 import { CreateLookupDto, UpdateLookupDto } from "@/src/lookups/lookups.dto";
 
-import { TLookupMap, TLookupSchema } from "./lookups.helpers";
-
-export const normalizeName = (name: string): string =>
-  name
-    .trim()
-    .toLowerCase()
-    .replace(/[._\-(),]/g, "")
-    .replace(/\s+/g, " ");
+import {
+  type TLookupMap,
+  type TLookupSchema,
+  normalizeName,
+} from "./lookups.helpers";
 
 @Injectable()
 export class LookupsService {
@@ -22,9 +19,7 @@ export class LookupsService {
     schema: T,
     dto: CreateLookupDto,
   ): Promise<TLookupMap[T]> {
-    return this.db.create(schema, {
-      name: normalizeName(dto.name),
-    } as never) as Promise<TLookupMap[T]>;
+    return this.db.create(schema, dto as never) as Promise<TLookupMap[T]>;
   }
 
   async findAll<T extends TLookupSchema>(
@@ -49,7 +44,7 @@ export class LookupsService {
     dto: UpdateLookupDto,
   ): Promise<TLookupMap[T]> {
     const data: { name?: string; isApproved?: boolean } = {
-      ...(dto.name && { name: normalizeName(dto.name) }),
+      ...(dto.name && { name: dto.name }),
       ...(dto.isApproved !== undefined && { isApproved: dto.isApproved }),
     };
     const result = await this.db.update(schema, data as never, { id } as never);
@@ -64,6 +59,14 @@ export class LookupsService {
     schema: TLookupSchema,
     names?: string[] | null,
   ): Promise<number[]> {
+    const resolved = await this.resolveNameIds(schema, names);
+    return resolved.map((entry) => entry.id);
+  }
+
+  async resolveNameIds(
+    schema: TLookupSchema,
+    names?: string[] | null,
+  ): Promise<{ name: string; id: number }[]> {
     if (!names || names.length === 0) return [];
 
     const uniqueNames = [...new Set(names.map(normalizeName).filter(Boolean))];
@@ -105,10 +108,10 @@ export class LookupsService {
       }
     }
 
-    return uniqueNames.map((n) => {
-      const id = nameIdMap.get(n);
-      if (id === undefined) throw new Error(`Failed to resolve name: ${n}`);
-      return id;
+    return uniqueNames.map((name) => {
+      const id = nameIdMap.get(name);
+      if (id === undefined) throw new Error(`Failed to resolve name: ${name}`);
+      return { name, id };
     });
   }
 

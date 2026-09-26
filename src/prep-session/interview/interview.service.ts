@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   type MessageEvent,
 } from "@nestjs/common";
@@ -134,7 +135,7 @@ export class InterviewService {
             return;
           }
           const message =
-            error instanceof BadRequestException
+            error instanceof HttpException
               ? error.message
               : "Could not generate follow-up questions";
           subscriber.next({ data: { type: "error", message } });

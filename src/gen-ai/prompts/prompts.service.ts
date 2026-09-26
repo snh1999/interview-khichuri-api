@@ -76,8 +76,14 @@ export class PromptsService {
     });
   }
 
-  async findById(id: number): Promise<TPrompt> {
-    return this.db.findById("prompts", id);
+  async findById(id: number, userId?: string): Promise<TPrompt> {
+    const prompt = await this.db.findById("prompts", id);
+    if (userId && !prompt.isPublic && prompt.userId !== userId) {
+      throw new ForbiddenException(
+        "You can only access your own private prompts",
+      );
+    }
+    return prompt;
   }
 
   async update(
@@ -143,14 +149,15 @@ export class PromptsService {
     return this.db.withTransaction(async (tx) => {
       await this.db.findById("prompts", promptId);
 
-      const existing = await this.db.findAllByColumn("prompt_likes", {
-        filter: { userId, promptId },
-      });
+      const inserted = await this.db.createMany(
+        "prompt_likes",
+        [{ userId, promptId }],
+        tx,
+        true,
+      );
 
-      if (existing.length > 0) {
-        await this.db.delete("prompt_likes", { userId, promptId }, false, tx);
-      } else {
-        await this.db.create("prompt_likes", { userId, promptId }, tx);
+      if (inserted.length === 0) {
+        await this.db.delete("prompt_likes", { userId, promptId }, true, tx);
       }
 
       const likeCount = await this.db.count("prompt_likes", { promptId }, tx);
@@ -178,21 +185,18 @@ export class PromptsService {
         throw new ForbiddenException("Operation Not allowed");
       }
 
-      const existing = await this.db.findAllByColumn("user_default_prompts", {
-        filter: { userId, type: dto.type },
-      });
+      const inserted = await this.db.createMany(
+        "user_default_prompts",
+        [{ userId, type: dto.type, promptId: dto.promptId }],
+        tx,
+        true,
+      );
 
-      if (existing.length > 0) {
+      if (inserted.length === 0) {
         await this.db.update(
           "user_default_prompts",
           { promptId: dto.promptId },
           { userId, type: dto.type },
-          tx,
-        );
-      } else {
-        await this.db.create(
-          "user_default_prompts",
-          { userId, type: dto.type, promptId: dto.promptId },
           tx,
         );
       }

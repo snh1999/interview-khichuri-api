@@ -379,6 +379,10 @@ export class GenAiService {
     userId?: string,
   ): Promise<IGoogleTtsAudio> {
     const selectedVoice = voice?.trim() ?? GOOGLE_TTS_DEFAULT_VOICE;
+    // The cache is process-wide and not keyed by user, so the active-key check must run before a hit can short-circuit
+    // otherwise a user without a key could replay audio synthesized by someone else.
+    await this.apiKeyService.assertActiveKey("google", userId);
+
     const cacheKey = `${selectedVoice}:${text}`;
     const cached = this.ttsCache.get(cacheKey);
     if (cached) {

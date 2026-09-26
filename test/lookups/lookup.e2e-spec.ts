@@ -87,6 +87,25 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
     it("should return 400 when name is whitespace only", async () =>
       auth(httpServer.post(routePath)).send({ name: "   " }).expect(400));
 
+    it("should return 400 when name is punctuation only", async () => {
+      await auth(httpServer.post(routePath)).send({ name: "--" }).expect(400);
+
+      await auth(httpServer.get(routePath))
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data).toEqual([]);
+        });
+    });
+
+    it("should return 400 when name collapses below the minimum", async () =>
+      auth(httpServer.post(routePath)).send({ name: "a-" }).expect(400));
+
+    it("should normalize a valid name", async () => {
+      const { body } = await create({ name: "Node.js" });
+
+      expect(body.data).toMatchObject({ name: "nodejs" });
+    });
+
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
       await httpServer.post(routePath).send(getLookupPayload()).expect(401);
@@ -121,6 +140,16 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
 
     it("should return 400 for names with empty string", async () => {
       await createBatch(["Valid", ""]).expect(400);
+    });
+
+    it("should return 400 for punctuation-only names without creating them", async () => {
+      await createBatch(["Valid", ".."]).expect(400);
+
+      await auth(httpServer.get(routePath))
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data).toEqual([]);
+        });
     });
 
     it("should reuse existing entries and not create duplicates", async () => {
@@ -272,6 +301,23 @@ describe.each(entities)("Lookups - %s (e2e)", (entity) => {
       await auth(httpServer.patch(`${routePath}/${id}`), adminAuthCookie)
         .send({ name: "" })
         .expect(400);
+    });
+
+    it("should return 400 when patching with punctuation-only name", async () => {
+      const {
+        body: { data: created },
+      } = await create({ name: "Frontend Developer" });
+      const id: number = created.id;
+
+      await auth(httpServer.patch(`${routePath}/${id}`), adminAuthCookie)
+        .send({ name: "()" })
+        .expect(400);
+
+      await auth(httpServer.get(routePath))
+        .expect(200)
+        .expect(({ body: { data } }) => {
+          expect(data[0]).toMatchObject({ id, name: "frontend developer" });
+        });
     });
 
     it("should return 403 for non-admin user in web mode", async () => {
