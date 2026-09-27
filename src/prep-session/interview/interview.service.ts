@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Observable } from "rxjs";
 
+import { createSseStream } from "@/src/common/create-stream";
 import { IDatabaseService } from "@/src/database/database.service";
 import {
   TInterview,
@@ -29,7 +30,6 @@ import {
   TInterviewFocusType,
   TInterviewQuestion,
 } from "../dto/interview.dto";
-import { createSseStream } from "@/src/common/create-stream";
 
 @Injectable()
 export class InterviewService {
@@ -101,7 +101,7 @@ export class InterviewService {
     userId?: string,
   ): Observable<MessageEvent> {
     return createSseStream({
-      getSource: async (signal) => {
+      getSource: async (abortSignal) => {
         const conversation = await this._resolveFollowUpConversation(
           id,
           dto,
@@ -112,7 +112,7 @@ export class InterviewService {
           model: dto.model,
           conversation,
           userId,
-          signal,
+          abortSignal,
         });
       },
       mapChunk: (partial) => ({
