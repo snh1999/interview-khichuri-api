@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+} from "@nestjs/common";
 import { z } from "zod";
 
+import { TApiKeyProvider } from "@/src/database/database.types";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
 import { ValidatePromptDto } from "../dto/validate-prompt.dto";
@@ -26,6 +32,26 @@ export interface IValidationResult {
   shape: IShapeCheckResult;
   llmJudge: ILlmJudgeResult | null;
 }
+
+// A missing key (404, thrown by ApiKeyService before any request) needs adding
+// and a refused one (401/403) needs replacing, so the two get different advice.
+// Retrying fixes neither.
+const judgeFailureReason = (error: unknown, provider: TApiKeyProvider) => {
+  if (!(error instanceof HttpException)) {
+    return "AI validation could not be completed. Please try again.";
+  }
+
+  const credentialProblems: Readonly<Record<number, string>> = {
+    [HttpStatus.NOT_FOUND]: `AI validation needs an API key — none is configured for ${provider}. Add one in Settings.`,
+    [HttpStatus.UNAUTHORIZED]: `AI validation failed — your ${provider} API key was rejected. Check it in Settings.`,
+    [HttpStatus.FORBIDDEN]: `AI validation failed — your ${provider} API key was rejected. Check it in Settings.`,
+  };
+
+  return (
+    credentialProblems[error.getStatus()] ??
+    "AI validation could not be completed. Please try again."
+  );
+};
 
 const judgeSchema = z.object({
   pass: z.boolean(),
@@ -87,6 +113,13 @@ export class PromptValidatorService {
   ): Promise<IValidationResult> {
     const shape = this.shapeCheck(prompt, type, title);
 
+    // The shape check is definitive: the prompt is already rejected, so spending
+    // a model call on it buys nothing, and a failure there would report an API
+    // key problem next to errors that have nothing to do with the key.
+    if (!shape.pass) {
+      return { shape, llmJudge: null };
+    }
+
     const classifierPrompt = `You are a prompt quality classifier for an interview preparation platform.
 
     Analyze the following prompt and determine:
@@ -111,9 +144,9 @@ export class PromptValidatorService {
         provider,
         model,
       })
-      .catch(() => ({
+      .catch((err: unknown) => ({
         pass: false,
-        reason: `AI validation failed — your ${provider} API key may be invalid. Check it in Settings.`,
+        reason: judgeFailureReason(err, provider),
         suggestion: "",
       }));
 

@@ -1,4 +1,9 @@
-import { BadRequestException } from "@nestjs/common";
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -161,9 +166,9 @@ describe("PromptValidatorService", () => {
 
     // A dead key must not turn into a 500 — the user needs a shape result plus a
     // readable reason so they can go fix their key.
-    it("degrades to a failed judge with an actionable reason when the AI call fails", async () => {
+    it("blames the key when the provider rejects it", async () => {
       mockGenAiService.generateStructured.mockRejectedValue(
-        new Error("no key"),
+        new HttpException("unauthorized", HttpStatus.UNAUTHORIZED),
       );
 
       const result = await validate({
@@ -176,20 +181,92 @@ describe("PromptValidatorService", () => {
       expect(result.llmJudge).toEqual({
         pass: false,
         reason:
-          "AI validation failed — your openai API key may be invalid. Check it in Settings.",
+          "AI validation failed — your openai API key was rejected. Check it in Settings.",
         suggestion: "",
       });
     });
 
-    it("still returns shape errors when the judge call fails", async () => {
+    // ApiKeyService throws 404 when no active key is configured. Nothing was
+    // rejected, so "rejected" would be wrong, and "try again" cannot help --
+    // the user has to add a key.
+    it("tells the user to add a key when none is configured", async () => {
       mockGenAiService.generateStructured.mockRejectedValue(
-        new Error("no key"),
+        new NotFoundException("No API key found for: google"),
       );
 
+      const result = await validate({
+        prompt: VALID_PROMPT,
+        type: "resume",
+        provider: "google",
+      });
+
+      expect(result.llmJudge?.reason).toBe(
+        "AI validation needs an API key — none is configured for google. Add one in Settings.",
+      );
+    });
+
+    it("blames the key on a 403 as well as a 401", async () => {
+      mockGenAiService.generateStructured.mockRejectedValue(
+        new HttpException("forbidden", HttpStatus.FORBIDDEN),
+      );
+
+      const result = await validate({
+        prompt: VALID_PROMPT,
+        type: "resume",
+        provider: "google",
+      });
+
+      expect(result.llmJudge?.reason).toContain("was rejected");
+    });
+
+    // A rejected request, a rate limit or an overloaded model are not key
+    // problems, and sending someone to Settings for one wastes their time.
+    it("does not blame the key for failures that are not auth", async () => {
+      for (const status of [
+        HttpStatus.BAD_REQUEST,
+        HttpStatus.TOO_MANY_REQUESTS,
+        HttpStatus.SERVICE_UNAVAILABLE,
+      ]) {
+        mockGenAiService.generateStructured.mockRejectedValue(
+          new HttpException("nope", status),
+        );
+
+        const result = await validate({
+          prompt: VALID_PROMPT,
+          type: "resume",
+          provider: "google",
+        });
+
+        expect(result.llmJudge?.reason).toBe(
+          "AI validation could not be completed. Please try again.",
+        );
+      }
+    });
+
+    it("does not blame the key for an error that is not an HttpException", async () => {
+      mockGenAiService.generateStructured.mockRejectedValue(
+        new Error("socket hang up"),
+      );
+
+      const result = await validate({
+        prompt: VALID_PROMPT,
+        type: "resume",
+        provider: "openai",
+      });
+
+      expect(result.llmJudge?.reason).toBe(
+        "AI validation could not be completed. Please try again.",
+      );
+    });
+
+    // The shape check already settled it, so a model call is pure cost, and a
+    // failure there would report a key problem next to unrelated errors.
+    it("does not call the AI at all when the shape check fails", async () => {
       const result = await validate({ prompt: "short", type: "resume" });
 
       expect(result.shape.pass).toBe(false);
-      expect(result.llmJudge?.pass).toBe(false);
+      expect(result.llmJudge).toBeNull();
+      expect(mockGenAiService.generateStructured).not.toHaveBeenCalled();
     });
   });
 
