@@ -56,13 +56,15 @@ export function toAiHttpException(
   }
 
   const detail = providerErrorMessage(apiError);
+  const violations = providerErrorDetails(apiError);
   const modelLabel = model ? ` (${model})` : "";
   const status = apiError.statusCode ?? HttpStatus.SERVICE_UNAVAILABLE;
 
   const prefix = `AI request to "${provider}"${modelLabel} failed`;
-  const message = detail
-    ? `${prefix}: ${detail}`
-    : `${prefix}. Please try again later.`;
+  const message = [
+    detail ? `${prefix}: ${detail}` : `${prefix}. Please try again later.`,
+    ...violations,
+  ].join(" | ");
 
   return new HttpException(message, status);
 }
@@ -74,6 +76,31 @@ function providerErrorMessage(error?: APICallError): string | null {
     return null;
   }
   return message.split("\n")[0]?.trim() ?? null;
+}
+
+// Google reports request-validation failures in `error.details[].fieldViolations[]`,
+// not in `error.message`, which stays a generic "Request contains an invalid argument."
+// Without this the log never says which part of the request the model refused.
+export function providerErrorDetails(error?: APICallError): string[] {
+  const data = error?.data as
+    | {
+        error?: {
+          details?: {
+            fieldViolations?: { field?: string; description?: string }[];
+          }[];
+        };
+      }
+    | undefined;
+
+  const violations = data?.error?.details?.flatMap(
+    (detail) => detail.fieldViolations ?? [],
+  );
+
+  return (violations ?? [])
+    .map((violation) =>
+      [violation.field, violation.description].filter(Boolean).join(": "),
+    )
+    .filter((entry) => entry.length > 0);
 }
 
 export function toQuotaExceededHttpException(

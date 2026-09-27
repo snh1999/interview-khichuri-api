@@ -1,12 +1,23 @@
 import type { INestApplication } from "@nestjs/common";
 import type supertest from "supertest";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
 import type {
   TPrompt,
   TUserDefaultWithPrompt,
 } from "@/src/database/database.types";
+import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
 import { getPromptPayload } from "./prompts.test-data";
 import { getTestAuthHeader } from "../../utils/auth-helpers";
@@ -597,23 +608,56 @@ describe("Prompts (e2e)", () => {
   });
 
   describe("POST /prompts/validate", () => {
+    // `provider` is required, so the LLM judge now always runs. Stub it to keep
+    // the request off the network and to assert the judge's result flows through.
+    let generateStructured: MockInstance<GenAiService["generateStructured"]>;
+
+    const judgeResult = {
+      pass: true,
+      reason: "Fits the declared category",
+      suggestion: "",
+    };
+
+    beforeEach(() => {
+      generateStructured = vi
+        .spyOn(GenAiService.prototype, "generateStructured")
+        .mockResolvedValue(judgeResult);
+    });
+
+    afterEach(() => {
+      generateStructured.mockRestore();
+    });
+
+    it("should return 400 without a provider", async () => {
+      await auth(httpServer.post(`${routePath}/validate`))
+        .send({
+          prompt: "This is a valid prompt for testing validation",
+          type: "resume",
+        })
+        .expect(400);
+    });
+
     it("should validate a valid prompt", async () => {
       const { body } = await auth(httpServer.post(`${routePath}/validate`))
         .send({
           prompt: "This is a valid prompt for testing validation",
           type: "resume",
+          provider: "openai",
         })
         .expect(201);
 
       expect(body.data).toMatchObject({
         shape: { pass: true, errors: [] },
-        llmJudge: null,
+        llmJudge: judgeResult,
       });
+      expect(generateStructured).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "openai" }),
+      );
     });
 
     it("should return shape errors for invalid prompt", async () => {
       const { body } = await auth(httpServer.post(`${routePath}/validate`))
-        .send({ prompt: "short", type: "resume" })
+        .send({ prompt: "short", type: "resume", provider: "openai" })
         .expect(201);
 
       expect(body.data.shape.pass).toBe(false);

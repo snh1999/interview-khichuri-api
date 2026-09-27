@@ -354,7 +354,11 @@ describe("ResumeService", () => {
       ]);
       mockDb.update.mockResolvedValue([]);
 
-      const result = await service.extractResume("r1", "google", "user-1");
+      const result = await service.extractResume(
+        "r1",
+        { provider: "google" },
+        "user-1",
+      );
 
       expect(result.projects).toEqual([
         { name: "A", skills: [1, 2] },
@@ -384,16 +388,17 @@ describe("ResumeService", () => {
 
       await service.extractResume(
         "r1",
-        "google",
+        { provider: "google", model: "gemini-3.5-flash-lite" },
         "user-1",
-        "gemini-3.5-flash-lite",
       );
 
       expect(mockGenAiService.extractResume).toHaveBeenCalledWith(
         expect.any(String),
-        "google",
-        { model: "gemini-3.5-flash-lite" },
-        "user-1",
+        {
+          provider: "google",
+          model: "gemini-3.5-flash-lite",
+          userId: "user-1",
+        },
       );
     });
   });
