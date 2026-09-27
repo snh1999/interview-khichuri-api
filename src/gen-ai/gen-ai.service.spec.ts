@@ -67,6 +67,15 @@ const capturedModel = (): unknown => {
   return factory?.mock.calls[0]?.[0];
 };
 
+// `Output.object` hides the schema behind a resolved `responseFormat`, so the
+// only way to see what actually goes on the wire is to await it.
+const resolvedWireSchema = async (fn: typeof streamText): Promise<string> => {
+  const output = fn.mock.calls[0]?.[0]?.output as unknown as {
+    responseFormat: Promise<{ type: string; schema: unknown }>;
+  };
+  return JSON.stringify((await output.responseFormat).schema);
+};
+
 describe("GenAiService", () => {
   let service: GenAiService;
 
@@ -172,6 +181,24 @@ describe("GenAiService", () => {
       expect(result).toEqual({ ok: true });
     });
 
+    // The whole point is what leaves the process, so assert on that rather than
+    // on the Zod schema the caller handed in.
+    it("strips the keywords Gemini rejects from the schema it sends", async () => {
+      const constrained = z.object({
+        name: z.string().min(1).max(5).default("x"),
+      });
+
+      await service.generateStructured({
+        prompt: "p",
+        schema: constrained,
+        provider: "google",
+      });
+
+      const sent = await resolvedWireSchema(generateText);
+      expect(sent).not.toMatch(/"\$schema"|"default"|"minLength"|"maxLength"/);
+      expect(sent).toMatch(/"name"/);
+    });
+
     it("maps a provider API failure to an HttpException carrying the provider and model", async () => {
       vi.mocked(generateText).mockRejectedValue(
         new APICallError({
@@ -217,6 +244,215 @@ describe("GenAiService", () => {
           provider: "google",
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // Gemini accepts only a subset of JSON Schema and answers anything outside
+    // it with a bare 400 "Request contains an invalid argument.", no
+    // fieldViolations naming the offending keyword. That is the exact failure
+    // the resume schema produced, so the schema has to be droppable.
+    describe("when Gemini rejects the response schema", () => {
+      const schemaRejection = () =>
+        new APICallError({
+          message: "Request contains an invalid argument.",
+          url: "https://generativelanguage.googleapis.com/v1beta",
+          requestBodyValues: {},
+          statusCode: 400,
+          isRetryable: false,
+          data: {
+            error: { code: 400, status: "INVALID_ARGUMENT" },
+          },
+        });
+
+      it("retries without responseJsonSchema and returns the result", async () => {
+        vi.mocked(generateText)
+          .mockRejectedValueOnce(schemaRejection())
+          .mockResolvedValueOnce({ output: { ok: true } } as never);
+
+        const result = await service.generateStructured({
+          prompt: "p",
+          schema: stubSchema,
+          provider: "google",
+        });
+
+        expect(vi.mocked(generateText)).toHaveBeenCalledTimes(2);
+        expect(result).toEqual({ ok: true });
+      });
+
+      it("turns structured output off rather than sending a schema it refuses", async () => {
+        vi.mocked(generateText)
+          .mockRejectedValueOnce(schemaRejection())
+          .mockResolvedValueOnce({ output: { ok: true } } as never);
+
+        await service.generateStructured({
+          prompt: "p",
+          schema: stubSchema,
+          provider: "google",
+        });
+
+        expect(
+          vi.mocked(generateText).mock.calls[0]?.[0].providerOptions,
+        ).toBeUndefined();
+        expect(
+          vi.mocked(generateText).mock.calls[1]?.[0].providerOptions,
+        ).toMatchObject({ google: { structuredOutputs: false } });
+      });
+
+      // Without a schema on the wire the model only has the prompt to go on, so
+      // the retry has to describe the shape itself.
+      it("describes the expected shape in the retry prompt", async () => {
+        vi.mocked(generateText)
+          .mockRejectedValueOnce(schemaRejection())
+          .mockResolvedValueOnce({ output: { ok: true } } as never);
+
+        await service.generateStructured({
+          prompt: "PROMPT BODY",
+          schema: stubSchema,
+          provider: "google",
+        });
+
+        const retryPrompt = vi.mocked(generateText).mock.calls[1]?.[0]
+          .prompt as string;
+        expect(retryPrompt).toContain("PROMPT BODY");
+        expect(retryPrompt).toContain('"ok"');
+      });
+
+      it("only pays the 400 once per model and schema", async () => {
+        vi.mocked(generateText)
+          .mockRejectedValueOnce(schemaRejection())
+          .mockResolvedValue({ output: { ok: true } } as never);
+
+        await service.generateStructured({
+          prompt: "p",
+          schema: stubSchema,
+          provider: "google",
+        });
+        await service.generateStructured({
+          prompt: "p",
+          schema: stubSchema,
+          provider: "google",
+        });
+
+        expect(
+          vi.mocked(generateText).mock.calls[1]?.[0].providerOptions,
+        ).toMatchObject({ google: { structuredOutputs: false } });
+        expect(
+          vi.mocked(generateText).mock.calls[2]?.[0].providerOptions,
+        ).toMatchObject({ google: { structuredOutputs: false } });
+      });
+
+      it("still reports the failure when the retry fails too", async () => {
+        vi.mocked(generateText).mockRejectedValue(schemaRejection());
+
+        const error = await service
+          .generateStructured({
+            prompt: "p",
+            schema: stubSchema,
+            provider: "google",
+          })
+          .catch((e: unknown) => e);
+
+        expect(vi.mocked(generateText)).toHaveBeenCalledTimes(2);
+        expect(error).toBeInstanceOf(HttpException);
+        expect((error as HttpException).getStatus()).toBe(
+          HttpStatus.BAD_REQUEST,
+        );
+      });
+
+      // A 400 that also fails without the schema was not the schema's fault --
+      // it was the prompt, or a parameter Gemini dislikes. Recording it would
+      // turn off structured output for that schema for the whole process.
+      it("does not blacklist the schema when the retry fails too", async () => {
+        vi.mocked(generateText).mockRejectedValue(schemaRejection());
+
+        await expect(
+          service.generateStructured({
+            prompt: "p",
+            schema: stubSchema,
+            provider: "google",
+          }),
+        ).rejects.toThrow(HttpException);
+
+        vi.mocked(generateText).mockResolvedValue({
+          output: { ok: true },
+        } as never);
+
+        await service.generateStructured({
+          prompt: "p",
+          schema: stubSchema,
+          provider: "google",
+        });
+
+        expect(
+          vi.mocked(generateText).mock.calls[2]?.[0].providerOptions,
+        ).toBeUndefined();
+      });
+
+      it("does not let one rejected prompt disable the schema for another", async () => {
+        vi.mocked(generateText)
+          .mockRejectedValueOnce(schemaRejection())
+          .mockResolvedValueOnce({ output: { ok: true } } as never);
+
+        await service.generateStructured({
+          prompt: "prompt one",
+          schema: stubSchema,
+          provider: "google",
+        });
+        await service.generateStructured({
+          prompt: "prompt two",
+          schema: stubSchema,
+          provider: "google",
+        });
+
+        expect(
+          vi.mocked(generateText).mock.calls[1]?.[0].providerOptions,
+        ).toMatchObject({ google: { structuredOutputs: false } });
+        // A different prompt has not been proven to fail, so it still gets the
+        // schema and has to succeed on the first attempt.
+        expect(
+          vi.mocked(generateText).mock.calls[2]?.[0].providerOptions,
+        ).toBeUndefined();
+      });
+
+      // Quota and overload failures are not the schema's fault, so replaying
+      // them without the schema just doubles the cost of a doomed request.
+      it("does not retry a failure that is not a rejected request", async () => {
+        vi.mocked(generateText).mockRejectedValue(
+          new APICallError({
+            message: "boom",
+            url: "https://generativelanguage.googleapis.com/v1beta",
+            requestBodyValues: {},
+            statusCode: 503,
+            isRetryable: true,
+            data: { error: { message: "Model is overloaded" } },
+          }),
+        );
+
+        await expect(
+          service.generateStructured({
+            prompt: "p",
+            schema: stubSchema,
+            provider: "google",
+          }),
+        ).rejects.toThrow(HttpException);
+
+        expect(vi.mocked(generateText)).toHaveBeenCalledTimes(1);
+      });
+
+      it("leaves the OpenAI path on the schema it already accepts", async () => {
+        const { createOpenAI } = await import("@ai-sdk/openai");
+        vi.mocked(createOpenAI).mockReturnValue(vi.fn() as never);
+        vi.mocked(generateText).mockResolvedValue({
+          output: { ok: true },
+        } as never);
+
+        await service.generateStructured({
+          prompt: "p",
+          schema: stubSchema,
+          provider: "openai",
+        });
+
+        expect(vi.mocked(generateText).mock.calls[0]?.[0].prompt).toBe("p");
+      });
     });
   });
 
@@ -454,6 +690,37 @@ describe("GenAiService", () => {
         controller.signal,
       );
       expect(result).toBe(partialOutputStream);
+    });
+
+    // A stream cannot be retried once it has started, so the schema Gemini gets
+    // has to be acceptable on the first attempt.
+    it("sends Gemini a schema without the keywords it rejects", async () => {
+      const partialOutputStream = (async function* () {})();
+      vi.mocked(streamText).mockReturnValue({ partialOutputStream } as never);
+
+      await service.streamQuestions({
+        provider: "google",
+        conversation: "Q: hi",
+      });
+
+      const sent = await resolvedWireSchema(streamText);
+      expect(sent).not.toMatch(/"\$schema"|"default"|"minLength"|"maxLength"/);
+      // The shape itself has to survive, or the stream is useless.
+      expect(sent).toMatch(/"questions"/);
+    });
+
+    it("leaves the OpenAI stream on the schema it already accepts", async () => {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      vi.mocked(createOpenAI).mockReturnValue(vi.fn() as never);
+      const partialOutputStream = (async function* () {})();
+      vi.mocked(streamText).mockReturnValue({ partialOutputStream } as never);
+
+      await service.streamQuestions({
+        provider: "openai",
+        conversation: "Q: hi",
+      });
+
+      expect(await resolvedWireSchema(streamText)).toMatch(/"minLength"/);
     });
   });
 
