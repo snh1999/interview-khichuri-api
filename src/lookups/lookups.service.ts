@@ -5,7 +5,11 @@ import { IDatabaseService } from "@/src/database/database.service";
 import type { TPagination, TSortBy } from "@/src/database/database.types";
 import { CreateLookupDto, UpdateLookupDto } from "@/src/lookups/lookups.dto";
 
-import { TLookupMap, TLookupSchema } from "./lookups.helpers";
+import {
+  type TLookupMap,
+  type TLookupSchema,
+  normalizeName,
+} from "./lookups.helpers";
 
 @Injectable()
 export class LookupsService {
@@ -39,7 +43,11 @@ export class LookupsService {
     id: number,
     dto: UpdateLookupDto,
   ): Promise<TLookupMap[T]> {
-    const result = await this.db.update(schema, dto as never, { id } as never);
+    const data: { name?: string; isApproved?: boolean } = {
+      ...(dto.name && { name: dto.name }),
+      ...(dto.isApproved !== undefined && { isApproved: dto.isApproved }),
+    };
+    const result = await this.db.update(schema, data as never, { id } as never);
     return result[0] as TLookupMap[T];
   }
 
@@ -51,9 +59,17 @@ export class LookupsService {
     schema: TLookupSchema,
     names?: string[] | null,
   ): Promise<number[]> {
+    const resolved = await this.resolveNameIds(schema, names);
+    return resolved.map((entry) => entry.id);
+  }
+
+  async resolveNameIds(
+    schema: TLookupSchema,
+    names?: string[] | null,
+  ): Promise<{ name: string; id: number }[]> {
     if (!names || names.length === 0) return [];
 
-    const uniqueNames = [...new Set(names)];
+    const uniqueNames = [...new Set(names.map(normalizeName).filter(Boolean))];
 
     const existing = await this.db.findAllByColumn(schema, {
       filter: { name: uniqueNames },
@@ -92,10 +108,10 @@ export class LookupsService {
       }
     }
 
-    return names.map((n) => {
-      const id = nameIdMap.get(n);
-      if (id === undefined) throw new Error(`Failed to resolve name: ${n}`);
-      return id;
+    return uniqueNames.map((name) => {
+      const id = nameIdMap.get(name);
+      if (id === undefined) throw new Error(`Failed to resolve name: ${name}`);
+      return { name, id };
     });
   }
 
@@ -103,14 +119,17 @@ export class LookupsService {
     schema: TLookupSchema,
     name?: string | null,
   ): Promise<number | null> {
-    if (!name) return null;
+    const normalized = name ? normalizeName(name) : "";
+    if (!normalized) return null;
 
     const existing = await this.db.findAllByColumn(schema, {
-      filter: { name },
+      filter: { name: normalized },
     });
 
     if (existing.length === 0) {
-      const created = await this.db.create(schema, { name });
+      const created = await this.db.create(schema, {
+        name: normalized,
+      });
       return created.id;
     }
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   findQuotaError,
+  providerErrorDetails,
   toQuotaExceededHttpException,
   toAiHttpException,
 } from "./gen-ai.errors";
@@ -133,5 +134,104 @@ describe("toAiHttpException", () => {
 
   it("returns null for unrelated errors", () => {
     expect(toAiHttpException(new Error("boom"), "google")).toBeNull();
+  });
+});
+
+// Google answers a malformed request with a generic `error.message` and puts the
+// actionable part in `error.details[].fieldViolations`, so the violations are the
+// only thing that tells the caller which field was wrong.
+const fieldViolationError = new APICallError({
+  message: "Request contains an invalid argument.",
+  url: "https://generativelanguage.googleapis.com/v1beta/models/x",
+  requestBodyValues: {},
+  statusCode: 400,
+  isRetryable: false,
+  data: {
+    error: {
+      message: "Request contains an invalid argument.",
+      details: [
+        {
+          fieldViolations: [
+            {
+              field: "generationConfig.maxOutputTokens",
+              description: "too big",
+            },
+            { field: "contents", description: "must not be empty" },
+          ],
+        },
+      ],
+    },
+  },
+});
+
+describe("providerErrorDetails", () => {
+  it("flattens field violations into readable entries", () => {
+    expect(providerErrorDetails(fieldViolationError)).toEqual([
+      "generationConfig.maxOutputTokens: too big",
+      "contents: must not be empty",
+    ]);
+  });
+
+  it("returns an empty list when the provider reports no violations", () => {
+    expect(providerErrorDetails(busyApiError)).toEqual([]);
+    expect(providerErrorDetails(serverApiError)).toEqual([]);
+    expect(providerErrorDetails()).toEqual([]);
+  });
+
+  it("tolerates details entries that carry no violations", () => {
+    const error = new APICallError({
+      message: "bad",
+      url: "https://provider.example",
+      requestBodyValues: {},
+      statusCode: 400,
+      isRetryable: false,
+      data: { error: { details: [{}, { fieldViolations: [] }] } },
+    });
+
+    expect(providerErrorDetails(error)).toEqual([]);
+  });
+
+  it("renders a violation that has only a field or only a description", () => {
+    const error = new APICallError({
+      message: "bad",
+      url: "https://provider.example",
+      requestBodyValues: {},
+      statusCode: 400,
+      isRetryable: false,
+      data: {
+        error: {
+          details: [
+            {
+              fieldViolations: [
+                { field: "contents" },
+                { description: "must not be empty" },
+                {},
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(providerErrorDetails(error)).toEqual([
+      "contents",
+      "must not be empty",
+    ]);
+  });
+});
+
+describe("toAiHttpException with field violations", () => {
+  it("appends the violations to the message so the bad field is named", () => {
+    const exception = toAiHttpException(
+      fieldViolationError,
+      "google",
+      "gemini",
+    );
+
+    expect(exception?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
+    expect(exception?.message).toContain(
+      "Request contains an invalid argument.",
+    );
+    expect(exception?.message).toContain("contents: must not be empty");
   });
 });

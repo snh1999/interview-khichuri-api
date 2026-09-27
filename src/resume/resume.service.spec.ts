@@ -2,6 +2,10 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("unpdf", () => ({
+  extractText: vi.fn().mockResolvedValue({ text: "resume text" }),
+}));
+
 import { IDatabaseService } from "@/src/database/database.service";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
@@ -62,9 +66,11 @@ describe("ResumeService", () => {
   };
   const mockGenAiService = {
     extractResume: vi.fn(),
+    scoreResumeForJob: vi.fn(),
   };
   const mockLookupsService = {
     resolveOrCreateNames: vi.fn().mockResolvedValue([]),
+    resolveNameIds: vi.fn().mockResolvedValue([]),
     resolveOrCreateName: vi.fn().mockResolvedValue(null),
   };
 
@@ -317,6 +323,120 @@ describe("ResumeService", () => {
 
       expect(mockFileService.deleteFile).not.toHaveBeenCalled();
       expect(mockDb.delete).toHaveBeenCalledWith("resume", { id: "r1" });
+    });
+  });
+
+  describe("extractResume", () => {
+    // Resolved lookup ids are deduplicated, so a skill shared across two
+    // projects used to shift every later project's ids onto the wrong skills.
+    it("should map project skill ids by name when projects share a skill", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        profileId: "user-1",
+        url: "resumes/file.pdf",
+        content: null,
+      });
+      mockFileService.downloadFile.mockResolvedValue(
+        Buffer.from("%PDF-1.4 resume text"),
+      );
+      mockGenAiService.extractResume.mockResolvedValue({
+        ...makeContent(),
+        projects: [
+          { name: "A", skills: ["React", "Node"] },
+          { name: "B", skills: ["react", "GraphQL"] },
+        ],
+      });
+      // Deduplicated: the two "react" entries collapse to one id.
+      mockLookupsService.resolveNameIds.mockResolvedValue([
+        { name: "react", id: 1 },
+        { name: "node", id: 2 },
+        { name: "graphql", id: 3 },
+      ]);
+      mockDb.update.mockResolvedValue([]);
+
+      const result = await service.extractResume(
+        "r1",
+        { provider: "google" },
+        "user-1",
+      );
+
+      expect(result.projects).toEqual([
+        { name: "A", skills: [1, 2] },
+        { name: "B", skills: [1, 3] },
+      ]);
+      expect(mockDb.update).toHaveBeenCalledWith(
+        "resume",
+        { content: JSON.stringify(result) },
+        { id: "r1" },
+      );
+    });
+
+    // The requested model used to be dropped here, so extraction fell back to
+    // the provider's hardcoded default instead of the caller's choice.
+    it("should forward the requested model and userId to the extraction call", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        profileId: "user-1",
+        url: "resumes/file.pdf",
+        content: null,
+      });
+      mockFileService.downloadFile.mockResolvedValue(
+        Buffer.from("%PDF-1.4 resume text"),
+      );
+      mockGenAiService.extractResume.mockResolvedValue(makeContent());
+      mockDb.update.mockResolvedValue([]);
+
+      await service.extractResume(
+        "r1",
+        { provider: "google", model: "gemini-3.5-flash-lite" },
+        "user-1",
+      );
+
+      expect(mockGenAiService.extractResume).toHaveBeenCalledWith(
+        expect.any(String),
+        {
+          provider: "google",
+          model: "gemini-3.5-flash-lite",
+          userId: "user-1",
+        },
+      );
+    });
+  });
+
+  describe("scoreResumeForJob", () => {
+    it("should forward the requested model and userId to the scoring call", async () => {
+      mockDb.findById
+        .mockResolvedValueOnce({
+          id: "r1",
+          profileId: "user-1",
+          content: JSON.stringify(makeContent()),
+        })
+        .mockResolvedValueOnce({
+          id: "j1",
+          description: "job description",
+          companyName: "Acme",
+          company: null,
+        });
+      mockGenAiService.scoreResumeForJob.mockResolvedValue({ overall: 80 });
+
+      await service.scoreResumeForJob(
+        {
+          jobId: "j1",
+          resumeId: "r1",
+          provider: "google",
+          model: "gemini-3.5-flash-lite",
+        },
+        "user-1",
+      );
+
+      expect(mockGenAiService.scoreResumeForJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "google",
+          jobDescription: "job description",
+          model: "gemini-3.5-flash-lite",
+          userId: "user-1",
+        }),
+      );
     });
   });
 });

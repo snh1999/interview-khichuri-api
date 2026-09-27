@@ -29,6 +29,15 @@ import type {
 
 const MAX_JOBS_PER_USER = 200;
 
+const JOB_TITLE_SEPARATOR = " - ";
+
+const composeJobTitle = (
+  companyName?: string | null,
+  roleName?: string | null,
+): string | undefined =>
+  [companyName, roleName].filter(Boolean).join(JOB_TITLE_SEPARATOR) ||
+  undefined;
+
 const DATE_TYPE_COLUMN: Record<
   TDateFilter["type"],
   "deadline" | "interviewDate" | "appliedAt"
@@ -71,8 +80,11 @@ export class JobsService {
     });
   }
 
-  public async extractJob(dto: ExtractJobDto): Promise<TJobExtractionResult> {
-    const extracted = await this.genAiService.extractJob(dto);
+  public async extractJob(
+    dto: ExtractJobDto,
+    userId?: string,
+  ): Promise<TJobExtractionResult> {
+    const extracted = await this.genAiService.extractJob(dto, userId);
 
     const [roleId, topicIds] = await Promise.all([
       this.lookupsService.resolveOrCreateName("roles", extracted.roleName),
@@ -82,6 +94,7 @@ export class JobsService {
     return {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       ...extracted,
+      title: composeJobTitle(extracted.companyName, extracted.roleName),
       roleId,
       topicIds,
     };
@@ -101,8 +114,11 @@ export class JobsService {
     const { search, status, dateFilter: dateFilters } = query ?? {};
 
     const sortBy = [
-      { column: "isFavorite", order: "desc" as const },
-      ...(sort ?? []),
+      ...(sort?.length
+        ? sort
+        : [{ column: "isFavorite", order: "desc" as const }]),
+      // trailing tiebreaker for stable pagination; a client-requested
+      // `createdAt` sort stays first and wins, mirroring prep-session.findAll
       { column: "createdAt", order: "desc" as const },
     ] as TSortBy<"jobs">[];
 

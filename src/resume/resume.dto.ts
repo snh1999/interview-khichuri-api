@@ -1,13 +1,15 @@
 import { z } from "zod";
 
 import {
+  LARGE_LENGTH,
+  MID_LENGTH,
   SHORT_LENGTH,
   TINY_LENGTH,
   str,
   dateStr,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
   educationSchema,
@@ -30,7 +32,7 @@ const publicationExtractionSchema = publicationSchema
 
 const projectExtractionSchema = projectSchema
   .omit({ id: true, skills: true })
-  .extend({ skills: z.array(str(TINY_LENGTH)).default([]) })
+  .extend({ skills: z.array(str(TINY_LENGTH)).max(50).default([]) })
   .partial();
 
 const referenceExtractionSchema = referenceSchema
@@ -45,8 +47,8 @@ export const extractedProfileSchema = z.object({
   professional: workOverviewSchema
     .omit({ skills: true, industries: true })
     .extend({
-      skills: z.array(str(TINY_LENGTH)).nullish(),
-      industries: z.array(str(SHORT_LENGTH)).nullish(),
+      skills: z.array(str(TINY_LENGTH)).max(60).nullish(),
+      industries: z.array(str(SHORT_LENGTH)).max(30).nullish(),
     })
     .partial(),
   workExperience: z
@@ -56,6 +58,7 @@ export const extractedProfileSchema = z.object({
         .extend(extendDate)
         .partial(),
     )
+    .max(30)
     .default([]),
   education: z
     .array(
@@ -64,17 +67,22 @@ export const extractedProfileSchema = z.object({
         .extend(extendDate)
         .partial(),
     )
+    .max(20)
     .default([]),
   preferences: jobPreferenceSchema
-    .omit({ coverLetterTone: true, coverLetterTemplate: true, titles: true })
-    .extend({ titles: z.array(str(SHORT_LENGTH)).default([]) })
+    .omit({ titles: true })
+    .extend({ titles: z.array(str(SHORT_LENGTH)).max(10).default([]) })
     .partial(),
-  links: z.array(profileLinkSchema.partial()).default([]),
-  publications: z.array(publicationExtractionSchema.partial()).default([]),
-  projects: z.array(projectExtractionSchema.partial()).default([]),
-  references: z.array(referenceExtractionSchema.partial()).default([]),
+  links: z.array(profileLinkSchema.partial()).max(20).default([]),
+  publications: z
+    .array(publicationExtractionSchema.partial())
+    .max(30)
+    .default([]),
+  projects: z.array(projectExtractionSchema.partial()).max(30).default([]),
+  references: z.array(referenceExtractionSchema.partial()).max(10).default([]),
   activities: z
     .array(activityExtractionSchema.omit(omitDate).extend(extendDate).partial())
+    .max(30)
     .default([]),
 });
 
@@ -99,11 +107,7 @@ export type ExtractionResult = Omit<
   })[];
 };
 
-export const extractResumeSchema = z.object({
-  provider: z.enum(GEN_AI_PROVIDERS),
-});
-
-export class ExtractResumeDto extends createZodDto(extractResumeSchema) {}
+export class ExtractResumeDto extends createZodDto(aiCommonSchema) {}
 
 export const resumeContentSchema = z.object({
   personal: updateProfileSchema,
@@ -137,16 +141,10 @@ export const updateResumeSchema = z.object({
 
 export class UpdateResumeDto extends createZodDto(updateResumeSchema) {}
 
-export const RESUME_TEMPLATES = [
-  "professional",
-  "minimal",
-  "technical",
-] as const;
-
 const tipSchema = z.object({
   type: z.enum(["good", "improve"]),
-  tip: z.string(),
-  explanation: z.string(),
+  tip: str(MID_LENGTH),
+  explanation: str(LARGE_LENGTH),
 });
 
 export type TAtsTip = z.infer<typeof tipSchema>;
@@ -162,12 +160,12 @@ export const atsScoreSchema = z.object({
         "roleAlignment",
       ]),
       score: z.number().min(0).max(100),
-      tips: z.array(tipSchema),
+      tips: z.array(tipSchema).max(10),
     }),
   ),
-  recommendations: z.array(z.string()),
-  matchedKeywords: z.array(z.string()),
-  missingKeywords: z.array(z.string()),
+  recommendations: z.array(str(MID_LENGTH)).max(15),
+  matchedKeywords: z.array(str(SHORT_LENGTH)).max(50),
+  missingKeywords: z.array(str(SHORT_LENGTH)).max(50),
   tailoringNotes: z.string(),
 });
 
@@ -186,26 +184,22 @@ export const standaloneReviewSchema = z.object({
     z.object({
       key: z.enum(STANDALONE_CATEGORY_KEYS),
       score: z.number().min(0).max(100),
-      tips: z.array(tipSchema),
+      tips: z.array(tipSchema).max(10),
     }),
   ),
 });
 
 export type TStandaloneReview = z.infer<typeof standaloneReviewSchema>;
 
-const scoreResumeSchema = z.object({
+const scoreResumeSchema = aiCommonSchema.extend({
   jobId: z.uuid(),
   resumeId: z.uuid(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: str(SHORT_LENGTH).nullish(),
 });
 
 export class ScoreResumeDto extends createZodDto(scoreResumeSchema) {}
 
-const reviewStandaloneSchema = z.object({
+const reviewStandaloneSchema = aiCommonSchema.extend({
   resumeId: z.uuid(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: str(SHORT_LENGTH).nullish(),
 });
 
 export class ReviewStandaloneDto extends createZodDto(reviewStandaloneSchema) {}

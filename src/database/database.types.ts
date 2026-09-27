@@ -24,6 +24,8 @@ import type {
   prep_session,
   profile_links,
   profiles,
+  prompt_likes,
+  prompts,
   publications,
   projects,
   project_skills,
@@ -33,6 +35,7 @@ import type {
   roles,
   api_key,
   topics,
+  user_default_prompts,
   work_experience,
   work_industries,
   work_overview,
@@ -144,6 +147,18 @@ export type TResumeInsert = InferInsertModel<typeof resume>;
 
 export type TCompany = InferSelectModel<typeof companies>;
 export type TCompanyInsert = InferInsertModel<typeof companies>;
+
+export type TPrompt = InferSelectModel<typeof prompts>;
+export type TPromptInsert = InferInsertModel<typeof prompts>;
+export type TPromptType = TPrompt["type"];
+export type TLikeWithPrompt = InferSelectModel<typeof prompt_likes> & {
+  prompt: TPrompt | null;
+};
+export type TUserDefaultWithPrompt = InferSelectModel<
+  typeof user_default_prompts
+> & {
+  prompt: TPrompt | null;
+};
 
 export type TCalendarEvent = InferSelectModel<typeof calendar_events>;
 export type TCalendarEventInsert = InferInsertModel<typeof calendar_events>;

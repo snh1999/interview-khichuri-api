@@ -10,7 +10,7 @@ import {
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TJob } from "@/src/database/database.types";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
@@ -89,11 +89,9 @@ export class UpdateJobDto extends createZodDto(
     }),
 ) {}
 
-const extractJobSchema = z.object({
+const extractJobSchema = aiCommonSchema.extend({
   description: requiredStr(),
   links: nullishStr(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: nullishStr(SHORT_LENGTH),
 });
 
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}
@@ -108,12 +106,14 @@ export const extractedJobSchema = baseJobSchema
   })
   .partial()
   .extend({
-    title: str(SHORT_LENGTH),
-    topicNames: z.array(str(TINY_LENGTH)).optional(),
-    roleName: nullishStr(SHORT_LENGTH),
+    companyName: str(SHORT_LENGTH).nullish(),
+    status: z.enum(JOB_STATUS).nullish(),
+    location: str(SHORT_LENGTH).nullish(),
+    source: str().nullish(),
+    topicNames: z.array(str(TINY_LENGTH)).max(40).nullish(),
+    roleName: str(SHORT_LENGTH).nullish(),
     deadline: dateStr,
     interviewDate: dateStr,
-    appliedAt: dateStr,
   });
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}
@@ -122,6 +122,7 @@ export type TJobExtractionResult = Omit<
   ExtractedJob,
   "roleName" | "topicNames"
 > & {
+  title?: string;
   roleId: number | null;
   topicIds: number[];
 };

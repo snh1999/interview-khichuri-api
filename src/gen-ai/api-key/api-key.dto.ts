@@ -9,14 +9,15 @@ import {
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TApiKeyInsert } from "@/src/database/database.types";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import {
+  aiCommonSchema,
+  GEN_AI_PROVIDERS,
+} from "@/src/gen-ai/gen-ai.constants";
 
-const apiKeySchema = z.object({
+const apiKeySchema = aiCommonSchema.extend({
   name: requiredStr(SHORT_LENGTH),
-  provider: z.enum(GEN_AI_PROVIDERS),
   key: str(MID_LENGTH),
   isActive: z.boolean().default(false),
-  model: nullishStr(SHORT_LENGTH),
 }) satisfies z.ZodType<TApiKeyInsert>;
 
 export class CreateApiKeyDto extends createZodDto(apiKeySchema) {}

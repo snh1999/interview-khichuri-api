@@ -12,13 +12,17 @@ import {
   expectNullableString,
 } from "../utils/data-helpers";
 
-export const getJobPayload = (data?: Partial<TJob>): CreateJobDto => ({
-  title: faker.string.alphanumeric(10),
-  companyName: faker.company.name(),
-  description: faker.string.sample(15),
-  status: data?.status ?? "saved",
-  ...data,
-});
+export const getJobPayload = (data?: Partial<TJob>): CreateJobDto => {
+  const { isFavorite, status, ...rest } = data ?? {};
+  return {
+    title: faker.string.alphanumeric(10),
+    companyName: faker.company.name(),
+    description: faker.string.sample(15),
+    status: status ?? "saved",
+    isFavorite: isFavorite ?? false,
+    ...rest,
+  };
+};
 
 export const expectedJobStructure = () =>
   expect.objectContaining({

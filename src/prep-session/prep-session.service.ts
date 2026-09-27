@@ -172,6 +172,7 @@ export class PrepSessionService {
       roleName,
       session,
       dto,
+      userId,
     });
 
     const questions = generatedQuestions.questions.map((question) => ({

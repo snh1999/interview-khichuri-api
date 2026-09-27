@@ -1,14 +1,9 @@
 import { z } from "zod";
 
-import {
-  SHORT_LENGTH,
-  nullishStr,
-  queryBool,
-  requiredStr,
-} from "@/src/common/validation";
+import { nullishStr, queryBool, requiredStr } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TInterview } from "@/src/database/database.types";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 
 export const INTERVIEW_MODES = z.enum(["qa_flow", "interview_flow"]);
 
@@ -32,11 +27,9 @@ const FOCUS_TYPES = z.enum([
 
 export type TInterviewFocusType = z.infer<typeof FOCUS_TYPES>;
 
-const createInterviewSchema = z.object({
+const createInterviewSchema = aiCommonSchema.extend({
   sessionId: z.uuid(),
   mode: INTERVIEW_MODES.default("qa_flow"),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: nullishStr(SHORT_LENGTH),
   focusTypes: z.array(FOCUS_TYPES).optional(),
   topicNames: z.array(requiredStr()).optional(),
   questionCount: z.number().int().min(1).max(50).optional(),
@@ -45,9 +38,7 @@ const createInterviewSchema = z.object({
 
 export class CreateInterviewDto extends createZodDto(createInterviewSchema) {}
 
-const completeInterviewSchema = z.object({
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: nullishStr(SHORT_LENGTH),
+const completeInterviewSchema = aiCommonSchema.extend({
   transcript: z.array(transcriptItemSchema).min(1).max(50),
   elapsedSeconds: z.number().int().min(0),
 });
@@ -56,9 +47,7 @@ export class CompleteInterviewDto extends createZodDto(
   completeInterviewSchema,
 ) {}
 
-const followUpSchema = z.object({
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: nullishStr(SHORT_LENGTH),
+const followUpSchema = aiCommonSchema.extend({
   answers: z.array(transcriptItemSchema).min(1).max(50),
 });
 
@@ -95,3 +84,16 @@ export interface IInterviewWithQuestions {
   interview: TInterview;
   questions: TInterviewQuestion[];
 }
+
+export const generatedInterviewQuestionsSchema = z.object({
+  questions: z
+    .array(
+      z.object({
+        questionText: z.string().default(""),
+        answer: nullishStr(),
+        notes: nullishStr(),
+      }),
+    )
+    .min(1)
+    .max(30),
+});

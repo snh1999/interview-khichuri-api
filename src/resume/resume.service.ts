@@ -12,7 +12,9 @@ import type {
   TJobWithCompany,
   TResume,
 } from "@/src/database/database.types";
+import { TAiCommon } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { normalizeName } from "@/src/lookups/lookups.helpers";
 import { LookupsService } from "@/src/lookups/lookups.service";
 import {
   CreateResumeDto,
@@ -23,6 +25,7 @@ import {
   TStandaloneReview,
   type TResumeContent,
   UpdateResumeDto,
+  ExtractResumeDto,
 } from "@/src/resume/resume.dto";
 import {
   FileUploadService,
@@ -215,7 +218,7 @@ export class ResumeService {
 
   public async extractResume(
     resumeId: string,
-    provider: TApiKeyProvider,
+    { provider, model }: ExtractResumeDto,
     profileId: string,
   ): Promise<ExtractionResult> {
     const resume = await this._findById(resumeId, profileId);
@@ -231,12 +234,14 @@ export class ResumeService {
       return cached as unknown as ExtractionResult;
     }
 
-    return this._extractAndStore(resume, provider);
+    return this._extractAndStore(resume, provider, model, profileId);
   }
 
   private async _extractAndStore(
     resume: TResume,
     provider: TApiKeyProvider,
+    model?: string | null,
+    userId?: string,
   ): Promise<ExtractionResult> {
     if (!resume.url) {
       throw new BadRequestException(
@@ -246,10 +251,11 @@ export class ResumeService {
 
     const extractedText = await this._pdfToText(resume.url);
 
-    const extracted = await this.genAiService.extractResume(
-      extractedText,
+    const extracted = await this.genAiService.extractResume(extractedText, {
       provider,
-    );
+      model,
+      userId,
+    });
 
     // important to keep it out of the array to avoid deadlock situation
     const skills = await this.lookupsService.resolveOrCreateNames(
@@ -257,7 +263,7 @@ export class ResumeService {
       extracted.professional.skills,
     );
 
-    const [industries, titles, projectSkillIds] = await Promise.all([
+    const [industries, titles, projectSkills] = await Promise.all([
       this.lookupsService.resolveOrCreateNames(
         "industries",
         extracted.professional.industries,
@@ -266,19 +272,20 @@ export class ResumeService {
         "roles",
         extracted.preferences.titles,
       ),
-      this.lookupsService.resolveOrCreateNames(
+      this.lookupsService.resolveNameIds(
         "topics",
         extracted.projects.flatMap((project) => project.skills ?? []),
       ),
     ]);
 
-    let skillIndex = 0;
-    const projects = extracted.projects.map((project) => {
-      const count = (project.skills ?? []).length;
-      const resolved = projectSkillIds.slice(skillIndex, skillIndex + count);
-      skillIndex += count;
-      return { ...project, skills: resolved };
-    });
+    const skillIdByName = new Map(projectSkills.map((s) => [s.name, s.id]));
+
+    const projects = extracted.projects.map((project) => ({
+      ...project,
+      skills: (project.skills ?? [])
+        .map((skill) => skillIdByName.get(normalizeName(skill)))
+        .filter((id): id is number => id !== undefined),
+    }));
 
     const result = {
       ...extracted,
@@ -303,7 +310,12 @@ export class ResumeService {
   ): Promise<TAtsScore> {
     const { jobId, resumeId, provider, model } = dto;
 
-    const resumeText = await this.resumeToText({ resumeId, userId, provider });
+    const resumeText = await this.resumeToText({
+      resumeId,
+      userId,
+      provider,
+      model,
+    });
 
     const job = (await this.db.findById("jobs", jobId, {
       filter: { ...(userId ? { userId } : {}) },
@@ -330,6 +342,7 @@ export class ResumeService {
       company: companyName,
       companyDetails,
       model,
+      userId,
     });
   }
 
@@ -343,12 +356,14 @@ export class ResumeService {
       resumeId,
       userId,
       provider,
+      model,
     });
 
     return this.genAiService.reviewResumeStandalone({
       provider,
       resume: resumeText,
       model,
+      userId,
     });
   }
 
@@ -381,10 +396,10 @@ export class ResumeService {
     resumeId,
     userId,
     provider,
-  }: {
+    model,
+  }: TAiCommon & {
     resumeId?: string;
     userId: string;
-    provider: TApiKeyProvider;
   }): Promise<string> {
     const [resume] = resumeId
       ? [await this._findById(resumeId, userId)]
@@ -402,7 +417,12 @@ export class ResumeService {
       return this._contentToJson(content);
     }
 
-    const extracted = await this._extractAndStore(resume, provider);
+    const extracted = await this._extractAndStore(
+      resume,
+      provider,
+      model,
+      userId,
+    );
     return this._contentToJson(extracted as unknown as TResumeContent);
   }
 

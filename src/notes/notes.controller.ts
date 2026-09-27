@@ -5,15 +5,19 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  MessageEvent,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  Sse,
 } from "@nestjs/common";
+import { Observable } from "rxjs";
 
 import { Pagination } from "@/src/config/guards/pagination.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
+import { SkipEnvelope } from "@/src/config/interceptors/skip-envelope.decorator";
 import type {
   TPagination,
   TNote,
@@ -42,8 +46,21 @@ export class NotesController {
   }
 
   @Post("learn-more")
-  learnMore(@Body() dto: LearnMoreDto): Promise<TLearnMoreResult> {
-    return this.notesService.learnMore(dto);
+  learnMore(
+    @Body() dto: LearnMoreDto,
+    @UserId() userId?: string,
+  ): Promise<TLearnMoreResult> {
+    return this.notesService.learnMore(dto, userId);
+  }
+
+  @Post("learn-more/stream")
+  @SkipEnvelope()
+  @Sse()
+  learnMoreStream(
+    @Body() dto: LearnMoreDto,
+    @UserId() userId?: string,
+  ): Observable<MessageEvent> {
+    return this.notesService.learnMoreStream(dto, userId);
   }
 
   @Get()

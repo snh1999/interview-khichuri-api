@@ -93,7 +93,7 @@ export class ResumeController {
     @Body() dto: ExtractResumeDto,
     @UserId() userId?: string,
   ): Promise<ExtractionResult> {
-    return this.resumeService.extractResume(id, dto.provider, userId ?? "app");
+    return this.resumeService.extractResume(id, dto, userId ?? "app");
   }
 
   @Post("score")

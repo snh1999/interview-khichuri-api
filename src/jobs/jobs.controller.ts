@@ -43,8 +43,11 @@ export class JobsController {
   }
 
   @Post("extract")
-  public extractJob(@Body() dto: ExtractJobDto): Promise<TJobExtractionResult> {
-    return this.jobsService.extractJob(dto);
+  public extractJob(
+    @Body() dto: ExtractJobDto,
+    @UserId() userId?: string,
+  ): Promise<TJobExtractionResult> {
+    return this.jobsService.extractJob(dto, userId);
   }
 
   @Get()

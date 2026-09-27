@@ -6,7 +6,12 @@ import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
 
-import type { CreateJobDto, TJobsQuery, UpdateJobDto } from "./jobs.dto";
+import type {
+  CreateJobDto,
+  ExtractJobDto,
+  TJobsQuery,
+  UpdateJobDto,
+} from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 import { IDatabaseService } from "../database/database.service";
 
@@ -29,7 +34,9 @@ describe("JobsService", () => {
       cb(mockTransaction),
     ),
   };
-  const mockGenAiService = {};
+  const mockGenAiService = {
+    extractJob: vi.fn(),
+  };
   const mockLookupsService = {
     resolveOrCreateNames: vi.fn().mockResolvedValue([]),
     resolveOrCreateName: vi.fn().mockResolvedValue(null),
@@ -243,6 +250,84 @@ describe("JobsService", () => {
       await service.create(dto);
       expect(mockDb.findAllByColumn).not.toHaveBeenCalled();
       expect(mockDb.create).toHaveBeenCalled();
+    });
+  });
+
+  describe("extractJob", () => {
+    const dto: ExtractJobDto = {
+      description: "A great job",
+      provider: "google",
+    };
+
+    it("should compose the title from company and role", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        description: "A great job",
+        companyName: "Acme",
+        roleName: "Engineer",
+      });
+
+      const result = await service.extractJob(dto);
+
+      expect(result.title).toBe("Acme - Engineer");
+    });
+
+    it("should compose the title from the company alone when role is missing", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        description: "A great job",
+        companyName: "Acme",
+      });
+
+      const result = await service.extractJob(dto);
+
+      expect(result.title).toBe("Acme");
+    });
+
+    it("should compose the title from the role alone when company is missing", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        description: "A great job",
+        roleName: "Engineer",
+      });
+
+      const result = await service.extractJob(dto);
+
+      expect(result.title).toBe("Engineer");
+    });
+
+    // Intended: extraction only prefills the job form. A missing title is left to the
+    // user (CreateJobDto still requires one), so nothing is persisted here.
+    it("should leave the title undefined when company and role are both missing", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        description: "A great job",
+      });
+
+      const result = await service.extractJob(dto);
+
+      expect(result.title).toBeUndefined();
+      expect(mockDb.create).not.toHaveBeenCalled();
+    });
+
+    it("should resolve the role and topic lookups", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        description: "A great job",
+        companyName: "Acme",
+        roleName: "Engineer",
+        topicNames: ["React"],
+      });
+      mockLookupsService.resolveOrCreateName.mockResolvedValue(7);
+      mockLookupsService.resolveOrCreateNames.mockResolvedValue([3, 4]);
+
+      const result = await service.extractJob(dto);
+
+      expect(mockLookupsService.resolveOrCreateName).toHaveBeenCalledWith(
+        "roles",
+        "Engineer",
+      );
+      expect(mockLookupsService.resolveOrCreateNames).toHaveBeenCalledWith(
+        "topics",
+        ["React"],
+      );
+      expect(result.roleId).toBe(7);
+      expect(result.topicIds).toEqual([3, 4]);
     });
   });
 

@@ -36,7 +36,14 @@ import { SqliteService, TdbSqlite } from "./sqlite/sqlite.service";
           }
           return new Database(databaseUrl);
         }
-        return postgres(databaseUrl);
+        // max stays under Supabase's 60 direct-connection budget (free/Micro compute)
+        // so a single instance has headroom. idle_timeout releases connections instead
+        // of holding sockets open across a Render cold start.
+        return postgres(databaseUrl, {
+          max: 25,
+          idle_timeout: 20,
+          connect_timeout: 10,
+        });
       },
       inject: [ConfigService],
     },

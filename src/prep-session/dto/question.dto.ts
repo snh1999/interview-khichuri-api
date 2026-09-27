@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { SHORT_LENGTH, nullishStr, requiredStr } from "@/src/common/validation";
+import { nullishStr, requiredStr } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 
 const createQuestionSchema = z.object({
   questionText: requiredStr(),
@@ -19,9 +19,7 @@ export class UpdateQuestionDto extends createZodDto(
   }),
 ) {}
 
-const generateQuestionsSchema = z.object({
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: nullishStr(SHORT_LENGTH),
+const generateQuestionsSchema = aiCommonSchema.extend({
   count: z.coerce.number().int().min(1).max(50).default(5),
   avoidRepeat: z.boolean().default(false),
   includeJobDescription: z.boolean().default(true),

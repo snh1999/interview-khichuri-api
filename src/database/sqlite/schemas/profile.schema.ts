@@ -232,8 +232,6 @@ export const job_preference = sqliteTable("job_preference", {
   salaryExpected: integer("salary_expected"),
   currency: text("currency").default("USD"), // ISO 4217
   preferredLocation: text("preferred_location"),
-  coverLetterTone: text("cover_letter_tone"),
-  coverLetterTemplate: text("cover_letter_template"),
   ...defaultTimeStamps,
 });
 

@@ -2,8 +2,11 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  MessageEvent,
 } from "@nestjs/common";
+import { Observable } from "rxjs";
 
+import { createSseStream } from "@/src/common/create-stream";
 import { IDatabaseService } from "@/src/database/database.service";
 import {
   TNote,
@@ -142,15 +145,41 @@ export class NotesService {
     await this.db.delete("notes", { id });
   }
 
-  async learnMore(dto: LearnMoreDto): Promise<TLearnMoreResult> {
+  async learnMore(
+    { questionText, ...options }: LearnMoreDto,
+    userId?: string,
+  ): Promise<TLearnMoreResult> {
+    const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
+
+    return this.genAiService.generateStructured({
+      prompt,
+      schema: markdownSchema,
+      userId,
+      ...options,
+    });
+  }
+
+  learnMoreStream(
+    dto: LearnMoreDto,
+    userId?: string,
+  ): Observable<MessageEvent> {
     const { questionText, provider, model } = dto;
     const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
 
-    return this.genAiService.generateStructured(
-      prompt,
-      markdownSchema,
-      provider,
-      { model },
-    );
+    return createSseStream({
+      getSource: (signal) =>
+        this.genAiService.streamMarkdown({
+          prompt,
+          provider,
+          model,
+          abortSignal: signal,
+          userId,
+        }),
+      mapChunk: (text) => ({ type: "text", text }),
+      getErrorMessage: (error) =>
+        error instanceof BadRequestException
+          ? error.message
+          : "Could not generate explanation",
+    });
   }
 }

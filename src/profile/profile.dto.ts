@@ -116,8 +116,6 @@ export const jobPreferenceSchema = z.object({
   salaryExpected: z.number().int().min(0).nullish(),
   currency: z.string().length(3).nullish(),
   preferredLocation: nullishStr(SHORT_LENGTH),
-  coverLetterTone: nullishStr(),
-  coverLetterTemplate: nullishStr(),
   titles: z.array(z.number().int().positive()).nullish(),
 });
 
