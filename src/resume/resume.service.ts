@@ -12,6 +12,7 @@ import type {
   TJobWithCompany,
   TResume,
 } from "@/src/database/database.types";
+import { TAiCommon } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { normalizeName } from "@/src/lookups/lookups.helpers";
 import { LookupsService } from "@/src/lookups/lookups.service";
@@ -31,7 +32,6 @@ import {
   TUploadResponse,
   TViewUrlResponse,
 } from "@/src/utilities/upload/file-upload.service";
-import { TAiCommon } from "@/src/gen-ai/gen-ai.constants";
 
 const MAX_RESUMES = 5;
 

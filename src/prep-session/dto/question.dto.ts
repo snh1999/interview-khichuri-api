@@ -1,11 +1,8 @@
 import { z } from "zod";
 
-import { SHORT_LENGTH, nullishStr, requiredStr } from "@/src/common/validation";
+import { nullishStr, requiredStr } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
-import {
-  aiCommonSchema,
-  GEN_AI_PROVIDERS,
-} from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 
 const createQuestionSchema = z.object({
   questionText: requiredStr(),

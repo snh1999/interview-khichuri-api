@@ -4,8 +4,9 @@ import {
   Injectable,
   MessageEvent,
 } from "@nestjs/common";
-import { concat, from, map, mergeAll, Observable, of } from "rxjs";
+import { Observable } from "rxjs";
 
+import { createSseStream } from "@/src/common/create-stream";
 import { IDatabaseService } from "@/src/database/database.service";
 import {
   TNote,
@@ -165,50 +166,20 @@ export class NotesService {
     const { questionText, provider, model } = dto;
     const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
 
-    return new Observable<MessageEvent>((subscriber) => {
-      const controller = new AbortController();
-      let cancelled = false;
-
-      const sub = concat(
-        from(
-          this.genAiService.streamMarkdown({
-            prompt,
-            provider,
-            model,
-            abortSignal: controller.signal,
-            userId,
-          }),
-        ).pipe(
-          mergeAll(),
-          map((text) => ({ data: { type: "text", text } })),
-        ),
-        of({ data: { type: "finish" } }),
-      ).subscribe({
-        next: (event) => {
-          if (!cancelled) subscriber.next(event);
-        },
-        error: (error) => {
-          // The abort-induced error is expected on disconnect — drop it silently.
-          if (cancelled) {
-            return;
-          }
-          const message =
-            error instanceof BadRequestException
-              ? error.message
-              : "Could not generate explanation";
-          subscriber.next({ data: { type: "error", message } });
-          subscriber.complete();
-        },
-        complete: () => {
-          if (!cancelled) subscriber.complete();
-        },
-      });
-
-      return () => {
-        cancelled = true;
-        controller.abort();
-        sub.unsubscribe();
-      };
+    return createSseStream({
+      getSource: (signal) =>
+        this.genAiService.streamMarkdown({
+          prompt,
+          provider,
+          model,
+          abortSignal: signal,
+          userId,
+        }),
+      mapChunk: (text) => ({ type: "text", text }),
+      getErrorMessage: (error) =>
+        error instanceof BadRequestException
+          ? error.message
+          : "Could not generate explanation",
     });
   }
 }

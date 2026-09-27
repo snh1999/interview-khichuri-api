@@ -23,6 +23,7 @@ import {
   INTERVIEW_QUESTION_GENERATION_PROMPT,
   GOOGLE_TTS_DEFAULT_VOICE,
   GOOGLE_TTS_MODEL,
+  TAiCommon,
 } from "@/src/gen-ai/gen-ai.constants";
 import {
   toAiHttpException,
@@ -69,6 +70,7 @@ interface IGoogleTtsAudio {
 const GOOGLE_TTS_CACHE_LIMIT = 50;
 const MAX_OUTPUT_TOKENS_DEFAULT = 8192;
 const MAX_OUTPUT_TOKENS_EXTRACTION = 4000;
+const MAX_RESUME_CHARS = 15000;
 
 @Injectable()
 export class GenAiService {
@@ -158,14 +160,13 @@ export class GenAiService {
     );
   }
 
-  async streamQuestions(options: {
-    provider: TApiKeyProvider;
-    conversation: string;
-    model?: string | null;
-    userId?: string;
-    signal?: AbortSignal;
-  }): Promise<AsyncIterable<IStreamedQuestionChunk>> {
-    const { provider, conversation, model, userId, signal } = options;
+  async streamQuestions(
+    options: Omit<IGenerateStructureOptions<unknown>, "schema" | "prompt"> & {
+      conversation: string;
+      abortSignal?: AbortSignal;
+    },
+  ): Promise<AsyncIterable<IStreamedQuestionChunk>> {
+    const { provider, conversation, model, userId, abortSignal } = options;
     const config = PROVIDER_CONFIG[provider];
 
     return this.apiKeyService.useApiKey(
@@ -185,7 +186,7 @@ export class GenAiService {
           }),
           prompt: `${INTERVIEW_FOLLOW_UP_PROMPT}\n\n${conversation}`,
           maxOutputTokens: MAX_OUTPUT_TOKENS_DEFAULT,
-          abortSignal: signal,
+          abortSignal,
         });
 
         return Promise.resolve(result.partialOutputStream);
@@ -210,8 +211,6 @@ export class GenAiService {
     });
   }
 
-  private readonly MAX_RESUME_CHARS = 15000;
-
   async extractResume(
     resumeText: string,
     {
@@ -219,7 +218,7 @@ export class GenAiService {
       ...options
     }: Omit<IGenerateStructureOptions<unknown>, "schema" | "prompt">,
   ): Promise<TExtractedProfile> {
-    const truncated = resumeText.slice(0, this.MAX_RESUME_CHARS);
+    const truncated = resumeText.slice(0, MAX_RESUME_CHARS);
 
     const prompt = `${RESUME_EXTRACTION_PROMPT}
       <resume_text>
@@ -248,15 +247,14 @@ export class GenAiService {
       );
     }
   }
-  async scoreResumeForJob(options: {
-    provider: TApiKeyProvider;
-    resume: string;
-    jobDescription: string;
-    company: string;
-    companyDetails: string;
-    model?: string | null;
-    userId?: string;
-  }): Promise<TAtsScore> {
+  async scoreResumeForJob(
+    options: TAiCommon & {
+      resume: string;
+      jobDescription: string;
+      company: string;
+      companyDetails: string;
+    },
+  ): Promise<TAtsScore> {
     const { resume, jobDescription, company, companyDetails, ...rest } =
       options;
 
@@ -281,11 +279,8 @@ export class GenAiService {
   async reviewResumeStandalone({
     resume,
     ...options
-  }: {
-    provider: TApiKeyProvider;
+  }: TAiCommon & {
     resume: string;
-    model?: string | null;
-    userId?: string;
   }): Promise<TStandaloneReview> {
     return this.generateStructured({
       prompt: `${STANDALONE_REVIEW_PROMPT}\n\n<resume_text>\n${resume}\n</resume_text>`,
