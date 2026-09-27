@@ -55,13 +55,7 @@ export class PromptsController {
     @Body() dto: ValidatePromptDto,
     @UserId() userId?: string,
   ): Promise<IValidationResult> {
-    return this.promptValidator.validate(
-      dto.prompt,
-      dto.type,
-      dto.provider,
-      dto.title,
-      userId,
-    );
+    return this.promptValidator.validate(dto, userId);
   }
 
   @Get()
@@ -70,13 +64,7 @@ export class PromptsController {
     @Pagination() pagination?: TPagination,
     @UserId() userId?: string,
   ): Promise<TPrompt[]> {
-    return this.promptsService.findAll(
-      query.scope,
-      userId,
-      query.type,
-      query.search,
-      pagination,
-    );
+    return this.promptsService.findAll(query, userId, pagination);
   }
 
   @Get("likes")

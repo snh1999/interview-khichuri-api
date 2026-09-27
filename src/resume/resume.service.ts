@@ -305,7 +305,12 @@ export class ResumeService {
   ): Promise<TAtsScore> {
     const { jobId, resumeId, provider, model } = dto;
 
-    const resumeText = await this.resumeToText({ resumeId, userId, provider });
+    const resumeText = await this.resumeToText({
+      resumeId,
+      userId,
+      provider,
+      model,
+    });
 
     const job = (await this.db.findById("jobs", jobId, {
       filter: { ...(userId ? { userId } : {}) },

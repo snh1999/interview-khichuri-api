@@ -17,6 +17,7 @@ import {
 
 import {
   CreatePromptDto,
+  FindPromptsQuery,
   SetDefaultPromptDto,
   UpdatePromptDto,
 } from "./prompts.dto";
@@ -48,10 +49,8 @@ export class PromptsService {
   }
 
   async findAll(
-    scope: "public" | "my",
+    { type, scope, search }: FindPromptsQuery,
     userId?: string,
-    type?: TPromptType,
-    search?: string,
     pagination?: TPagination,
   ): Promise<TPrompt[]> {
     const filter = {

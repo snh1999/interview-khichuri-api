@@ -143,7 +143,10 @@ export class ApiKeyService {
 
   async useApiKey<T>(
     provider: TApiKeyProvider,
-    operation: (keyInfo: { key: string; model: string | null }) => Promise<T>,
+    operation: (keyInfo: {
+      key: string;
+      model: string | null;
+    }) => Promise<T> | T,
     userId?: string,
   ): Promise<T> {
     const apiKey = await this._findActiveKey(provider, userId);

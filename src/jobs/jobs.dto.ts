@@ -10,7 +10,7 @@ import {
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TJob } from "@/src/database/database.types";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
@@ -89,11 +89,9 @@ export class UpdateJobDto extends createZodDto(
     }),
 ) {}
 
-const extractJobSchema = z.object({
+const extractJobSchema = aiCommonSchema.extend({
   description: requiredStr(),
   links: nullishStr(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: nullishStr(SHORT_LENGTH),
 });
 
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}

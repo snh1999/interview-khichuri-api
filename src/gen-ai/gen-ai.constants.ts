@@ -1,3 +1,6 @@
+import { z } from "zod";
+
+import { SHORT_LENGTH, str } from "@/src/common/validation";
 import type { TApiKeyProvider } from "@/src/database/database.types";
 
 export const GEN_AI_PROVIDERS = [
@@ -10,6 +13,11 @@ export const GEN_AI_PROVIDERS = [
   "cerebras",
 ] as const;
 
+export const aiCommonSchema = z.object({
+  provider: z.enum(GEN_AI_PROVIDERS),
+  model: str(SHORT_LENGTH).nullish(),
+});
+
 interface IProviderConfig {
   sdk: "google" | "openai";
   baseURL: string;
@@ -20,7 +28,7 @@ export const PROVIDER_CONFIG: Record<TApiKeyProvider, IProviderConfig> = {
   google: {
     sdk: "google",
     baseURL: "",
-    defaultModel: "gemini-3.6-flash",
+    defaultModel: "gemini-3.5-flash-lite",
   },
   openai: {
     sdk: "openai",

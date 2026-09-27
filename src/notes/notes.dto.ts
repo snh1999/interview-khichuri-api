@@ -7,7 +7,7 @@ import {
   str,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 
 const createNoteSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
@@ -35,10 +35,8 @@ const listNotesQuerySchema = z.object({
 
 export class ListNotesQuery extends createZodDto(listNotesQuerySchema) {}
 
-const learnMoreSchema = z.object({
+const learnMoreSchema = aiCommonSchema.extend({
   questionText: requiredStr(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: z.string().trim().max(SHORT_LENGTH).nullish(),
 });
 
 export class LearnMoreDto extends createZodDto(learnMoreSchema) {}

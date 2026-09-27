@@ -144,16 +144,18 @@ export class NotesService {
     await this.db.delete("notes", { id });
   }
 
-  async learnMore(dto: LearnMoreDto): Promise<TLearnMoreResult> {
-    const { questionText, provider, model } = dto;
+  async learnMore(
+    { questionText, ...options }: LearnMoreDto,
+    userId?: string,
+  ): Promise<TLearnMoreResult> {
     const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
 
-    return this.genAiService.generateStructured(
+    return this.genAiService.generateStructured({
       prompt,
-      markdownSchema,
-      provider,
-      { model },
-    );
+      schema: markdownSchema,
+      userId,
+      ...options,
+    });
   }
 
   learnMoreStream(dto: LearnMoreDto): Observable<MessageEvent> {

@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { z } from "zod";
 
-import type { TApiKeyProvider } from "@/src/database/database.types";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
+import { ValidatePromptDto } from "../dto/validate-prompt.dto";
 import { PROMPT_TYPES } from "../prompts.dto";
 
 export interface IShapeError {
@@ -27,13 +27,13 @@ export interface IValidationResult {
   llmJudge: ILlmJudgeResult | null;
 }
 
-const JUDGE_SCHEMA = z.object({
+const judgeSchema = z.object({
   pass: z.boolean(),
   reason: z.string(),
   suggestion: z.string(),
 });
 
-type TJudgeResult = z.infer<typeof JUDGE_SCHEMA>;
+type TJudgeResult = z.infer<typeof judgeSchema>;
 
 @Injectable()
 export class PromptValidatorService {
@@ -82,24 +82,40 @@ export class PromptValidatorService {
   }
 
   async validate(
-    prompt: string,
-    type: string,
-    provider?: TApiKeyProvider,
-    title?: string,
+    { prompt, type, title, provider, model }: ValidatePromptDto,
     userId?: string,
   ): Promise<IValidationResult> {
     const shape = this.shapeCheck(prompt, type, title);
 
-    let llmJudge: ILlmJudgeResult | null = null;
-    if (provider) {
-      llmJudge = await this.runLlmJudge(prompt, type, provider, userId).catch(
-        () => ({
-          pass: false,
-          reason: `AI validation failed — your ${provider} API key may be invalid. Check it in Settings.`,
-          suggestion: "",
-        }),
-      );
-    }
+    const classifierPrompt = `You are a prompt quality classifier for an interview preparation platform.
+
+    Analyze the following prompt and determine:
+    
+    1. Does it fit the declared category "${type}"? (e.g., a "technical" prompt should ask for coding/architecture questions)
+    2. Does it violate any safety or content policies? (e.g., requesting harmful, unethical, or off-topic content)
+    3. Is it likely to produce useful interview preparation content?
+    
+    Format reason and suggestion as short bullet lists (2-4 points max each). No paragraphs.
+    
+    Category: ${type}
+    Prompt:
+    """
+    ${prompt}
+    """`;
+
+    const llmJudge = await this.genAiService
+      .generateStructured<TJudgeResult>({
+        prompt: classifierPrompt,
+        schema: judgeSchema,
+        userId,
+        provider,
+        model,
+      })
+      .catch(() => ({
+        pass: false,
+        reason: `AI validation failed — your ${provider} API key may be invalid. Check it in Settings.`,
+        suggestion: "",
+      }));
 
     return { shape, llmJudge };
   }
@@ -112,38 +128,5 @@ export class PromptValidatorService {
         errors: shape.errors,
       });
     }
-  }
-
-  private async runLlmJudge(
-    prompt: string,
-    type: string,
-    provider: TApiKeyProvider,
-    userId?: string,
-  ): Promise<ILlmJudgeResult> {
-    const classifierPrompt = `You are a prompt quality classifier for an interview preparation platform.
-
-Analyze the following prompt and determine:
-
-1. Does it fit the declared category "${type}"? (e.g., a "technical" prompt should ask for coding/architecture questions)
-2. Does it violate any safety or content policies? (e.g., requesting harmful, unethical, or off-topic content)
-3. Is it likely to produce useful interview preparation content?
-
-Format reason and suggestion as short bullet lists (2-4 points max each). No paragraphs.
-
-Category: ${type}
-Prompt:
-"""
-${prompt}
-"""`;
-
-    const result = await this.genAiService.generateStructured<TJudgeResult>(
-      classifierPrompt,
-      JUDGE_SCHEMA,
-      provider,
-      { model: undefined },
-      userId,
-    );
-
-    return result;
   }
 }

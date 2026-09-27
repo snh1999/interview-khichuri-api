@@ -9,7 +9,7 @@ import {
   dateStr,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
-import { GEN_AI_PROVIDERS } from "@/src/gen-ai/gen-ai.constants";
+import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
   educationSchema,
@@ -107,11 +107,7 @@ export type ExtractionResult = Omit<
   })[];
 };
 
-export const extractResumeSchema = z.object({
-  provider: z.enum(GEN_AI_PROVIDERS),
-});
-
-export class ExtractResumeDto extends createZodDto(extractResumeSchema) {}
+export class ExtractResumeDto extends createZodDto(aiCommonSchema) {}
 
 export const resumeContentSchema = z.object({
   personal: updateProfileSchema,
@@ -144,12 +140,6 @@ export const updateResumeSchema = z.object({
 });
 
 export class UpdateResumeDto extends createZodDto(updateResumeSchema) {}
-
-export const RESUME_TEMPLATES = [
-  "professional",
-  "minimal",
-  "technical",
-] as const;
 
 const tipSchema = z.object({
   type: z.enum(["good", "improve"]),
@@ -201,19 +191,15 @@ export const standaloneReviewSchema = z.object({
 
 export type TStandaloneReview = z.infer<typeof standaloneReviewSchema>;
 
-const scoreResumeSchema = z.object({
+const scoreResumeSchema = aiCommonSchema.extend({
   jobId: z.uuid(),
   resumeId: z.uuid(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: str(SHORT_LENGTH).nullish(),
 });
 
 export class ScoreResumeDto extends createZodDto(scoreResumeSchema) {}
 
-const reviewStandaloneSchema = z.object({
+const reviewStandaloneSchema = aiCommonSchema.extend({
   resumeId: z.uuid(),
-  provider: z.enum(GEN_AI_PROVIDERS),
-  model: str(SHORT_LENGTH).nullish(),
 });
 
 export class ReviewStandaloneDto extends createZodDto(reviewStandaloneSchema) {}
