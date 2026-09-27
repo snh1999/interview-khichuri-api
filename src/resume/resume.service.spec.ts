@@ -66,6 +66,7 @@ describe("ResumeService", () => {
   };
   const mockGenAiService = {
     extractResume: vi.fn(),
+    scoreResumeForJob: vi.fn(),
   };
   const mockLookupsService = {
     resolveOrCreateNames: vi.fn().mockResolvedValue([]),
@@ -363,6 +364,73 @@ describe("ResumeService", () => {
         "resume",
         { content: JSON.stringify(result) },
         { id: "r1" },
+      );
+    });
+
+    // The requested model used to be dropped here, so extraction fell back to
+    // the provider's hardcoded default instead of the caller's choice.
+    it("should forward the requested model and userId to the extraction call", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        profileId: "user-1",
+        url: "resumes/file.pdf",
+        content: null,
+      });
+      mockFileService.downloadFile.mockResolvedValue(
+        Buffer.from("%PDF-1.4 resume text"),
+      );
+      mockGenAiService.extractResume.mockResolvedValue(makeContent());
+      mockDb.update.mockResolvedValue([]);
+
+      await service.extractResume(
+        "r1",
+        "google",
+        "user-1",
+        "gemini-3.5-flash-lite",
+      );
+
+      expect(mockGenAiService.extractResume).toHaveBeenCalledWith(
+        expect.any(String),
+        "google",
+        { model: "gemini-3.5-flash-lite" },
+        "user-1",
+      );
+    });
+  });
+
+  describe("scoreResumeForJob", () => {
+    it("should forward the requested model and userId to the scoring call", async () => {
+      mockDb.findById
+        .mockResolvedValueOnce({
+          id: "r1",
+          profileId: "user-1",
+          content: JSON.stringify(makeContent()),
+        })
+        .mockResolvedValueOnce({
+          id: "j1",
+          description: "job description",
+          companyName: "Acme",
+          company: null,
+        });
+      mockGenAiService.scoreResumeForJob.mockResolvedValue({ overall: 80 });
+
+      await service.scoreResumeForJob(
+        {
+          jobId: "j1",
+          resumeId: "r1",
+          provider: "google",
+          model: "gemini-3.5-flash-lite",
+        },
+        "user-1",
+      );
+
+      expect(mockGenAiService.scoreResumeForJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "google",
+          jobDescription: "job description",
+          model: "gemini-3.5-flash-lite",
+          userId: "user-1",
+        }),
       );
     });
   });

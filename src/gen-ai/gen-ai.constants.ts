@@ -18,6 +18,10 @@ export const aiCommonSchema = z.object({
   model: str(SHORT_LENGTH).nullish(),
 });
 
+export type TAiCommon = z.infer<typeof aiCommonSchema> & {
+  userId?: string;
+};
+
 interface IProviderConfig {
   sdk: "google" | "openai";
   baseURL: string;

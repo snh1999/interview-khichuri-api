@@ -24,12 +24,14 @@ import {
   TStandaloneReview,
   type TResumeContent,
   UpdateResumeDto,
+  ExtractResumeDto,
 } from "@/src/resume/resume.dto";
 import {
   FileUploadService,
   TUploadResponse,
   TViewUrlResponse,
 } from "@/src/utilities/upload/file-upload.service";
+import { TAiCommon } from "@/src/gen-ai/gen-ai.constants";
 
 const MAX_RESUMES = 5;
 
@@ -216,7 +218,7 @@ export class ResumeService {
 
   public async extractResume(
     resumeId: string,
-    provider: TApiKeyProvider,
+    { provider, model }: ExtractResumeDto,
     profileId: string,
   ): Promise<ExtractionResult> {
     const resume = await this._findById(resumeId, profileId);
@@ -232,12 +234,14 @@ export class ResumeService {
       return cached as unknown as ExtractionResult;
     }
 
-    return this._extractAndStore(resume, provider);
+    return this._extractAndStore(resume, provider, model, profileId);
   }
 
   private async _extractAndStore(
     resume: TResume,
     provider: TApiKeyProvider,
+    model?: string | null,
+    userId?: string,
   ): Promise<ExtractionResult> {
     if (!resume.url) {
       throw new BadRequestException(
@@ -247,10 +251,11 @@ export class ResumeService {
 
     const extractedText = await this._pdfToText(resume.url);
 
-    const extracted = await this.genAiService.extractResume(
-      extractedText,
+    const extracted = await this.genAiService.extractResume(extractedText, {
       provider,
-    );
+      model,
+      userId,
+    });
 
     // important to keep it out of the array to avoid deadlock situation
     const skills = await this.lookupsService.resolveOrCreateNames(
@@ -337,6 +342,7 @@ export class ResumeService {
       company: companyName,
       companyDetails,
       model,
+      userId,
     });
   }
 
@@ -350,12 +356,14 @@ export class ResumeService {
       resumeId,
       userId,
       provider,
+      model,
     });
 
     return this.genAiService.reviewResumeStandalone({
       provider,
       resume: resumeText,
       model,
+      userId,
     });
   }
 
@@ -388,10 +396,10 @@ export class ResumeService {
     resumeId,
     userId,
     provider,
-  }: {
+    model,
+  }: TAiCommon & {
     resumeId?: string;
     userId: string;
-    provider: TApiKeyProvider;
   }): Promise<string> {
     const [resume] = resumeId
       ? [await this._findById(resumeId, userId)]
@@ -409,7 +417,12 @@ export class ResumeService {
       return this._contentToJson(content);
     }
 
-    const extracted = await this._extractAndStore(resume, provider);
+    const extracted = await this._extractAndStore(
+      resume,
+      provider,
+      model,
+      userId,
+    );
     return this._contentToJson(extracted as unknown as TResumeContent);
   }
 

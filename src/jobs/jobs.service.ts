@@ -80,8 +80,11 @@ export class JobsService {
     });
   }
 
-  public async extractJob(dto: ExtractJobDto): Promise<TJobExtractionResult> {
-    const extracted = await this.genAiService.extractJob(dto);
+  public async extractJob(
+    dto: ExtractJobDto,
+    userId?: string,
+  ): Promise<TJobExtractionResult> {
+    const extracted = await this.genAiService.extractJob(dto, userId);
 
     const [roleId, topicIds] = await Promise.all([
       this.lookupsService.resolveOrCreateName("roles", extracted.roleName),

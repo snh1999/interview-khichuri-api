@@ -158,7 +158,10 @@ export class NotesService {
     });
   }
 
-  learnMoreStream(dto: LearnMoreDto): Observable<MessageEvent> {
+  learnMoreStream(
+    dto: LearnMoreDto,
+    userId?: string,
+  ): Observable<MessageEvent> {
     const { questionText, provider, model } = dto;
     const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
 
@@ -168,9 +171,12 @@ export class NotesService {
 
       const sub = concat(
         from(
-          this.genAiService.streamMarkdown(prompt, provider, {
+          this.genAiService.streamMarkdown({
+            prompt,
+            provider,
             model,
-            signal: controller.signal,
+            abortSignal: controller.signal,
+            userId,
           }),
         ).pipe(
           mergeAll(),
