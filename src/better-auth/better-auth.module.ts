@@ -48,7 +48,24 @@ import { EmailService } from "../email/email.service";
             // TODO: add a cron job to purge abandoned 2FA setup rows
             // (two_factor with verified = false) older than a TTL.
             twoFactor(),
-            passkey(),
+            passkey({
+              // rpID must be the domain the *frontend* is served from, not the
+              // API's own host — the plugin's default derivation from baseURL
+              // yields `onrender.com` here, which WebAuthn rejects since it is
+              // not a suffix of the calling origin's domain.
+              //
+              // Using the full hostname rather than trimming to the registrable
+              // domain is deliberate: trimming needs the Public Suffix List, and
+              // a naive "drop the first label" split produces a public suffix
+              // for common hosts (`vercel.app`, `github.io`, `co.uk`), which
+              // would either be rejected or widen passkey scope to other sites
+              // on that suffix. `hostname` also drops any port, so dev works
+              // unchanged — FRONTEND_URL is `http://localhost:3000` there, and
+              // `localhost` is the correct rpID for a non-secure context.
+              rpID: new URL(config.get<string>("FRONTEND_URL")).hostname,
+              rpName: "Interview Khichuri",
+              origin: config.get<string>("FRONTEND_URL"),
+            }),
           ],
           account: {
             accountLinking: {
@@ -125,6 +142,13 @@ import { EmailService } from "../email/email.service";
             ipAddress: {
               ipAddressHeaders: ["x-forwarded-for", "cf-connecting-ip"],
             },
+            // The frontend and API are different sites, so the default Lax cookie is
+            // never sent on cross-site fetch. None + Secure is required in production;
+            // gated on NODE_ENV because Safari rejects Secure cookies on http://localhost.
+            defaultCookieAttributes:
+              config.get("NODE_ENV") === "production"
+                ? { sameSite: "none", secure: true }
+                : {},
           },
           bodyParser: {
             json: { limit: "2mb" },
