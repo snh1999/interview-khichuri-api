@@ -36,9 +36,8 @@ import { SqliteService, TdbSqlite } from "./sqlite/sqlite.service";
           }
           return new Database(databaseUrl);
         }
-        // max stays under Supabase's 60 direct-connection budget (free/Micro compute)
-        // so a single instance has headroom. idle_timeout releases connections instead
-        // of holding sockets open across a Render cold start.
+        // Supabase session pooler: the direct host is IPv6-only, so Render's build containers can't reach it.
+        // Pooled mode multiplexes these sessions onto fewer backend connections; idle_timeout frees them across cold starts.
         return postgres(databaseUrl, {
           max: 25,
           idle_timeout: 20,
