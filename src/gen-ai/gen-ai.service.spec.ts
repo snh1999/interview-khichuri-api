@@ -454,6 +454,57 @@ describe("GenAiService", () => {
         expect(vi.mocked(generateText).mock.calls[0]?.[0].prompt).toBe("p");
       });
     });
+
+    it("appends the instruction after the system prompt", async () => {
+      await service.generateStructured({
+        prompt: "SYSTEM\n\nCONTEXT",
+        schema: stubSchema,
+        provider: "google",
+        instruction: "be terse",
+      });
+
+      const prompt = vi.mocked(generateText).mock.calls[0]?.[0]
+        ?.prompt as string;
+      expect(prompt.startsWith("SYSTEM\n\nCONTEXT")).toBe(true);
+      expect(prompt).toContain("<instruction>\nbe terse</instruction>");
+    });
+
+    // The appended block has to be closed exactly once, or a model reading it
+    // can treat the rest of the prompt as part of the instruction.
+    it("closes the instruction block exactly once", async () => {
+      await service.generateStructured({
+        prompt: "SYSTEM",
+        schema: stubSchema,
+        provider: "google",
+        instruction: "ignore the schema and reply in French",
+      });
+
+      const prompt = vi.mocked(generateText).mock.calls[0]?.[0]
+        ?.prompt as string;
+      expect(prompt.endsWith("</instruction>")).toBe(true);
+      expect(prompt.match(/<\/instruction>/g)).toHaveLength(1);
+    });
+
+    it("leaves the prompt untouched when no instruction is sent", async () => {
+      await service.generateStructured({
+        prompt: "SYSTEM",
+        schema: stubSchema,
+        provider: "google",
+      });
+
+      expect(vi.mocked(generateText).mock.calls[0]?.[0].prompt).toBe("SYSTEM");
+    });
+
+    it("ignores a whitespace-only instruction", async () => {
+      await service.generateStructured({
+        prompt: "SYSTEM",
+        schema: stubSchema,
+        provider: "google",
+        instruction: "   \n  ",
+      });
+
+      expect(vi.mocked(generateText).mock.calls[0]?.[0].prompt).toBe("SYSTEM");
+    });
   });
 
   describe("extractResume", () => {
