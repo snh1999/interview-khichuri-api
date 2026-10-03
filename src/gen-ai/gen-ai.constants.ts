@@ -192,9 +192,9 @@ Scoring rules:
   - "good" tips highlight specific things the resume does well (with a short concrete explanation).
   - "improve" tips are specific, actionable fixes (with a short concrete explanation of why and how).
   - skillsMatch: how well the resume's skills/tech overlap the job's required and preferred skills.
-  - keywordHitRate: what fraction of the job description's key terms/keywords appear in the resume.
-  - experienceFit: how well the candidate's years and relevance of experience align with the job's stated level and responsibilities.
-  - roleAlignment: how aligned the resume's current title/summary/projects are with the target role and company.
+  - keywordHitRate: what fraction of the job description's key terms/keywords appear in the resume. Count a term only when it appears verbatim; a synonym or a morphological variant is not a match, and do not count a term the job description never actually uses.
+  - experienceFit: how well the candidate's ownership, scope and demonstrated responsibility align with the job's stated level and responsibilities. Judge seniority from what they owned and the scale they operated at. Dates are not included in the resume text, so do not estimate years of experience — score only what the responsibilities themselves show.
+  - roleAlignment: how well the resume's current title/summary/projects align with the target role and company, including whether the candidate's domain experience transfers to this one. Say what would transfer from an adjacent domain and what would not.
 - recommendations: a prioritized list of specific, actionable suggestions to improve the resume for THIS job (tailor bullets, reword summary, add missing tech, quantify achievements, etc.). Each must be a single pointed, actionable line (longer line is fine) — no multi-sentence paragraphs.
 - matchedKeywords: job keywords/skills/terms present in the resume.
 - missingKeywords: important job keywords/skills/terms absent from the resume that the candidate should add if they have them.
