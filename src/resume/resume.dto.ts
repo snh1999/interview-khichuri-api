@@ -26,6 +26,8 @@ import {
 export const omitDate = { startDate: true, endDate: true } as const;
 export const extendDate = { startDate: dateStr, endDate: dateStr } as const;
 
+const MAX_SKILL_GROUPS = 5;
+
 const publicationExtractionSchema = publicationSchema
   .omit({ id: true })
   .partial();
@@ -120,6 +122,16 @@ export const resumeContentSchema = z.object({
   projects: z.array(projectSchema),
   references: z.array(referenceSchema),
   activities: z.array(activitySchema),
+  skillGroups: z
+    .array(
+      z.object({
+        id: z.string().max(36),
+        keywords: str(LARGE_LENGTH),
+        label: str(SHORT_LENGTH),
+      }),
+    )
+    .max(MAX_SKILL_GROUPS)
+    .optional(),
 });
 
 export type TResumeContent = z.infer<typeof resumeContentSchema>;
