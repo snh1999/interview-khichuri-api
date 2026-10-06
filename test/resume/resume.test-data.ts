@@ -12,7 +12,6 @@ export const getResumeContentPayload = (): TResumeContent => ({
   },
   workExperience: [],
   education: [],
-  preferences: {},
   links: [],
   publications: [],
   projects: [],

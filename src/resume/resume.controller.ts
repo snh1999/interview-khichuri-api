@@ -19,7 +19,7 @@ import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import {
   CreateResumeDto,
-  ExtractionResult,
+  type TExtractedProfile,
   ExtractResumeDto,
   ReviewStandaloneDto,
   ScoreResumeDto,
@@ -92,7 +92,7 @@ export class ResumeController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: ExtractResumeDto,
     @UserId() userId?: string,
-  ): Promise<ExtractionResult> {
+  ): Promise<TExtractedProfile> {
     return this.resumeService.extractResume(id, dto, userId ?? "app");
   }
 

@@ -13,7 +13,6 @@ import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
   educationSchema,
-  jobPreferenceSchema,
   profileLinkSchema,
   projectSchema,
   publicationSchema,
@@ -71,10 +70,6 @@ export const extractedProfileSchema = z.object({
     )
     .max(20)
     .default([]),
-  preferences: jobPreferenceSchema
-    .omit({ titles: true })
-    .extend({ titles: z.array(str(SHORT_LENGTH)).max(10).default([]) })
-    .partial(),
   links: z.array(profileLinkSchema.partial()).max(20).default([]),
   publications: z
     .array(publicationExtractionSchema.partial())
@@ -90,36 +85,23 @@ export const extractedProfileSchema = z.object({
 
 export type TExtractedProfile = z.infer<typeof extractedProfileSchema>;
 
-export type ExtractionResult = Omit<
-  TExtractedProfile,
-  "professional" | "preferences" | "projects"
-> & {
-  professional: Omit<
-    TExtractedProfile["professional"],
-    "skills" | "industries"
-  > & {
-    skills: number[];
-    industries: number[];
-  };
-  preferences: Omit<TExtractedProfile["preferences"], "titles"> & {
-    titles: number[];
-  };
-  projects: (Omit<TExtractedProfile["projects"][number], "skills"> & {
-    skills: number[];
-  })[];
-};
-
 export class ExtractResumeDto extends createZodDto(aiCommonSchema) {}
 
 export const resumeContentSchema = z.object({
   personal: updateProfileSchema,
-  professional: workOverviewSchema,
+  professional: workOverviewSchema.omit({
+    industries: true,
+    skills: true,
+  }),
   workExperience: z.array(workExperienceSchema),
   education: z.array(educationSchema),
-  preferences: jobPreferenceSchema,
   links: z.array(profileLinkSchema),
   publications: z.array(publicationSchema),
-  projects: z.array(projectSchema),
+  projects: z.array(
+    projectSchema
+      .omit({ skills: true })
+      .extend({ skills: str(LARGE_LENGTH).optional() }),
+  ),
   references: z.array(referenceSchema),
   activities: z.array(activitySchema),
   skillGroups: z

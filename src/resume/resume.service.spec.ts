@@ -8,7 +8,6 @@ vi.mock("unpdf", () => ({
 
 import { IDatabaseService } from "@/src/database/database.service";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
-import { LookupsService } from "@/src/lookups/lookups.service";
 import type { TResumeContent } from "@/src/resume/resume.dto";
 import { FileUploadService } from "@/src/utilities/upload/file-upload.service";
 
@@ -28,19 +27,9 @@ function makeContent(): TResumeContent {
       title: "Engineer",
       experienceLevel: null,
       yearsOfExperience: null,
-      skills: [],
-      industries: [],
     },
     workExperience: [],
     education: [],
-    preferences: {
-      workType: null,
-      salaryLower: null,
-      salaryExpected: null,
-      currency: "USD",
-      preferredLocation: null,
-      titles: [],
-    },
     links: [],
     publications: [],
     projects: [],
@@ -68,12 +57,6 @@ describe("ResumeService", () => {
     extractResume: vi.fn(),
     scoreResumeForJob: vi.fn(),
   };
-  const mockLookupsService = {
-    resolveOrCreateNames: vi.fn().mockResolvedValue([]),
-    resolveNameIds: vi.fn().mockResolvedValue([]),
-    resolveOrCreateName: vi.fn().mockResolvedValue(null),
-  };
-
   beforeEach(async () => {
     vi.clearAllMocks();
     const module = await Test.createTestingModule({
@@ -82,7 +65,6 @@ describe("ResumeService", () => {
         { provide: IDatabaseService, useValue: mockDb },
         { provide: FileUploadService, useValue: mockFileService },
         { provide: GenAiService, useValue: mockGenAiService },
-        { provide: LookupsService, useValue: mockLookupsService },
       ],
     }).compile();
 
@@ -327,9 +309,10 @@ describe("ResumeService", () => {
   });
 
   describe("extractResume", () => {
-    // Resolved lookup ids are deduplicated, so a skill shared across two
-    // projects used to shift every later project's ids onto the wrong skills.
-    it("should map project skill ids by name when projects share a skill", async () => {
+    // A resume is a dated snapshot, so the names the model returns are stored
+    // verbatim. Resolving them into lookup ids both lost casing variants and
+    // created a topics/industries row per skill on every PDF upload.
+    it("should store extracted skill names verbatim without touching lookups", async () => {
       mockDb.findById.mockResolvedValue({
         id: "r1",
         profileId: "user-1",
@@ -346,12 +329,6 @@ describe("ResumeService", () => {
           { name: "B", skills: ["react", "GraphQL"] },
         ],
       });
-      // Deduplicated: the two "react" entries collapse to one id.
-      mockLookupsService.resolveNameIds.mockResolvedValue([
-        { name: "react", id: 1 },
-        { name: "node", id: 2 },
-        { name: "graphql", id: 3 },
-      ]);
       mockDb.update.mockResolvedValue([]);
 
       const result = await service.extractResume(
@@ -361,8 +338,8 @@ describe("ResumeService", () => {
       );
 
       expect(result.projects).toEqual([
-        { name: "A", skills: [1, 2] },
-        { name: "B", skills: [1, 3] },
+        { name: "A", skills: ["React", "Node"] },
+        { name: "B", skills: ["react", "GraphQL"] },
       ]);
       expect(mockDb.update).toHaveBeenCalledWith(
         "resume",
@@ -371,8 +348,6 @@ describe("ResumeService", () => {
       );
     });
 
-    // The requested model used to be dropped here, so extraction fell back to
-    // the provider's hardcoded default instead of the caller's choice.
     it("should forward the requested model and userId to the extraction call", async () => {
       mockDb.findById.mockResolvedValue({
         id: "r1",

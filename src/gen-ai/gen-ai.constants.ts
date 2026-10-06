@@ -74,7 +74,7 @@ export const RESUME_EXTRACTION_PROMPT = `Extract structured profile information 
 Return a JSON object that matches the provided schema.
 
 Field rules:
-- For skills, industries, job titles, and project skills, return them as arrays of name strings (reasonably normalized, e.g. consistent casing and no duplicates).
+- For skills, industries, and project skills, return them as arrays of name strings (reasonably normalized, e.g. consistent casing and no duplicates).
 - For publications, return "authors" as an array of name strings (one entry per author). Keep any journal/conference/venue info in "notes", and place the URL in "link" if present.
 - For projects, use "name" for the title, "type" as "research" for academic/research work (e.g. thesis, lab project, paper implementation) or "project" otherwise, "description" for summary/overview, "link" for the URL, and "skills" as an array of skill names. Omit "type" when it cannot be determined.
 - For references, return "name" for the person, "title" for their role, "company" for where they work, "email", "phone", and "relationType" for the relationship (e.g. "manager", "colleague"). Use null/undefined for missing fields; never fabricate contact details.
@@ -85,7 +85,7 @@ Field rules:
 - Keep all extracted text in its original language; do not translate.
 - Skip/Use undefined for any field that cannot be determined from the resume.
 - If the input text is empty, garbled, or not a usable resume, skip or return all fields as undefined. Do not invent or hallucinate content.
-- Limits: at most 60 skills, 30 industries, 10 job titles, 30 projects, 30 publications, 10 references, 30 activities. No repeated or paraphrased entries.
+- Limits: at most 60 skills, 30 industries, 30 projects, 30 publications, 10 references, 30 activities. No repeated or paraphrased entries.
 
 Resume text:
 `;

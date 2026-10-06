@@ -14,15 +14,13 @@ import type {
 } from "@/src/database/database.types";
 import { TAiCommon } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
-import { normalizeName } from "@/src/lookups/lookups.helpers";
-import { LookupsService } from "@/src/lookups/lookups.service";
 import {
   CreateResumeDto,
-  ExtractionResult,
   ReviewStandaloneDto,
   ScoreResumeDto,
-  TAtsScore,
-  TStandaloneReview,
+  type TAtsScore,
+  type TExtractedProfile,
+  type TStandaloneReview,
   type TResumeContent,
   UpdateResumeDto,
   ExtractResumeDto,
@@ -64,7 +62,6 @@ export class ResumeService {
     private readonly fileService: FileUploadService,
     private readonly db: IDatabaseService,
     private readonly genAiService: GenAiService,
-    private readonly lookupsService: LookupsService,
   ) {}
 
   public async findAll(profileId: string): Promise<TResumeResponse[]> {
@@ -220,7 +217,7 @@ export class ResumeService {
     resumeId: string,
     { provider, model }: ExtractResumeDto,
     profileId: string,
-  ): Promise<ExtractionResult> {
+  ): Promise<TExtractedProfile> {
     const resume = await this._findById(resumeId, profileId);
 
     if (!resume.url) {
@@ -231,7 +228,7 @@ export class ResumeService {
 
     const cached = this._deserializeContent(resume.content);
     if (cached) {
-      return cached as unknown as ExtractionResult;
+      return cached as unknown as TExtractedProfile;
     }
 
     return this._extractAndStore(resume, provider, model, profileId);
@@ -242,7 +239,7 @@ export class ResumeService {
     provider: TApiKeyProvider,
     model?: string | null,
     userId?: string,
-  ): Promise<ExtractionResult> {
+  ): Promise<TExtractedProfile> {
     if (!resume.url) {
       throw new BadRequestException(
         "This resume does not have a PDF file to extract from",
@@ -257,51 +254,14 @@ export class ResumeService {
       userId,
     });
 
-    // important to keep it out of the array to avoid deadlock situation
-    const skills = await this.lookupsService.resolveOrCreateNames(
-      "topics",
-      extracted.professional.skills,
-    );
-
-    const [industries, titles, projectSkills] = await Promise.all([
-      this.lookupsService.resolveOrCreateNames(
-        "industries",
-        extracted.professional.industries,
-      ),
-      this.lookupsService.resolveOrCreateNames(
-        "roles",
-        extracted.preferences.titles,
-      ),
-      this.lookupsService.resolveNameIds(
-        "topics",
-        extracted.projects.flatMap((project) => project.skills ?? []),
-      ),
-    ]);
-
-    const skillIdByName = new Map(projectSkills.map((s) => [s.name, s.id]));
-
-    const projects = extracted.projects.map((project) => ({
-      ...project,
-      skills: (project.skills ?? [])
-        .map((skill) => skillIdByName.get(normalizeName(skill)))
-        .filter((id): id is number => id !== undefined),
-    }));
-
-    const result = {
-      ...extracted,
-      professional: { ...extracted.professional, skills, industries },
-      preferences: { ...extracted.preferences, titles },
-      projects,
-    };
-
     // Persist so future fill-profile / scoring / review / interview skip the AI call.
     await this.db.update(
       "resume",
-      { content: JSON.stringify(result) },
+      { content: JSON.stringify(extracted) },
       { id: resume.id },
     );
 
-    return result;
+    return extracted;
   }
 
   public async scoreResumeForJob(
@@ -456,50 +416,7 @@ export class ResumeService {
     return extractedText;
   }
 
-  private async _contentToJson(content: TResumeContent): Promise<string> {
-    const topicIds = new Set<number>([
-      ...(content.professional.skills ?? []),
-      ...content.projects.flatMap((project) => project.skills ?? []),
-    ]);
-    const industryIds = content.professional.industries ?? [];
-    const roleIds = content.preferences.titles ?? [];
-
-    const [topics, industries, roles] = await Promise.all([
-      topicIds.size > 0
-        ? this.db.findAllByColumn("topics", { filter: { id: [...topicIds] } })
-        : [],
-      industryIds.length > 0
-        ? this.db.findAllByColumn("industries", {
-            filter: { id: industryIds },
-          })
-        : [],
-      roleIds.length > 0
-        ? this.db.findAllByColumn("roles", { filter: { id: roleIds } })
-        : [],
-    ]);
-
-    const topicMap = new Map<number, string>(
-      topics.map((topic) => [topic.id, topic.name]),
-    );
-
-    const base = {
-      professional: {
-        ...content.professional,
-        skills: content.professional.skills
-          ?.map((skill) => topicMap.get(skill))
-          .filter(Boolean),
-        industries: industries.map((i) => i.name),
-      },
-      preferences: {
-        ...content.preferences,
-        titles: roles.map((r) => r.name),
-      },
-      projects: content.projects.map((project) => ({
-        ...project,
-        skills: project.skills?.map((skill) => topicMap.get(skill)),
-      })),
-    };
-
+  private _contentToJson(content: TResumeContent): string {
     return JSON.stringify({
       personal: omitKeys(content.personal, [
         "phone",
@@ -507,15 +424,14 @@ export class ResumeService {
         "location",
         "country",
       ]),
-      ...base,
-      preferences: omitKeys(base.preferences, ["preferredLocation"]),
+      professional: content.professional,
       workExperience: content.workExperience.map((exp) =>
         omitKeys(exp, ["id", "companyId", "startDate", "endDate"]),
       ),
       education: content.education.map((ed) =>
         omitKeys(ed, ["id", "location", "startDate", "endDate"]),
       ),
-      projects: base.projects.map((project) =>
+      projects: content.projects.map((project) =>
         omitKeys(project, ["id", "link"]),
       ),
       publications: content.publications.map((pub) =>

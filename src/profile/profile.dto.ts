@@ -55,6 +55,7 @@ export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
 
 export const workOverviewSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
+  summary: nullishStr(LARGE_LENGTH),
   experienceLevel: experienceLevelSchema.nullish(),
   yearsOfExperience: z.number().int().min(0).nullish(),
   skills: z.array(z.number().int().positive()).nullish(),
@@ -68,7 +69,10 @@ export const workExperienceSchema = z.object({
   company: requiredStr(SHORT_LENGTH),
   companyId: z.number().int().positive().nullish(),
   title: requiredStr(MID_LENGTH),
-  startDate: z.coerce.date(),
+  startDate: z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z.coerce.date(),
+  ),
   endDate: z.coerce.date().nullish(),
   isCurrent: z.boolean(),
   responsibilities: nullishStr(),
