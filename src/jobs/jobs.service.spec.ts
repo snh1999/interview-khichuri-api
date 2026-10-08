@@ -306,7 +306,7 @@ describe("JobsService", () => {
       expect(mockDb.create).not.toHaveBeenCalled();
     });
 
-    it("should resolve the role and topic lookups", async () => {
+    it("should resolve the role lookup", async () => {
       mockGenAiService.extractJob.mockResolvedValue({
         description: "A great job",
         companyName: "Acme",
@@ -314,7 +314,6 @@ describe("JobsService", () => {
         topicNames: ["React"],
       });
       mockLookupsService.resolveOrCreateName.mockResolvedValue(7);
-      mockLookupsService.resolveOrCreateNames.mockResolvedValue([3, 4]);
 
       const result = await service.extractJob(dto);
 
@@ -322,12 +321,22 @@ describe("JobsService", () => {
         "roles",
         "Engineer",
       );
-      expect(mockLookupsService.resolveOrCreateNames).toHaveBeenCalledWith(
-        "topics",
-        ["React"],
-      );
       expect(result.roleId).toBe(7);
-      expect(result.topicIds).toEqual([3, 4]);
+    });
+
+    // Topics stay as names so the form can show them as pending chips and the
+    // rows only get written when the user saves the job.
+    it("should return topic names without creating topic rows", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        description: "A great job",
+        topicNames: ["React", "Node"],
+      });
+
+      const result = await service.extractJob(dto);
+
+      expect(result.topicNames).toEqual(["React", "Node"]);
+      expect(result).not.toHaveProperty("topicIds");
+      expect(mockLookupsService.resolveOrCreateNames).not.toHaveBeenCalled();
     });
   });
 

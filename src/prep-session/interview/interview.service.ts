@@ -49,7 +49,7 @@ export class InterviewService {
       dto,
     );
 
-    const { provider, model, ...interviewDto } = dto;
+    const { provider, model, instruction, ...interviewDto } = dto;
 
     const interview = await this.db.create("interviews", {
       userId,
@@ -66,6 +66,7 @@ export class InterviewService {
             await this.genAiService.generateInterviewQuestions({
               provider,
               model,
+              instruction,
               context,
               userId,
             })
@@ -190,6 +191,7 @@ export class InterviewService {
       schema: interviewEvaluationSchema,
       provider: dto.provider,
       model: dto.model,
+      instruction: dto.instruction,
       userId,
     });
 

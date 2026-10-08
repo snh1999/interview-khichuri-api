@@ -75,6 +75,7 @@ export const work_overview = sqliteTable("work_overview", {
     .notNull()
     .references(() => profiles.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  // summary: text("summary"),
   experienceLevel: text("experience_level", {
     enum: EXPERIENCE_LEVELS,
   }),

@@ -103,6 +103,7 @@ export const extractedJobSchema = baseJobSchema
     deadline: true,
     interviewDate: true,
     appliedAt: true,
+    description: true,
   })
   .partial()
   .extend({
@@ -118,13 +119,9 @@ export const extractedJobSchema = baseJobSchema
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}
 
-export type TJobExtractionResult = Omit<
-  ExtractedJob,
-  "roleName" | "topicNames"
-> & {
+export type TJobExtractionResult = Omit<ExtractedJob, "roleName"> & {
   title?: string;
   roleId: number | null;
-  topicIds: number[];
 };
 
 export type TJobWithTopicIds = TJob & {

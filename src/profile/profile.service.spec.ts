@@ -331,6 +331,24 @@ describe("ProfileService", () => {
         mockTransaction,
       );
     });
+
+    it("should pass summary through to the work overview row", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([
+        { id: 1, profileId: "user-1" },
+      ]);
+
+      await service.updateWorkOverview("user-1", {
+        title: "Engineer",
+        summary: "Backend engineer",
+      });
+
+      expect(mockDb.update).toHaveBeenCalledWith(
+        "work_overview",
+        { title: "Engineer", summary: "Backend engineer" },
+        { id: 1 },
+        mockTransaction,
+      );
+    });
   });
 
   describe("updateReferences", () => {

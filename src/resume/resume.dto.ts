@@ -13,7 +13,6 @@ import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 import {
   activitySchema,
   educationSchema,
-  jobPreferenceSchema,
   profileLinkSchema,
   projectSchema,
   publicationSchema,
@@ -25,6 +24,8 @@ import {
 
 export const omitDate = { startDate: true, endDate: true } as const;
 export const extendDate = { startDate: dateStr, endDate: dateStr } as const;
+
+const MAX_SKILL_GROUPS = 5;
 
 const publicationExtractionSchema = publicationSchema
   .omit({ id: true })
@@ -69,10 +70,6 @@ export const extractedProfileSchema = z.object({
     )
     .max(20)
     .default([]),
-  preferences: jobPreferenceSchema
-    .omit({ titles: true })
-    .extend({ titles: z.array(str(SHORT_LENGTH)).max(10).default([]) })
-    .partial(),
   links: z.array(profileLinkSchema.partial()).max(20).default([]),
   publications: z
     .array(publicationExtractionSchema.partial())
@@ -88,38 +85,35 @@ export const extractedProfileSchema = z.object({
 
 export type TExtractedProfile = z.infer<typeof extractedProfileSchema>;
 
-export type ExtractionResult = Omit<
-  TExtractedProfile,
-  "professional" | "preferences" | "projects"
-> & {
-  professional: Omit<
-    TExtractedProfile["professional"],
-    "skills" | "industries"
-  > & {
-    skills: number[];
-    industries: number[];
-  };
-  preferences: Omit<TExtractedProfile["preferences"], "titles"> & {
-    titles: number[];
-  };
-  projects: (Omit<TExtractedProfile["projects"][number], "skills"> & {
-    skills: number[];
-  })[];
-};
-
 export class ExtractResumeDto extends createZodDto(aiCommonSchema) {}
 
 export const resumeContentSchema = z.object({
   personal: updateProfileSchema,
-  professional: workOverviewSchema,
+  professional: workOverviewSchema.omit({
+    industries: true,
+    skills: true,
+  }),
   workExperience: z.array(workExperienceSchema),
   education: z.array(educationSchema),
-  preferences: jobPreferenceSchema,
   links: z.array(profileLinkSchema),
   publications: z.array(publicationSchema),
-  projects: z.array(projectSchema),
+  projects: z.array(
+    projectSchema
+      .omit({ skills: true })
+      .extend({ skills: str(LARGE_LENGTH).optional() }),
+  ),
   references: z.array(referenceSchema),
   activities: z.array(activitySchema),
+  skillGroups: z
+    .array(
+      z.object({
+        id: z.string().max(36),
+        keywords: str(LARGE_LENGTH),
+        label: str(SHORT_LENGTH),
+      }),
+    )
+    .max(MAX_SKILL_GROUPS)
+    .optional(),
 });
 
 export type TResumeContent = z.infer<typeof resumeContentSchema>;

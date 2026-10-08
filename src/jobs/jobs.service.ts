@@ -86,17 +86,16 @@ export class JobsService {
   ): Promise<TJobExtractionResult> {
     const extracted = await this.genAiService.extractJob(dto, userId);
 
-    const [roleId, topicIds] = await Promise.all([
-      this.lookupsService.resolveOrCreateName("roles", extracted.roleName),
-      this.lookupsService.resolveOrCreateNames("topics", extracted.topicNames),
-    ]);
+    const roleId = await this.lookupsService.resolveOrCreateName(
+      "roles",
+      extracted.roleName,
+    );
 
     return {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       ...extracted,
       title: composeJobTitle(extracted.companyName, extracted.roleName),
       roleId,
-      topicIds,
     };
   }
 

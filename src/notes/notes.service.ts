@@ -163,7 +163,7 @@ export class NotesService {
     dto: LearnMoreDto,
     userId?: string,
   ): Observable<MessageEvent> {
-    const { questionText, provider, model } = dto;
+    const { questionText, provider, model, instruction } = dto;
     const prompt = `${EXPLAIN_INTERVIEW_QUESTION_PROMPT}${questionText}`;
 
     return createSseStream({
@@ -172,6 +172,7 @@ export class NotesService {
           prompt,
           provider,
           model,
+          instruction,
           abortSignal: signal,
           userId,
         }),

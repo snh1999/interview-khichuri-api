@@ -90,6 +90,7 @@ export const work_overview = pgTable("work_overview", {
     .notNull()
     .references(() => profiles.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  // summary: text("summary"),
   experienceLevel: experienceLevelEnum("experience_level"),
   yearsOfExperience: integer("years_of_experience"),
   ...defaultTimeStamps,

@@ -244,6 +244,33 @@ describe("Profile (e2e)", () => {
       expect(body.data.workOverviews[0].title).toBe("Updated Title");
     });
 
+    it("should store and clear the work overview summary", async () => {
+      const profilePayload = getProfilePayload();
+      await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
+
+      const overview = getWorkOverviewPayload();
+      await auth(httpServer.put("/profile/work-overview"))
+        .send({ ...overview, summary: "Ships small diffs" })
+        .expect(204);
+
+      let { body } = await auth(httpServer.get("/profile")).expect(200);
+      expect(body.data.workOverviews[0].summary).toBe("Ships small diffs");
+
+      await auth(httpServer.put("/profile/work-overview"))
+        .send({ summary: "", title: overview.title })
+        .expect(204);
+
+      ({ body } = await auth(httpServer.get("/profile")).expect(200));
+      expect(body.data.workOverviews[0].summary).toBe("");
+
+      await auth(httpServer.put("/profile/work-overview"))
+        .send({ summary: null, title: overview.title })
+        .expect(204);
+
+      ({ body } = await auth(httpServer.get("/profile")).expect(200));
+      expect(body.data.workOverviews[0].summary).toBeNull();
+    });
+
     it("should sync skills and industries", async () => {
       const profilePayload = getProfilePayload();
       await auth(httpServer.put("/profile")).send(profilePayload).expect(204);
