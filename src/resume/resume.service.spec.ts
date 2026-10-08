@@ -35,6 +35,9 @@ function makeContent(): TResumeContent {
     projects: [],
     references: [],
     activities: [],
+    skillGroups: [
+      { id: "g-1", label: "Languages", keywords: "TypeScript, Node.js" },
+    ],
   };
 }
 
@@ -378,6 +381,32 @@ describe("ResumeService", () => {
     });
   });
 
+  describe("resumeToText", () => {
+    it("serialises skillGroups without ids and keeps personal contact fields out", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        profileId: "user-1",
+        content: JSON.stringify(makeContent()),
+      });
+
+      const text = await service.resumeToText({
+        resumeId: "r1",
+        userId: "user-1",
+        provider: "google",
+        model: "gemini-3.5-flash-lite",
+      });
+
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      expect(parsed.skillGroups).toEqual([
+        { label: "Languages", keywords: "TypeScript, Node.js" },
+      ]);
+      expect(parsed.personal).toEqual({
+        firstName: "John",
+        lastName: "Doe",
+      });
+    });
+  });
+
   describe("scoreResumeForJob", () => {
     it("should forward the requested model and userId to the scoring call", async () => {
       mockDb.findById
@@ -400,6 +429,7 @@ describe("ResumeService", () => {
           resumeId: "r1",
           provider: "google",
           model: "gemini-3.5-flash-lite",
+          instruction: "score harshly",
         },
         "user-1",
       );
@@ -409,6 +439,7 @@ describe("ResumeService", () => {
           provider: "google",
           jobDescription: "job description",
           model: "gemini-3.5-flash-lite",
+          instruction: "score harshly",
           userId: "user-1",
         }),
       );

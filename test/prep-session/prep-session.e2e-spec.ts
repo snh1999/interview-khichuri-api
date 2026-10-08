@@ -87,16 +87,20 @@ describe("PrepSession (e2e)", () => {
       expect(body.data.description).toBeNull();
     });
 
-    it("should return 400 when description is empty", async () => {
-      await auth(httpServer.post("/prep-session"))
+    it("should create a session with an empty description", async () => {
+      const { body } = await auth(httpServer.post("/prep-session"))
         .send({ title: "Test", description: "" })
-        .expect(400);
+        .expect(201);
+
+      expect(body.data.description).toBe("");
     });
 
-    it("should return 400 when description is whitespace only", async () => {
-      await auth(httpServer.post("/prep-session"))
+    it("should trim a whitespace-only description to empty", async () => {
+      const { body } = await auth(httpServer.post("/prep-session"))
         .send({ title: "Test", description: "   " })
-        .expect(400);
+        .expect(201);
+
+      expect(body.data.description).toBe("");
     });
 
     it("should create a session with experience", async () => {
@@ -421,15 +425,19 @@ describe("PrepSession (e2e)", () => {
         });
     });
 
-    it("should return 400 when patching with empty description", async () => {
+    it("should accept an empty description when patching", async () => {
       const {
         body: { data: created },
       } = await createSession();
       const sessionId: string = created.id;
 
-      await auth(httpServer.patch(`/prep-session/${sessionId}`))
+      const { body } = await auth(
+        httpServer.patch(`/prep-session/${sessionId}`),
+      )
         .send({ description: "" })
-        .expect(400);
+        .expect(200);
+
+      expect(body.data.description).toBe("");
     });
 
     it("should toggle isFavorite", async () => {
