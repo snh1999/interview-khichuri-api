@@ -268,7 +268,7 @@ export class ResumeService {
     dto: ScoreResumeDto,
     userId: string,
   ): Promise<TAtsScore> {
-    const { jobId, resumeId, provider, model } = dto;
+    const { jobId, resumeId, provider, model, instruction } = dto;
 
     const resumeText = await this.resumeToText({
       resumeId,
@@ -302,6 +302,7 @@ export class ResumeService {
       company: companyName,
       companyDetails,
       model,
+      instruction,
       userId,
     });
   }
@@ -310,7 +311,7 @@ export class ResumeService {
     dto: ReviewStandaloneDto,
     userId: string,
   ): Promise<TStandaloneReview> {
-    const { resumeId, provider, model } = dto;
+    const { resumeId, provider, model, instruction } = dto;
 
     const resumeText = await this.resumeToText({
       resumeId,
@@ -323,6 +324,7 @@ export class ResumeService {
       provider,
       resume: resumeText,
       model,
+      instruction,
       userId,
     });
   }
@@ -425,6 +427,9 @@ export class ResumeService {
         "country",
       ]),
       professional: content.professional,
+      skillGroups: (content.skillGroups ?? []).map((group) =>
+        omitKeys(group, ["id"]),
+      ),
       workExperience: content.workExperience.map((exp) =>
         omitKeys(exp, ["id", "companyId", "startDate", "endDate"]),
       ),

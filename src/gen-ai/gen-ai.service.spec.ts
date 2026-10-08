@@ -771,7 +771,7 @@ describe("GenAiService", () => {
         conversation: "Q: hi",
       });
 
-      expect(await resolvedWireSchema(streamText)).toMatch(/"minLength"/);
+      expect(await resolvedWireSchema(streamText)).toMatch(/"maxLength"/);
     });
   });
 
