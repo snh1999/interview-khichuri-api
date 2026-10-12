@@ -80,6 +80,43 @@ describe("Jobs (e2e)", () => {
       if (!isAppMode) expect(body.data.userId).toEqual(expect.any(String));
     });
 
+    it("should create a job with work type, salary and currency", async () => {
+      const { body } = await createJob({
+        ...getJobPayload(),
+        currency: "USD",
+        experienceRequired: 5,
+        salaryLower: 120_000,
+        salaryUpper: 150_000,
+        workType: "hybrid",
+      });
+
+      expect(body.data).toMatchObject({
+        currency: "USD",
+        experienceRequired: 5,
+        salaryLower: 120_000,
+        salaryUpper: 150_000,
+        workType: "hybrid",
+      });
+    });
+
+    it("should default work type, salary and currency to null", async () => {
+      const { body } = await createJob(getJobPayload());
+
+      expect(body.data).toMatchObject({
+        currency: null,
+        experienceRequired: null,
+        salaryLower: null,
+        salaryUpper: null,
+        workType: null,
+      });
+    });
+
+    it("should return 400 for an invalid work type", async () => {
+      await auth(httpServer.post("/jobs"))
+        .send({ ...getJobPayload(), workType: "onsight" })
+        .expect(400);
+    });
+
     it("should return 400 when title is missing", async () =>
       auth(httpServer.post("/jobs")).send({ description: "desc" }).expect(400));
 

@@ -99,6 +99,11 @@ Field rules:
 - topicNames: skills/technologies mentioned, as an array of strings from english alphabet— return names as they appear in the text (they have to be reasonably normalized, e.g. <= 3 words, consistent casing and no duplicates), filter out too broad entries (eg. Problem solving, monitoring tools). Return at most 40 topic names, each once.
 - companyName: the hiring company's name, as written in the text.
 - location: the job location (e.g. "Remote", "New York, NY", "Hybrid - SF").
+- workType: the working arrangement where the text states one. "remote" → "remote", "hybrid" → "hybrid", on-site/co-located/office language → "onsite". Skip/use undefined when the posting does not state one.
+- salaryLower: the lower bound of a stated salary range, as an integer (e.g. "$120k - $150k" → 120000, "€70,000" → 70000). Skip/use undefined when the posting names no salary or only vague words like "competitive".
+- salaryUpper: the upper bound of the same stated salary range, as an integer ("$120k - $150k" → 150000). Skip/use undefined when only a single figure or no salary is stated.
+- currency: the ISO 4217 code of a stated salary (e.g. "$" → "USD", "€" → "EUR", "£" → "GBP"). Skip/use undefined when the posting names no salary.
+- experienceRequired: the lower bound of a stated years-of-experience requirement ("5+ years" → 5, "3–5 years" → 3). Skip/use undefined when unstated or vague ("several years").
 - source: where the job was found, if mentioned.
 - deadline: ISO date string (YYYY-MM-DD) if a specific date is mentioned. If only a vague timeframe is given (e.g. "ASAP", "Q3 2026"), skip rather than guessing a specific date.
 - interviewDate: ISO date string (YYYY-MM-DD) if mentioned, otherwise skip(undefined).

@@ -9,6 +9,7 @@ import {
 
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
 import { JOB_STATUS } from "@/src/jobs/jobs.dto";
+import { PROFILE_WORK_TYPES } from "@/src/profile/profile.dto";
 
 import { companies } from "./company.schema";
 import { topics, roles } from "./lookups.schema";
@@ -28,6 +29,11 @@ export const jobs = sqliteTable(
     description: text("description").notNull(),
     location: text("location"),
     source: text("source"),
+    workType: text("work_type", { enum: PROFILE_WORK_TYPES }),
+    salaryLower: integer("salary_lower"),
+    salaryUpper: integer("salary_upper"),
+    currency: text("currency"),
+    experienceRequired: integer("experience_required"),
     interviewDate: integer("interview_date", { mode: "timestamp" }),
     status: text("status", { enum: JOB_STATUS }).notNull().default("saved"),
     roleId: integer("role_id").references(() => roles.id, {

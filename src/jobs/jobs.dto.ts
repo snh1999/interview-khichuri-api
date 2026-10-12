@@ -11,6 +11,7 @@ import {
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TJob } from "@/src/database/database.types";
 import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
+import { PROFILE_WORK_TYPES } from "@/src/profile/profile.dto";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
@@ -62,6 +63,11 @@ const baseJobSchema = z.object({
   deadline: z.coerce.date().nullish(),
   location: nullishStr(SHORT_LENGTH),
   source: nullishStr(),
+  workType: z.enum(PROFILE_WORK_TYPES).nullish(),
+  salaryLower: z.number().int().positive().nullish(),
+  salaryUpper: z.number().int().positive().nullish(),
+  currency: z.string().length(3).nullish(),
+  experienceRequired: z.number().int().positive().nullish(),
   interviewDate: z.coerce.date().nullish(),
   appliedAt: z.coerce.date().nullish(),
 });
