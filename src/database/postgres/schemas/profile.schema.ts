@@ -90,7 +90,7 @@ export const work_overview = pgTable("work_overview", {
     .notNull()
     .references(() => profiles.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
-  // summary: text("summary"),
+  summary: text("summary"),
   experienceLevel: experienceLevelEnum("experience_level"),
   yearsOfExperience: integer("years_of_experience"),
   ...defaultTimeStamps,
@@ -236,6 +236,9 @@ export const job_preference = pgTable("job_preference", {
   salaryExpected: integer("salary_expected"),
   currency: text("currency").default("USD"), // ISO 4217
   preferredLocation: text("preferred_location"),
+  coverLetterTemplate: text("cover_letter_template"),
+  outreachEmailTemplate: text("outreach_email_template"),
+  linkedinDmTemplate: text("linkedin_dm_template"),
   ...defaultTimeStamps,
 });
 

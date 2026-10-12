@@ -96,6 +96,14 @@ const extractJobSchema = aiCommonSchema.extend({
 
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}
 
+const generateFromTemplate = aiCommonSchema.extend({
+  resumeId: z.uuid().nullish(),
+});
+
+export class GenerateFromTemplateDto extends createZodDto(
+  generateFromTemplate,
+) {}
+
 export const extractedJobSchema = baseJobSchema
   .omit({
     roleId: true,

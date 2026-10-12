@@ -75,7 +75,7 @@ export const work_overview = sqliteTable("work_overview", {
     .notNull()
     .references(() => profiles.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
-  // summary: text("summary"),
+  summary: text("summary"),
   experienceLevel: text("experience_level", {
     enum: EXPERIENCE_LEVELS,
   }),
@@ -233,6 +233,9 @@ export const job_preference = sqliteTable("job_preference", {
   salaryExpected: integer("salary_expected"),
   currency: text("currency").default("USD"), // ISO 4217
   preferredLocation: text("preferred_location"),
+  coverLetterTemplate: text("cover_letter_template"),
+  outreachEmailTemplate: text("outreach_email_template"),
+  linkedinDmTemplate: text("linkedin_dm_template"),
   ...defaultTimeStamps,
 });
 
