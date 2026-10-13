@@ -131,7 +131,7 @@ export class JobsService {
     dto: GenerateFromTemplateDto,
     userId?: string,
   ): Promise<{ markdown: string }> {
-    return this._generateLetter(
+    return this._generate(
       id,
       "coverLetterTemplate",
       GENERATE_COVER_LETTER_PROMPT,
@@ -146,7 +146,7 @@ export class JobsService {
     dto: GenerateFromTemplateDto,
     userId?: string,
   ): Promise<{ markdown: string }> {
-    return this._generateLetter(
+    return this._generate(
       id,
       "outreachEmailTemplate",
       GENERATE_OUTREACH_EMAIL_PROMPT,
@@ -161,7 +161,7 @@ export class JobsService {
     dto: GenerateFromTemplateDto,
     userId?: string,
   ): Promise<{ markdown: string }> {
-    return this._generateLetter(
+    return this._generate(
       id,
       "linkedinDmTemplate",
       GENERATE_LINKEDIN_DM_PROMPT,
@@ -171,10 +171,7 @@ export class JobsService {
     );
   }
 
-  // All three drafts differ only in prompt, template column and default shape,
-  // so one builder serves them. A missing preference row or null template is
-  // not an error: the draft still generates, just without the user's template.
-  private async _generateLetter(
+  private async _generate(
     id: string,
     templateColumn: TLetterTemplateColumn,
     prompt: string,
@@ -183,7 +180,7 @@ export class JobsService {
     userId?: string,
   ): Promise<{ markdown: string }> {
     const { provider, model, instruction } = dto;
-    const profileId = userId ?? "app";
+    const profileId = userId ?? "";
 
     const job = await this.db.findById("jobs", id, {
       filter: { ...(userId ? { userId } : {}) },
@@ -209,6 +206,7 @@ export class JobsService {
         ? `<template_${templateTag}>\n${template}\n</template_${templateTag}>`
         : "",
       `<job_title>\n${job.title}\n</job_title>`,
+      `<company_name>\n${job.companyName}\n</company_name>`,
       `<job_description>\n${job.description}\n</job_description>`,
       this._formatPreferences(preferences),
       `<candidate_resume>\n${resume}\n</candidate_resume>`,

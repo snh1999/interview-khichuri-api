@@ -32,8 +32,8 @@ const createInterviewSchema = aiCommonSchema.extend({
   mode: INTERVIEW_MODES.default("qa_flow"),
   focusTypes: z.array(FOCUS_TYPES).optional(),
   topicNames: z.array(requiredStr()).optional(),
-  questionCount: z.number().int().min(1).max(50).optional(),
-  maxDurationMinutes: z.number().int().min(1).max(180).optional(),
+  questionCount: z.number().int().min(1).max(50).nullish(),
+  maxDurationMinutes: z.number().int().min(1).max(180).nullish(),
 });
 
 export class CreateInterviewDto extends createZodDto(createInterviewSchema) {}

@@ -68,11 +68,10 @@ function skeleton(node: unknown): unknown {
     return [];
   }
 
-  if ((node as TJsonSchemaNode).$ref) {
+  const resolved = unwrapNullable(node as TJsonSchemaNode);
+  if (resolved.$ref) {
     return null;
   }
-
-  const resolved = unwrapNullable(node as TJsonSchemaNode);
   const enumValues = resolved.enum;
 
   // A representative enum member is a more useful hint than an empty string.
@@ -91,7 +90,9 @@ function skeleton(node: unknown): unknown {
       );
     }
     case "array": {
-      if (resolved.prefixItems) return null;
+      if (resolved.prefixItems) {
+        return null;
+      }
       return [skeleton(resolved.items)];
     }
     case "integer":
@@ -106,20 +107,25 @@ function skeleton(node: unknown): unknown {
   }
 }
 
-export function jsonSchemaSkeleton(schema: z.ZodType): string {
+export function jsonSchemaSkeleton(schema: z.ZodType): string | null {
   try {
-    const jsonSchema: TJsonSchemaNode = z.toJSONSchema(schema, {
+    // "throw" so a schema with a transform (or anything else JSON Schema cannot
+    // express) bails to null instead of rendering a skeleton that lies about the
+    // field's type. The response schema keeps "any" -- it only strips keywords.
+    const raw: TJsonSchemaNode = z.toJSONSchema(schema, {
       io: "output",
-      unrepresentable: "any",
+      unrepresentable: "throw",
     });
 
-    const result = JSON.stringify(skeleton(jsonSchema), null, 2);
-    if (result === "") return "";
-    return result;
+    const result = skeleton(raw);
+    const isPlainObject =
+      typeof result === "object" && result !== null && !Array.isArray(result);
+    if (isPlainObject) {
+      return JSON.stringify(result, null, 2);
+    }
+    return null;
   } catch {
-    // A schema we cannot render is not a reason to fail the request: the caller
-    // falls back to prompting without a shape.
-    return "";
+    return null;
   }
 }
 
@@ -135,6 +141,8 @@ ${shape}
 \`\`\``;
 }
 
+const AUTH_ERROR_PATTERN = /api[_ ]?key/i;
+
 /**
  * A rejected `responseJsonSchema` and a rejected prompt are indistinguishable
  * from Google's side -- both are a bare 400 -- so the 400 is the only signal
@@ -147,15 +155,15 @@ export function isBadRequest(error: unknown): boolean {
     (error as { status?: number }).status;
   if (status !== 400) return false;
   const msg =
-    (error as { message?: string; error?: { message?: string }; response?: { data?: { error?: { message?: string } } } }).message ??
+    (
+      error as {
+        message?: string;
+        error?: { message?: string };
+      }
+    ).message ??
     (error as { error?: { message?: string } }).error?.message ??
-    (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
-    String(error);
-  const AUTH_ERROR_PATTERN = /api[_ ]?key|unauthorized|permission|forbidden/i;
-  if (AUTH_ERROR_PATTERN.test(String(msg))) {
-    return false;
-  }
-  return true;
+    "";
+  return !AUTH_ERROR_PATTERN.test(msg);
 }
 
 // https://ai.google.dev/gemini-api/docs/generate-content/structured-output
@@ -208,6 +216,7 @@ const NESTED_SCHEMA_MAP_KEYS = new Set([
   "patternProperties",
 ]);
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function sanitizeNode(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(sanitizeNode);
@@ -246,27 +255,7 @@ function sanitizeNode(node: unknown): unknown {
       continue;
     }
 
-    if (key === "allOf") {
-      if (Array.isArray(value)) {
-        result.allOf = (value as unknown[]).map(sanitizeNode);
-      } else {
-        result.allOf = sanitizeNode(value);
-      }
-      continue;
-    }
-
-    if (NESTED_SCHEMA_KEYS.has(key) && key !== "oneOf" && key !== "allOf") {
-      result[key] = sanitizeNode(value);
-      continue;
-    }
-
-    // z.record produces additionalProperties for value schema
-    if (
-      key === "additionalProperties" &&
-      typeof value === "object" &&
-      value !== null &&
-      !Array.isArray(value)
-    ) {
+    if (NESTED_SCHEMA_KEYS.has(key)) {
       result[key] = sanitizeNode(value);
       continue;
     }
@@ -285,12 +274,10 @@ function sanitizeNode(node: unknown): unknown {
  */
 export function toGeminiResponseSchema<T>(schema: z.ZodType<T>): Schema<T> {
   return jsonSchema<T>(
-    () => {
-      const sanitized = sanitizeNode(
+    () =>
+      sanitizeNode(
         z.toJSONSchema(schema, { io: "output", unrepresentable: "any" }),
-      );
-      return sanitized as never;
-    },
+      ) as never,
     {
       validate: async (value) => {
         const result = await schema.safeParseAsync(value);

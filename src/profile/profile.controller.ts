@@ -43,7 +43,7 @@ export class ProfileController {
     @Body() dto: UpdateProfileDto,
     @UserId() userId?: string,
   ): Promise<TProfile> {
-    return this.profileService.updateProfile(userId ?? "app", dto);
+    return this.profileService.updateProfile(userId ?? "", dto);
   }
 
   @Put("work-overview")
@@ -52,7 +52,7 @@ export class ProfileController {
     @Body() dto: WorkOverviewDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateWorkOverview(userId ?? "app", dto);
+    await this.profileService.updateWorkOverview(userId ?? "", dto);
   }
 
   @Put("work-experience")
@@ -61,7 +61,7 @@ export class ProfileController {
     @Body() dto: UpdateWorkExperienceDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateWorkExperience(userId ?? "app", dto);
+    await this.profileService.updateWorkExperience(userId ?? "", dto);
   }
 
   @Put("education")
@@ -70,7 +70,7 @@ export class ProfileController {
     @Body() dto: EducationDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateEducation(userId ?? "app", dto);
+    await this.profileService.updateEducation(userId ?? "", dto);
   }
 
   @Put("preferences")
@@ -79,7 +79,7 @@ export class ProfileController {
     @Body() dto: UpdateJobPreferenceDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updatePreferences(userId ?? "app", dto);
+    await this.profileService.updatePreferences(userId ?? "", dto);
   }
 
   @Put("links")
@@ -88,7 +88,7 @@ export class ProfileController {
     @Body() dto: ProfileLinksDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateLinks(userId ?? "app", dto);
+    await this.profileService.updateLinks(userId ?? "", dto);
   }
 
   @Put("publications")
@@ -97,7 +97,7 @@ export class ProfileController {
     @Body() dto: PublicationsDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updatePublications(userId ?? "app", dto);
+    await this.profileService.updatePublications(userId ?? "", dto);
   }
 
   @Put("projects")
@@ -106,7 +106,7 @@ export class ProfileController {
     @Body() dto: ProjectsDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateProjects(userId ?? "app", dto);
+    await this.profileService.updateProjects(userId ?? "", dto);
   }
 
   @Put("references")
@@ -115,7 +115,7 @@ export class ProfileController {
     @Body() dto: ReferencesDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateReferences(userId ?? "app", dto);
+    await this.profileService.updateReferences(userId ?? "", dto);
   }
 
   @Put("activities")
@@ -124,6 +124,6 @@ export class ProfileController {
     @Body() dto: ActivitiesDto,
     @UserId() userId?: string,
   ): Promise<void> {
-    await this.profileService.updateActivities(userId ?? "app", dto);
+    await this.profileService.updateActivities(userId ?? "", dto);
   }
 }

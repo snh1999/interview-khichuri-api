@@ -67,7 +67,7 @@ const baseJobSchema = z.object({
   salaryLower: z.number().int().positive().nullish(),
   salaryUpper: z.number().int().positive().nullish(),
   currency: z.string().length(3).nullish(),
-  experienceRequired: z.number().int().positive().nullish(),
+  experienceRequired: z.number().int().nonnegative().nullish(),
   interviewDate: z.coerce.date().nullish(),
   appliedAt: z.coerce.date().nullish(),
 });
@@ -78,10 +78,22 @@ export const deadlineBeforeInterview = (data: {
 }): boolean =>
   !data.interviewDate || !data.deadline || data.deadline < data.interviewDate;
 
+export const salaryRangeValid = (data: {
+  salaryLower?: number | null;
+  salaryUpper?: number | null;
+}): boolean =>
+  typeof data.salaryLower !== "number" ||
+  typeof data.salaryUpper !== "number" ||
+  data.salaryUpper >= data.salaryLower;
+
 export class CreateJobDto extends createZodDto(
-  baseJobSchema.refine(deadlineBeforeInterview, {
-    message: "Deadline must be before the interview date",
-  }),
+  baseJobSchema
+    .refine(deadlineBeforeInterview, {
+      message: "Deadline must be before the interview date",
+    })
+    .refine(salaryRangeValid, {
+      message: "Salary upper bound must be at least the lower bound",
+    }),
 ) {}
 export class UpdateJobDto extends createZodDto(
   baseJobSchema
@@ -92,6 +104,9 @@ export class UpdateJobDto extends createZodDto(
     })
     .refine(deadlineBeforeInterview, {
       message: "Deadline must be before the interview date",
+    })
+    .refine(salaryRangeValid, {
+      message: "Salary upper bound must be at least the lower bound",
     }),
 ) {}
 
@@ -129,6 +144,9 @@ export const extractedJobSchema = baseJobSchema
     roleName: str(SHORT_LENGTH).nullish(),
     deadline: dateStr,
     interviewDate: dateStr,
+  })
+  .refine(salaryRangeValid, {
+    message: "Salary upper bound must be at least the lower bound",
   });
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}

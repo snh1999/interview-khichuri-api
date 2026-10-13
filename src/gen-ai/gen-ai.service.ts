@@ -125,21 +125,21 @@ export class GenAiService {
             : createOpenAI({ apiKey: key, baseURL: config.baseURL });
 
         try {
-          let shape =
+          const shape =
             config.sdk === "google" ? jsonSchemaSkeleton(schema) : null;
-          if (shape === "") shape = null;
           // The prompt is part of the key because a 400 can come from the prompt
           // rather than the schema, and one bad prompt must not disable
           // structured output for every other prompt using this schema.
           const cacheKey =
             shape === null
               ? null
-              : `${modelName}:${createHash("sha1")
+              : `${modelName}:${createHash("sha256")
                   .update(`${shape}\n\n${prompt}`)
                   .digest("hex")}`;
           const sendSchema =
             cacheKey === null || !this.rejectedSchemas.has(cacheKey);
 
+          // TODO: no timeout/abort here, so a stalled provider request can hang -- thread an abortSignal through.
           const run = (withSchema: boolean) =>
             generateText({
               model: providerInstance(modelName),
@@ -182,11 +182,17 @@ export class GenAiService {
               this.rejectedSchemas.set(cacheKey, Date.now());
               if (this.rejectedSchemas.size > this.rejectedSchemasMaxSize) {
                 const firstKey = this.rejectedSchemas.keys().next().value;
-                if (firstKey) this.rejectedSchemas.delete(firstKey);
+                if (firstKey !== undefined) {
+                  this.rejectedSchemas.delete(firstKey);
+                }
               }
               this.logger.warn(
                 "Gemini rejected the response schema; retrying without it",
-                { model: modelName, promptLength: prompt.length },
+                {
+                  model: modelName,
+                  promptLength: prompt.length,
+                  reason: err instanceof Error ? err.message : String(err),
+                },
               );
               return result.output;
             } catch (fallbackErr) {
@@ -196,7 +202,6 @@ export class GenAiService {
                 model: modelName,
                 originalError: originalMsg,
               });
-              (fallbackErr as any).cause = err;
               throw fallbackErr;
             }
           }
@@ -206,9 +211,7 @@ export class GenAiService {
             throw quotaException;
           }
           if (NoObjectGeneratedError.isInstance(err)) {
-            const finishReason =
-              (err as any)?.cause?.finishReason ?? (err as any)?.finishReason;
-            if (finishReason === "length") {
+            if (err.finishReason === "length") {
               throw new BadRequestException(
                 "The AI returned a response that could not be parsed, likely because it hit its output limit. Please shorten the input and try again, or use a larger model.",
               );

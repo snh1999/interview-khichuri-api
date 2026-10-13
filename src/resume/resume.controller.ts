@@ -40,7 +40,7 @@ export class ResumeController {
 
   @Get()
   public findAll(@UserId() userId?: string): Promise<TResumeResponse[]> {
-    return this.resumeService.findAll(userId ?? "app");
+    return this.resumeService.findAll(userId ?? "");
   }
 
   @Post()
@@ -62,7 +62,7 @@ export class ResumeController {
     @Body("name") name?: string,
     @UserId() userId?: string,
   ): Promise<TUploadResponse> {
-    return this.resumeService.upload(file, userId ?? "app", name);
+    return this.resumeService.upload(file, userId ?? "", name);
   }
 
   @Post("create")
@@ -70,7 +70,7 @@ export class ResumeController {
     @Body() dto: CreateResumeDto,
     @UserId() userId?: string,
   ): Promise<TResumeResponse> {
-    return this.resumeService.create(userId ?? "app", dto);
+    return this.resumeService.create(userId ?? "", dto);
   }
 
   @Get("slug/:slug")
@@ -84,7 +84,7 @@ export class ResumeController {
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<TResumeResponse> {
-    return this.resumeService.findById(id, userId ?? "app");
+    return this.resumeService.findById(id, userId ?? "");
   }
 
   @Post(":id/extract")
@@ -93,7 +93,7 @@ export class ResumeController {
     @Body() dto: ExtractResumeDto,
     @UserId() userId?: string,
   ): Promise<TExtractedProfile> {
-    return this.resumeService.extractResume(id, dto, userId ?? "app");
+    return this.resumeService.extractResume(id, dto, userId ?? "");
   }
 
   @Post("score")
@@ -102,7 +102,7 @@ export class ResumeController {
     @Body() dto: ScoreResumeDto,
     @UserId() userId?: string,
   ): Promise<TAtsScore> {
-    return this.resumeService.scoreResumeForJob(dto, userId ?? "app");
+    return this.resumeService.scoreResumeForJob(dto, userId ?? "");
   }
 
   @Post("review-standalone")
@@ -111,7 +111,7 @@ export class ResumeController {
     @Body() dto: ReviewStandaloneDto,
     @UserId() userId?: string,
   ): Promise<TStandaloneReview> {
-    return this.resumeService.reviewResumeStandalone(dto, userId ?? "app");
+    return this.resumeService.reviewResumeStandalone(dto, userId ?? "");
   }
 
   @Patch(":id")
@@ -120,7 +120,7 @@ export class ResumeController {
     @Body() dto: UpdateResumeDto,
     @UserId() userId?: string,
   ): Promise<TResumeResponse> {
-    return this.resumeService.update(id, userId ?? "app", dto);
+    return this.resumeService.update(id, userId ?? "", dto);
   }
 
   @Get(":id/url")
@@ -128,7 +128,7 @@ export class ResumeController {
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<TViewUrlResponse> {
-    return this.resumeService.getSignedResumeUrl(id, userId ?? "app");
+    return this.resumeService.getSignedResumeUrl(id, userId ?? "");
   }
 
   @Patch(":id/primary")
@@ -136,7 +136,7 @@ export class ResumeController {
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
-    return this.resumeService.setAsPrimary(id, userId ?? "app");
+    return this.resumeService.setAsPrimary(id, userId ?? "");
   }
 
   @Delete(":id")
@@ -144,6 +144,6 @@ export class ResumeController {
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
   ): Promise<void> {
-    return this.resumeService.delete(id, userId ?? "app");
+    return this.resumeService.delete(id, userId ?? "");
   }
 }
