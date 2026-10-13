@@ -68,6 +68,10 @@ function skeleton(node: unknown): unknown {
     return [];
   }
 
+  if ((node as TJsonSchemaNode).$ref) {
+    return null;
+  }
+
   const resolved = unwrapNullable(node as TJsonSchemaNode);
   const enumValues = resolved.enum;
 
@@ -86,8 +90,10 @@ function skeleton(node: unknown): unknown {
         ]),
       );
     }
-    case "array":
+    case "array": {
+      if (resolved.prefixItems) return null;
       return [skeleton(resolved.items)];
+    }
     case "integer":
     case "number":
       return 0;
@@ -107,7 +113,9 @@ export function jsonSchemaSkeleton(schema: z.ZodType): string {
       unrepresentable: "any",
     });
 
-    return JSON.stringify(skeleton(jsonSchema), null, 2);
+    const result = JSON.stringify(skeleton(jsonSchema), null, 2);
+    if (result === "") return "";
+    return result;
   } catch {
     // A schema we cannot render is not a reason to fail the request: the caller
     // falls back to prompting without a shape.
@@ -133,11 +141,21 @@ ${shape}
  * available to decide that retrying without the schema is worth a try.
  */
 export function isBadRequest(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { statusCode?: number }).statusCode === 400
-  );
+  if (typeof error !== "object" || error === null) return false;
+  const status =
+    (error as { statusCode?: number; status?: number }).statusCode ??
+    (error as { status?: number }).status;
+  if (status !== 400) return false;
+  const msg =
+    (error as { message?: string; error?: { message?: string }; response?: { data?: { error?: { message?: string } } } }).message ??
+    (error as { error?: { message?: string } }).error?.message ??
+    (error as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ??
+    String(error);
+  const AUTH_ERROR_PATTERN = /api[_ ]?key|unauthorized|permission|forbidden/i;
+  if (AUTH_ERROR_PATTERN.test(String(msg))) {
+    return false;
+  }
+  return true;
 }
 
 // https://ai.google.dev/gemini-api/docs/generate-content/structured-output
@@ -155,7 +173,6 @@ const UNSUPPORTED_KEYWORDS = new Set([
   "minLength",
   "maxLength",
   "pattern",
-  "const",
   "exclusiveMinimum",
   "exclusiveMaximum",
   "multipleOf",
@@ -180,10 +197,16 @@ const NESTED_SCHEMA_KEYS = new Set([
   "oneOf",
   "allOf",
   "prefixItems",
+  "additionalProperties",
 ]);
 
 // Keywords whose value is a map of name -> schema.
-const NESTED_SCHEMA_MAP_KEYS = new Set(["properties", "$defs", "definitions"]);
+const NESTED_SCHEMA_MAP_KEYS = new Set([
+  "properties",
+  "$defs",
+  "definitions",
+  "patternProperties",
+]);
 
 function sanitizeNode(node: unknown): unknown {
   if (Array.isArray(node)) {
@@ -211,7 +234,44 @@ function sanitizeNode(node: unknown): unknown {
       continue;
     }
 
-    result[key] = NESTED_SCHEMA_KEYS.has(key) ? sanitizeNode(value) : value;
+    if (key === "const") {
+      result.enum = [value];
+      continue;
+    }
+
+    if (key === "oneOf") {
+      result.anyOf = Array.isArray(value)
+        ? (value as unknown[]).map(sanitizeNode)
+        : sanitizeNode(value);
+      continue;
+    }
+
+    if (key === "allOf") {
+      if (Array.isArray(value)) {
+        result.allOf = (value as unknown[]).map(sanitizeNode);
+      } else {
+        result.allOf = sanitizeNode(value);
+      }
+      continue;
+    }
+
+    if (NESTED_SCHEMA_KEYS.has(key) && key !== "oneOf" && key !== "allOf") {
+      result[key] = sanitizeNode(value);
+      continue;
+    }
+
+    // z.record produces additionalProperties for value schema
+    if (
+      key === "additionalProperties" &&
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
+      result[key] = sanitizeNode(value);
+      continue;
+    }
+
+    result[key] = value;
   }
 
   return result;
@@ -225,10 +285,12 @@ function sanitizeNode(node: unknown): unknown {
  */
 export function toGeminiResponseSchema<T>(schema: z.ZodType<T>): Schema<T> {
   return jsonSchema<T>(
-    () =>
-      sanitizeNode(
+    () => {
+      const sanitized = sanitizeNode(
         z.toJSONSchema(schema, { io: "output", unrepresentable: "any" }),
-      ) as never,
+      );
+      return sanitized as never;
+    },
     {
       validate: async (value) => {
         const result = await schema.safeParseAsync(value);
