@@ -5,6 +5,9 @@ on:
   push:
     branches: [ master, release ]
 
+permissions:
+  contents: read
+
 concurrency:
   group: api-ci-${{ github.ref }}
   cancel-in-progress: true
