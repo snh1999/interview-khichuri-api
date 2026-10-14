@@ -43,7 +43,6 @@ export class ResumeController {
     return this.resumeService.findAll(userId ?? "");
   }
 
-  // eslint-disable-next-line @darraghor/nestjs-typed/swagger-file-upload-should-be-documented
   @Post()
   @UseInterceptors(
     FileInterceptor("file", {
