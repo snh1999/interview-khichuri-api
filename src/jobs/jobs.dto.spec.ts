@@ -47,4 +47,25 @@ describe("extractedJobSchema", () => {
       workType: "hybrid",
     });
   });
+
+  it("accepts a zero-years requirement (entry level)", () => {
+    const parsed = extractedJobSchema.parse({
+      companyName: "Acme",
+      experienceRequired: 0,
+      roleName: "Engineer",
+    });
+
+    expect(parsed.experienceRequired).toBe(0);
+  });
+
+  it("rejects a salary upper bound below the lower bound", () => {
+    const result = extractedJobSchema.safeParse({
+      companyName: "Acme",
+      roleName: "Engineer",
+      salaryLower: 200_000,
+      salaryUpper: 100_000,
+    });
+
+    expect(result.success).toBe(false);
+  });
 });

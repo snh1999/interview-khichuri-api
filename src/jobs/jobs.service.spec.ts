@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
+import { ResumeService } from "@/src/resume/resume.service";
 
 import type {
   CreateJobDto,
@@ -36,10 +37,14 @@ describe("JobsService", () => {
   };
   const mockGenAiService = {
     extractJob: vi.fn(),
+    generateStructured: vi.fn(),
   };
   const mockLookupsService = {
     resolveOrCreateNames: vi.fn().mockResolvedValue([]),
     resolveOrCreateName: vi.fn().mockResolvedValue(null),
+  };
+  const mockResumeService = {
+    resumeToText: vi.fn().mockResolvedValue("RESUME TEXT"),
   };
 
   beforeEach(async () => {
@@ -58,6 +63,10 @@ describe("JobsService", () => {
         {
           provide: LookupsService,
           useValue: mockLookupsService,
+        },
+        {
+          provide: ResumeService,
+          useValue: mockResumeService,
         },
       ],
     }).compile();
@@ -684,6 +693,135 @@ describe("JobsService", () => {
       await service.delete("1", undefined);
 
       expect(mockDb.delete).toHaveBeenCalledWith("jobs", { id: "1" });
+    });
+  });
+
+  describe("generateCoverLetter", () => {
+    const dto = { provider: "google" as const };
+    const job = {
+      id: "1",
+      title: "Engineer",
+      companyName: "Acme",
+      description: "JD BODY",
+    };
+
+    it("includes the user's cover letter template in the prompt", async () => {
+      mockDb.findById.mockResolvedValue(job);
+      mockDb.findAllByColumn.mockResolvedValue([
+        { coverLetterTemplate: "MY COVER TEMPLATE" },
+      ]);
+      mockGenAiService.generateStructured.mockResolvedValue({
+        markdown: "letter",
+      });
+
+      const result = await service.generateCoverLetter("1", dto, "user-1");
+
+      expect(result).toEqual({ markdown: "letter" });
+      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
+      expect(prompt).toContain("MY COVER TEMPLATE");
+      expect(prompt).toContain("JD BODY");
+      expect(prompt).toContain("<company_name>\nAcme\n</company_name>");
+      expect(prompt).toContain("RESUME TEXT");
+      expect(prompt).toContain("<template_cover_letter>");
+      expect(prompt).toContain(
+        "takes priority over the default shape and length rules above",
+      );
+      expect(prompt).toContain("The quality rules above still apply");
+      expect(prompt).toContain("Reminder: follow <template_cover_letter>");
+      expect(prompt).not.toContain("MY EMAIL TEMPLATE");
+    });
+
+    it("still generates when no template is stored", async () => {
+      mockDb.findById.mockResolvedValue(job);
+      mockDb.findAllByColumn.mockResolvedValue([]);
+      mockGenAiService.generateStructured.mockResolvedValue({
+        markdown: "letter",
+      });
+
+      const result = await service.generateCoverLetter("1", dto, "user-1");
+
+      expect(result).toEqual({ markdown: "letter" });
+      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
+      expect(prompt).not.toContain("MY COVER TEMPLATE");
+      expect(prompt).toContain("Shape: about one page");
+      expect(prompt).not.toContain("A template is provided");
+      expect(prompt).not.toContain("<template_cover_letter>");
+    });
+
+    it("forward a selected resumeId instead of the primary resume", async () => {
+      mockDb.findById.mockResolvedValue(job);
+      mockDb.findAllByColumn.mockResolvedValue([]);
+      mockGenAiService.generateStructured.mockResolvedValue({
+        markdown: "letter",
+      });
+
+      await service.generateCoverLetter(
+        "1",
+        { ...dto, resumeId: "resume-9" },
+        "user-1",
+      );
+
+      expect(mockResumeService.resumeToText).toHaveBeenCalledWith({
+        userId: "user-1",
+        provider: "google",
+        model: undefined,
+        resumeId: "resume-9",
+      });
+    });
+  });
+
+  describe("generateOutreachEmail", () => {
+    it("includes the user's outreach email template in the prompt", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "1",
+        title: "Engineer",
+        companyName: "Acme",
+        description: "JD BODY",
+      });
+      mockDb.findAllByColumn.mockResolvedValue([
+        { outreachEmailTemplate: "MY EMAIL TEMPLATE" },
+      ]);
+      mockGenAiService.generateStructured.mockResolvedValue({
+        markdown: "email",
+      });
+
+      const result = await service.generateOutreachEmail(
+        "1",
+        { provider: "google" },
+        "user-1",
+      );
+
+      expect(result).toEqual({ markdown: "email" });
+      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
+      expect(prompt).toContain("MY EMAIL TEMPLATE");
+      expect(prompt).not.toContain("MY COVER TEMPLATE");
+    });
+  });
+
+  describe("generateLinkedInDm", () => {
+    it("includes the user's linkedin dm template in the prompt", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "1",
+        title: "Engineer",
+        companyName: "Acme",
+        description: "JD BODY",
+      });
+      mockDb.findAllByColumn.mockResolvedValue([
+        { linkedinDmTemplate: "MY DM TEMPLATE" },
+      ]);
+      mockGenAiService.generateStructured.mockResolvedValue({ markdown: "dm" });
+
+      const result = await service.generateLinkedInDm(
+        "1",
+        { provider: "google" },
+        "user-1",
+      );
+
+      expect(result).toEqual({ markdown: "dm" });
+      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
+      expect(prompt).toContain("MY DM TEMPLATE");
+      expect(prompt).toContain("JD BODY");
+      expect(prompt).not.toContain("MY EMAIL TEMPLATE");
     });
   });
 });
