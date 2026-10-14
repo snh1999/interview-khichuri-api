@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import type { MessageEvent } from "@nestjs/common";
 import { Observable } from "rxjs";
 

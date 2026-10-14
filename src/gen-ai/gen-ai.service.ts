@@ -116,6 +116,7 @@ export class GenAiService {
 
     return this.apiKeyService.useApiKey(
       provider,
+      // eslint-disable-next-line sonarjs/cognitive-complexity
       async ({ key, model: defaultModel }) => {
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         const modelName = model || defaultModel || config.defaultModel;

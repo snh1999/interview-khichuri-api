@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ master, release ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports: [ "5433:5432" ]
+        env:
+          POSTGRES_USER: admin_user
+          POSTGRES_PASSWORD: password1234
+          POSTGRES_DB: interview_khichuri_test
+        options: >-
+          --health-cmd "pg_isready -U admin_user"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Pin npm
+        run: npm install -g npm@12.2.0
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+      - name: Push test schemas (Postgres + SQLite)
+        run: |
+          npm run db:test:push
+          npm run db:test:push:app
+      - name: E2E (Postgres + SQLite projects)
+        run: npx vitest run --config vitest.e2e.config.mts
