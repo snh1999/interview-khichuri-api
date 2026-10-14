@@ -17,6 +17,7 @@ import {
 export class FileUploadController {
   constructor(private readonly uploadService: FileUploadService) {}
 
+  // eslint-disable-next-line @darraghor/nestjs-typed/swagger-file-upload-should-be-documented
   @Post()
   @UseInterceptors(
     FileInterceptor("file", {
