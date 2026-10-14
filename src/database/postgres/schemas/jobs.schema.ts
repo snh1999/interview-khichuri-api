@@ -18,6 +18,7 @@ import { JOB_STATUS } from "@/src/jobs/jobs.dto";
 import { user } from "./auth.schema";
 import { companies } from "./company.schema";
 import { roles, topics } from "./lookups.schema";
+import { workTypeEnum } from "./profile.schema";
 
 export const statusEnum = pgEnum("status", JOB_STATUS);
 
@@ -34,6 +35,11 @@ export const jobs = pgTable(
     description: text("description").notNull(),
     location: text("location"),
     source: text("source"),
+    workType: workTypeEnum("work_type"),
+    salaryLower: integer("salary_lower"),
+    salaryUpper: integer("salary_upper"),
+    currency: text("currency"),
+    experienceRequired: integer("experience_required"),
     interviewDate: timestamp("interview_date"),
     status: statusEnum("status").notNull().default("saved"),
     roleId: integer("role_id").references(() => roles.id, {

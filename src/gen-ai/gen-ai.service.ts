@@ -97,7 +97,8 @@ export class GenAiService {
 
   // Model+schema+prompt triples Gemini has already refused the schema for, so
   // the 400 is paid once rather than once per request.
-  private readonly rejectedSchemas = new Set<string>();
+  private readonly rejectedSchemas = new Map<string, number>();
+  private readonly rejectedSchemasMaxSize = 256;
 
   constructor(private readonly apiKeyService: ApiKeyService) {}
 
@@ -132,12 +133,13 @@ export class GenAiService {
           const cacheKey =
             shape === null
               ? null
-              : `${modelName}:${createHash("sha1")
+              : `${modelName}:${createHash("sha256")
                   .update(`${shape}\n\n${prompt}`)
                   .digest("hex")}`;
           const sendSchema =
             cacheKey === null || !this.rejectedSchemas.has(cacheKey);
 
+          // TODO: no timeout/abort here, so a stalled provider request can hang -- thread an abortSignal through.
           const run = (withSchema: boolean) =>
             generateText({
               model: providerInstance(modelName),
@@ -175,13 +177,33 @@ export class GenAiService {
             // schema was the cause, so remember it -- but only then, and only for
             // this prompt. Recording it up front would let a 400 that had nothing
             // to do with the schema disable it for the rest of the process.
-            const result = await run(false);
-            this.rejectedSchemas.add(cacheKey);
-            this.logger.warn(
-              "Gemini rejected the response schema; retrying without it",
-              { model: modelName, prompt: prompt.slice(0, 40) },
-            );
-            return result.output;
+            try {
+              const result = await run(false);
+              this.rejectedSchemas.set(cacheKey, Date.now());
+              if (this.rejectedSchemas.size > this.rejectedSchemasMaxSize) {
+                const firstKey = this.rejectedSchemas.keys().next().value;
+                if (firstKey !== undefined) {
+                  this.rejectedSchemas.delete(firstKey);
+                }
+              }
+              this.logger.warn(
+                "Gemini rejected the response schema; retrying without it",
+                {
+                  model: modelName,
+                  promptLength: prompt.length,
+                  reason: err instanceof Error ? err.message : String(err),
+                },
+              );
+              return result.output;
+            } catch (fallbackErr) {
+              const originalMsg =
+                err instanceof Error ? err.message : String(err);
+              this.logger.warn("Schema fallback failed", {
+                model: modelName,
+                originalError: originalMsg,
+              });
+              throw fallbackErr;
+            }
           }
         } catch (err) {
           const quotaException = toQuotaExceededHttpException(err, provider);
@@ -189,8 +211,13 @@ export class GenAiService {
             throw quotaException;
           }
           if (NoObjectGeneratedError.isInstance(err)) {
+            if (err.finishReason === "length") {
+              throw new BadRequestException(
+                "The AI returned a response that could not be parsed, likely because it hit its output limit. Please shorten the input and try again, or use a larger model.",
+              );
+            }
             throw new BadRequestException(
-              "The AI returned a response that could not be parsed, likely because it hit its output limit. Please shorten the input and try again, or use a larger model.",
+              "The AI returned a response that could not be parsed. Please adjust your input or try again.",
             );
           }
           const aiException = toAiHttpException(err, provider, modelName);

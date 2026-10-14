@@ -152,6 +152,7 @@ export const atsScoreSchema = z.object({
         "keywordHitRate",
         "experienceFit",
         "roleAlignment",
+        "applicationSpecificity",
       ]),
       score: z.number().min(0).max(100),
       tips: z.array(tipSchema).max(10),

@@ -27,7 +27,7 @@ describe("Resume ATS Score (e2e)", () => {
   let httpServer: ReturnType<typeof supertest>;
   let dbService: IDatabaseService;
   let authCookie: string;
-  let testUserId: string | undefined;
+  let testUserId = "";
   let genAiMock: { scoreResumeForJob: ReturnType<typeof vi.fn> };
 
   const atsResult = {
@@ -74,7 +74,7 @@ describe("Resume ATS Score (e2e)", () => {
       dbService.database(),
     );
     authCookie = cookie;
-    testUserId = userId ?? "app";
+    testUserId = userId ?? "";
 
     await dbService.create("profiles", {
       id: testUserId,
@@ -93,13 +93,13 @@ describe("Resume ATS Score (e2e)", () => {
     const companyName = (company as { name: string }).name;
 
     const resume = await dbService.create("resume", {
-      profileId: testUserId ?? "app",
+      profileId: testUserId,
       name: "Content Resume",
       content: JSON.stringify(getResumeContentPayload()),
     });
 
     const job = await dbService.create("jobs", {
-      userId: testUserId ?? "app",
+      userId: testUserId,
       title: "Frontend Engineer",
       companyName,
       companyId: (company as { id: number }).id,
@@ -135,12 +135,12 @@ describe("Resume ATS Score (e2e)", () => {
       );
 
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "Content Resume",
         content: JSON.stringify(getResumeContentPayload()),
       });
       const job = await dbService.create("jobs", {
-        userId: testUserId ?? "app",
+        userId: testUserId,
         title: "Frontend Engineer",
         companyName,
         companyId: (company as { id: number }).id,
@@ -164,7 +164,7 @@ describe("Resume ATS Score (e2e)", () => {
     it("returns 400 when the job has no description", async () => {
       const { resume } = await setup();
       const job = await dbService.create("jobs", {
-        userId: testUserId ?? "app",
+        userId: testUserId,
         title: "No desc",
         companyName: "Some Co",
         description: "",

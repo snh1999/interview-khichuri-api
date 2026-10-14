@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   LARGE_LENGTH,
+  MAX_TEMPLATE_LENGTH,
   MID_LENGTH,
   SHORT_LENGTH,
   TINY_LENGTH,
@@ -121,6 +122,9 @@ export const jobPreferenceSchema = z.object({
   currency: z.string().length(3).nullish(),
   preferredLocation: nullishStr(SHORT_LENGTH),
   titles: z.array(z.number().int().positive()).nullish(),
+  coverLetterTemplate: nullishStr(MAX_TEMPLATE_LENGTH),
+  outreachEmailTemplate: nullishStr(MAX_TEMPLATE_LENGTH),
+  linkedinDmTemplate: nullishStr(MAX_TEMPLATE_LENGTH),
 });
 
 export class UpdateJobPreferenceDto extends createZodDto(

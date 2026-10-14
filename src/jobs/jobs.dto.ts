@@ -11,6 +11,7 @@ import {
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import type { TJob } from "@/src/database/database.types";
 import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
+import { PROFILE_WORK_TYPES } from "@/src/profile/profile.dto";
 
 export const JOB_STATUS = ["applied", "saved", "scheduled"] as const;
 
@@ -62,6 +63,11 @@ const baseJobSchema = z.object({
   deadline: z.coerce.date().nullish(),
   location: nullishStr(SHORT_LENGTH),
   source: nullishStr(),
+  workType: z.enum(PROFILE_WORK_TYPES).nullish(),
+  salaryLower: z.number().int().positive().nullish(),
+  salaryUpper: z.number().int().positive().nullish(),
+  currency: z.string().length(3).nullish(),
+  experienceRequired: z.number().int().nonnegative().nullish(),
   interviewDate: z.coerce.date().nullish(),
   appliedAt: z.coerce.date().nullish(),
 });
@@ -72,10 +78,22 @@ export const deadlineBeforeInterview = (data: {
 }): boolean =>
   !data.interviewDate || !data.deadline || data.deadline < data.interviewDate;
 
+export const salaryRangeValid = (data: {
+  salaryLower?: number | null;
+  salaryUpper?: number | null;
+}): boolean =>
+  typeof data.salaryLower !== "number" ||
+  typeof data.salaryUpper !== "number" ||
+  data.salaryUpper >= data.salaryLower;
+
 export class CreateJobDto extends createZodDto(
-  baseJobSchema.refine(deadlineBeforeInterview, {
-    message: "Deadline must be before the interview date",
-  }),
+  baseJobSchema
+    .refine(deadlineBeforeInterview, {
+      message: "Deadline must be before the interview date",
+    })
+    .refine(salaryRangeValid, {
+      message: "Salary upper bound must be at least the lower bound",
+    }),
 ) {}
 export class UpdateJobDto extends createZodDto(
   baseJobSchema
@@ -86,6 +104,9 @@ export class UpdateJobDto extends createZodDto(
     })
     .refine(deadlineBeforeInterview, {
       message: "Deadline must be before the interview date",
+    })
+    .refine(salaryRangeValid, {
+      message: "Salary upper bound must be at least the lower bound",
     }),
 ) {}
 
@@ -95,6 +116,14 @@ const extractJobSchema = aiCommonSchema.extend({
 });
 
 export class ExtractJobDto extends createZodDto(extractJobSchema) {}
+
+const generateFromTemplate = aiCommonSchema.extend({
+  resumeId: z.uuid().nullish(),
+});
+
+export class GenerateFromTemplateDto extends createZodDto(
+  generateFromTemplate,
+) {}
 
 export const extractedJobSchema = baseJobSchema
   .omit({
@@ -115,6 +144,9 @@ export const extractedJobSchema = baseJobSchema
     roleName: str(SHORT_LENGTH).nullish(),
     deadline: dateStr,
     interviewDate: dateStr,
+  })
+  .refine(salaryRangeValid, {
+    message: "Salary upper bound must be at least the lower bound",
   });
 
 export class ExtractedJob extends createZodDto(extractedJobSchema) {}

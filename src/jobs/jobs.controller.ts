@@ -24,6 +24,7 @@ import { JobsQuery } from "./jobs-query.decorator";
 import {
   CreateJobDto,
   ExtractJobDto,
+  GenerateFromTemplateDto,
   TJobWithTopicIds,
   UpdateJobDto,
 } from "./jobs.dto";
@@ -48,6 +49,33 @@ export class JobsController {
     @UserId() userId?: string,
   ): Promise<TJobExtractionResult> {
     return this.jobsService.extractJob(dto, userId);
+  }
+
+  @Post(":id/cover-letter")
+  public generateCoverLetter(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GenerateFromTemplateDto,
+    @UserId() userId?: string,
+  ): Promise<{ markdown: string }> {
+    return this.jobsService.generateCoverLetter(id, dto, userId);
+  }
+
+  @Post(":id/outreach")
+  public generateOutreachEmail(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GenerateFromTemplateDto,
+    @UserId() userId?: string,
+  ): Promise<{ markdown: string }> {
+    return this.jobsService.generateOutreachEmail(id, dto, userId);
+  }
+
+  @Post(":id/linkedin-dm")
+  public generateLinkedInDm(
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: GenerateFromTemplateDto,
+    @UserId() userId?: string,
+  ): Promise<{ markdown: string }> {
+    return this.jobsService.generateLinkedInDm(id, dto, userId);
   }
 
   @Get()

@@ -6,11 +6,23 @@ import {
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
+import {
+  COVER_LETTER_DEFAULT_SHAPE,
+  GENERATE_COVER_LETTER_PROMPT,
+  GENERATE_LINKEDIN_DM_PROMPT,
+  GENERATE_OUTREACH_EMAIL_PROMPT,
+  LINKEDIN_DM_DEFAULT_SHAPE,
+  OUTREACH_EMAIL_DEFAULT_SHAPE,
+  TEMPLATE_MODE_RULES,
+} from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
+import { markdownSchema } from "@/src/notes/notes.dto";
+import { ResumeService } from "@/src/resume/resume.service";
 
 import {
   CreateJobDto,
+  GenerateFromTemplateDto,
   UpdateJobDto,
   ExtractJobDto,
   TJobExtractionResult,
@@ -21,11 +33,25 @@ import type { TDateFilter, TJobsQuery } from "./jobs.dto";
 import type {
   TDatabase,
   TJob,
+  TJobPreference,
   TJobWithTopics,
   TPagination,
   TSortBy,
   TDateRangeOption,
 } from "../database/database.types";
+
+type TLetterTemplateColumn =
+  "coverLetterTemplate" | "outreachEmailTemplate" | "linkedinDmTemplate";
+
+const TEMPLATE_TAGS: Record<TLetterTemplateColumn, string> = {
+  coverLetterTemplate: "cover_letter",
+  outreachEmailTemplate: "email",
+  linkedinDmTemplate: "linkedin_dm",
+};
+
+type TJobPreferenceWithTitles = TJobPreference & {
+  titles?: ({ role?: { name?: string | null } | null } | undefined)[];
+};
 
 const MAX_JOBS_PER_USER = 200;
 
@@ -53,6 +79,7 @@ export class JobsService {
     private readonly db: IDatabaseService,
     private readonly genAiService: GenAiService,
     private readonly lookupsService: LookupsService,
+    private readonly resumeService: ResumeService,
   ) {}
 
   public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
@@ -97,6 +124,133 @@ export class JobsService {
       title: composeJobTitle(extracted.companyName, extracted.roleName),
       roleId,
     };
+  }
+
+  public generateCoverLetter(
+    id: string,
+    dto: GenerateFromTemplateDto,
+    userId?: string,
+  ): Promise<{ markdown: string }> {
+    return this._generate(
+      id,
+      "coverLetterTemplate",
+      GENERATE_COVER_LETTER_PROMPT,
+      COVER_LETTER_DEFAULT_SHAPE,
+      dto,
+      userId,
+    );
+  }
+
+  public generateOutreachEmail(
+    id: string,
+    dto: GenerateFromTemplateDto,
+    userId?: string,
+  ): Promise<{ markdown: string }> {
+    return this._generate(
+      id,
+      "outreachEmailTemplate",
+      GENERATE_OUTREACH_EMAIL_PROMPT,
+      OUTREACH_EMAIL_DEFAULT_SHAPE,
+      dto,
+      userId,
+    );
+  }
+
+  public generateLinkedInDm(
+    id: string,
+    dto: GenerateFromTemplateDto,
+    userId?: string,
+  ): Promise<{ markdown: string }> {
+    return this._generate(
+      id,
+      "linkedinDmTemplate",
+      GENERATE_LINKEDIN_DM_PROMPT,
+      LINKEDIN_DM_DEFAULT_SHAPE,
+      dto,
+      userId,
+    );
+  }
+
+  private async _generate(
+    id: string,
+    templateColumn: TLetterTemplateColumn,
+    prompt: string,
+    defaultShape: string,
+    dto: GenerateFromTemplateDto,
+    userId?: string,
+  ): Promise<{ markdown: string }> {
+    const { provider, model, instruction } = dto;
+    const profileId = userId ?? "";
+
+    const job = await this.db.findById("jobs", id, {
+      filter: { ...(userId ? { userId } : {}) },
+    });
+
+    const [preferences] = (await this.db.findAllByColumn("job_preference", {
+      filter: { profileId },
+      relation: { titles: { with: { role: true } } },
+    })) as unknown as (TJobPreferenceWithTitles | undefined)[];
+
+    const resume = await this.resumeService.resumeToText({
+      userId: profileId,
+      provider,
+      model,
+      ...(dto.resumeId ? { resumeId: dto.resumeId } : {}),
+    });
+
+    const template = preferences?.[templateColumn]?.trim();
+    const templateTag = TEMPLATE_TAGS[templateColumn];
+
+    const contextParts = [
+      template
+        ? `<template_${templateTag}>\n${template}\n</template_${templateTag}>`
+        : "",
+      `<job_title>\n${job.title}\n</job_title>`,
+      `<company_name>\n${job.companyName}\n</company_name>`,
+      `<job_description>\n${job.description}\n</job_description>`,
+      this._formatPreferences(preferences),
+      `<candidate_resume>\n${resume}\n</candidate_resume>`,
+    ].filter(Boolean);
+
+    const modeRules = template ? TEMPLATE_MODE_RULES : defaultShape;
+
+    return this.genAiService.generateStructured({
+      prompt: `${prompt}\n\n${modeRules}\n\n${contextParts.join("\n\n")}${
+        template
+          ? `\n\nReminder: follow <template_${templateTag}> closely.`
+          : ""
+      }`,
+      schema: markdownSchema,
+      provider,
+      model,
+      instruction,
+      userId,
+    });
+  }
+
+  private _formatPreferences(preferences?: TJobPreferenceWithTitles): string {
+    if (!preferences) return "";
+
+    const titles = (preferences.titles ?? [])
+      .map((title) => title?.role?.name)
+      .filter((name): name is string => Boolean(name));
+    const salary =
+      preferences.salaryLower || preferences.salaryExpected
+        ? `${preferences.salaryLower ?? "?"} - ${preferences.salaryExpected ?? "?"} ${preferences.currency ?? ""}`.trim()
+        : "";
+
+    const lines = [
+      preferences.workType ? `Work type: ${preferences.workType}` : "",
+      preferences.preferredLocation
+        ? `Preferred location: ${preferences.preferredLocation}`
+        : "",
+      titles.length > 0 ? `Target titles: ${titles.join(", ")}` : "",
+      salary ? `Salary expectation: ${salary}` : "",
+    ].filter(Boolean);
+
+    return lines.length > 0
+      ? `<candidate_preferences>\n${lines.join("\n")}\n</candidate_preferences>`
+      : "";
   }
 
   public async findAll({

@@ -60,7 +60,7 @@ describe("Profile (e2e)", () => {
     );
 
     authCookie = cookie;
-    testUserId = userId ?? "app";
+    testUserId = userId ?? "";
 
     await dbService.create("profiles", {
       id: testUserId,

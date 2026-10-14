@@ -69,6 +69,9 @@ function skeleton(node: unknown): unknown {
   }
 
   const resolved = unwrapNullable(node as TJsonSchemaNode);
+  if (resolved.$ref) {
+    return null;
+  }
   const enumValues = resolved.enum;
 
   // A representative enum member is a more useful hint than an empty string.
@@ -86,8 +89,12 @@ function skeleton(node: unknown): unknown {
         ]),
       );
     }
-    case "array":
+    case "array": {
+      if (resolved.prefixItems) {
+        return null;
+      }
       return [skeleton(resolved.items)];
+    }
     case "integer":
     case "number":
       return 0;
@@ -100,18 +107,25 @@ function skeleton(node: unknown): unknown {
   }
 }
 
-export function jsonSchemaSkeleton(schema: z.ZodType): string {
+export function jsonSchemaSkeleton(schema: z.ZodType): string | null {
   try {
-    const jsonSchema: TJsonSchemaNode = z.toJSONSchema(schema, {
+    // "throw" so a schema with a transform (or anything else JSON Schema cannot
+    // express) bails to null instead of rendering a skeleton that lies about the
+    // field's type. The response schema keeps "any" -- it only strips keywords.
+    const raw: TJsonSchemaNode = z.toJSONSchema(schema, {
       io: "output",
-      unrepresentable: "any",
+      unrepresentable: "throw",
     });
 
-    return JSON.stringify(skeleton(jsonSchema), null, 2);
+    const result = skeleton(raw);
+    const isPlainObject =
+      typeof result === "object" && result !== null && !Array.isArray(result);
+    if (isPlainObject) {
+      return JSON.stringify(result, null, 2);
+    }
+    return null;
   } catch {
-    // A schema we cannot render is not a reason to fail the request: the caller
-    // falls back to prompting without a shape.
-    return "";
+    return null;
   }
 }
 
@@ -127,17 +141,29 @@ ${shape}
 \`\`\``;
 }
 
+const AUTH_ERROR_PATTERN = /api[_ ]?key/i;
+
 /**
  * A rejected `responseJsonSchema` and a rejected prompt are indistinguishable
  * from Google's side -- both are a bare 400 -- so the 400 is the only signal
  * available to decide that retrying without the schema is worth a try.
  */
 export function isBadRequest(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { statusCode?: number }).statusCode === 400
-  );
+  if (typeof error !== "object" || error === null) return false;
+  const status =
+    (error as { statusCode?: number; status?: number }).statusCode ??
+    (error as { status?: number }).status;
+  if (status !== 400) return false;
+  const msg =
+    (
+      error as {
+        message?: string;
+        error?: { message?: string };
+      }
+    ).message ??
+    (error as { error?: { message?: string } }).error?.message ??
+    "";
+  return !AUTH_ERROR_PATTERN.test(msg);
 }
 
 // https://ai.google.dev/gemini-api/docs/generate-content/structured-output
@@ -155,7 +181,6 @@ const UNSUPPORTED_KEYWORDS = new Set([
   "minLength",
   "maxLength",
   "pattern",
-  "const",
   "exclusiveMinimum",
   "exclusiveMaximum",
   "multipleOf",
@@ -180,11 +205,18 @@ const NESTED_SCHEMA_KEYS = new Set([
   "oneOf",
   "allOf",
   "prefixItems",
+  "additionalProperties",
 ]);
 
 // Keywords whose value is a map of name -> schema.
-const NESTED_SCHEMA_MAP_KEYS = new Set(["properties", "$defs", "definitions"]);
+const NESTED_SCHEMA_MAP_KEYS = new Set([
+  "properties",
+  "$defs",
+  "definitions",
+  "patternProperties",
+]);
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function sanitizeNode(node: unknown): unknown {
   if (Array.isArray(node)) {
     return node.map(sanitizeNode);
@@ -211,7 +243,24 @@ function sanitizeNode(node: unknown): unknown {
       continue;
     }
 
-    result[key] = NESTED_SCHEMA_KEYS.has(key) ? sanitizeNode(value) : value;
+    if (key === "const") {
+      result.enum = [value];
+      continue;
+    }
+
+    if (key === "oneOf") {
+      result.anyOf = Array.isArray(value)
+        ? (value as unknown[]).map(sanitizeNode)
+        : sanitizeNode(value);
+      continue;
+    }
+
+    if (NESTED_SCHEMA_KEYS.has(key)) {
+      result[key] = sanitizeNode(value);
+      continue;
+    }
+
+    result[key] = value;
   }
 
   return result;

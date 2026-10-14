@@ -26,7 +26,7 @@ describe("Upload Resume (e2e)", () => {
   let httpServer: ReturnType<typeof supertest>;
   let dbService: IDatabaseService;
   let authCookie: string;
-  let testUserId: string | undefined;
+  let testUserId = "";
   let mockFileUploadService: TMockFileUploadService;
 
   beforeAll(async () => {
@@ -57,7 +57,7 @@ describe("Upload Resume (e2e)", () => {
     );
 
     authCookie = cookie;
-    testUserId = userId ?? "app";
+    testUserId = userId ?? "";
 
     await dbService.create("profiles", {
       id: testUserId,
@@ -108,7 +108,7 @@ describe("Upload Resume (e2e)", () => {
       expect(body.statusCode).toBe(201);
 
       const resumes = await dbService.findAllByColumn("resume", {
-        filter: { profileId: testUserId ?? "app" },
+        filter: { profileId: testUserId },
       });
       expect(resumes[0].name).toBe("My Custom Resume");
     });
@@ -127,7 +127,7 @@ describe("Upload Resume (e2e)", () => {
         .expect(201);
 
       const resumes = await dbService.findAllByColumn("resume", {
-        filter: { profileId: testUserId ?? "app" },
+        filter: { profileId: testUserId },
       });
       expect(resumes[0].name).toBe("original-name.pdf");
     });
@@ -170,7 +170,7 @@ describe("Upload Resume (e2e)", () => {
     it("should return 400 when the user already has 5 resumes", async () => {
       for (let i = 0; i < 5; i++) {
         await dbService.create("resume", {
-          profileId: testUserId ?? "app",
+          profileId: testUserId,
           name: `resume${i}.pdf`,
           url: `url${i}`,
         });
@@ -197,7 +197,7 @@ describe("Upload Resume (e2e)", () => {
   describe("DELETE /resume/:id", () => {
     it("should delete a resume and return 200", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume.pdf",
         url: "test-url/resume.pdf",
         isPrimary: true,
@@ -252,7 +252,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should delete the uploaded file and remove the row", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume.pdf",
         url: "resumes/profile/uuid.pdf",
         isPrimary: true,
@@ -265,7 +265,7 @@ describe("Upload Resume (e2e)", () => {
       );
 
       const resumes = await dbService.findAllByColumn("resume", {
-        filter: { profileId: testUserId ?? "app" },
+        filter: { profileId: testUserId },
       });
       expect(resumes).toHaveLength(0);
     });
@@ -274,7 +274,7 @@ describe("Upload Resume (e2e)", () => {
   describe("GET /resume/:id/url", () => {
     it("should return a signed url", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume.pdf",
         url: "resumes/test/profile-id/file.pdf",
         isPrimary: true,
@@ -338,14 +338,14 @@ describe("Upload Resume (e2e)", () => {
   describe("PATCH /resume/:id/primary", () => {
     it("should set resume as primary", async () => {
       const resume1 = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume1.pdf",
         url: "url1",
         isPrimary: true,
       });
 
       const resume2 = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume2.pdf",
         url: "url2",
         isPrimary: false,
@@ -358,7 +358,7 @@ describe("Upload Resume (e2e)", () => {
       expect(body.statusCode).toBe(200);
 
       const updated = await dbService.findAllByColumn("resume", {
-        filter: { profileId: testUserId ?? "app" },
+        filter: { profileId: testUserId },
       });
       expect(updated.find((r) => r.id === resume1.id)?.isPrimary).toBe(false);
       expect(updated.find((r) => r.id === resume2.id)?.isPrimary).toBe(true);
@@ -384,7 +384,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should be idempotent when already primary", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume.pdf",
         url: "url",
         isPrimary: true,
@@ -432,14 +432,14 @@ describe("Upload Resume (e2e)", () => {
 
     it("should return all resumes for the user", async () => {
       const resume1 = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume1.pdf",
         url: "url1",
         isPrimary: true,
       });
 
       const resume2 = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume2.pdf",
         url: "url2",
         isPrimary: false,
@@ -467,7 +467,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should not return resumes belonging to another user", async () => {
       await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "my-resume.pdf",
         url: "url",
         isPrimary: true,
@@ -503,7 +503,7 @@ describe("Upload Resume (e2e)", () => {
       expect(body.data.content).toEqual(content);
 
       const stored = await dbService.findAllByColumn("resume", {
-        filter: { profileId: testUserId ?? "app" },
+        filter: { profileId: testUserId },
       });
       expect(stored).toHaveLength(1);
       expect(stored[0].content).toBe(JSON.stringify(content));
@@ -524,7 +524,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should mark the resume non-primary when another resume exists", async () => {
       await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "existing.pdf",
         url: "url",
         isPrimary: true,
@@ -540,7 +540,7 @@ describe("Upload Resume (e2e)", () => {
     it("should return 400 when the user already has 5 resumes", async () => {
       for (let i = 0; i < 5; i++) {
         await dbService.create("resume", {
-          profileId: testUserId ?? "app",
+          profileId: testUserId,
           name: `resume${i}.pdf`,
           url: `url${i}`,
         });
@@ -582,7 +582,7 @@ describe("Upload Resume (e2e)", () => {
   describe("GET /resume/slug/:slug", () => {
     it("should return a public resume by slug without auth", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "Public Resume",
         url: "url",
         slug: "public-resume-1234",
@@ -600,7 +600,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should return 404 when the resume is not public", async () => {
       await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "Private Resume",
         url: "url",
         slug: "private-resume-1234",
@@ -618,7 +618,7 @@ describe("Upload Resume (e2e)", () => {
   describe("GET /resume/:id", () => {
     it("should return a resume by id", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "resume.pdf",
         url: "url",
         isPrimary: true,
@@ -652,7 +652,7 @@ describe("Upload Resume (e2e)", () => {
   describe("PATCH /resume/:id", () => {
     it("should update the resume name", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "Old Name",
         url: "",
       });
@@ -665,14 +665,14 @@ describe("Upload Resume (e2e)", () => {
       expect(body.data.name).toBe("New Name");
 
       const updated = await dbService.findAllByColumn("resume", {
-        filter: { profileId: testUserId ?? "app" },
+        filter: { profileId: testUserId },
       });
       expect(updated[0].name).toBe("New Name");
     });
 
     it("should generate a slug when the resume is made public", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "My Resume",
         url: "",
         isPublic: false,
@@ -689,7 +689,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should keep the existing slug when set public again", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "My Resume",
         url: "",
         slug: "my-resume-ab12",
@@ -705,7 +705,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should not generate a slug when the resume is not public", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "My Resume",
         url: "",
         isPublic: false,
@@ -723,7 +723,7 @@ describe("Upload Resume (e2e)", () => {
       const content = getResumeContentPayload();
 
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "Uploaded Resume",
         url: "resumes/profile/uuid.pdf",
       });
@@ -744,7 +744,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should allow non-content updates on a PDF resume", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "Uploaded Resume",
         url: "resumes/profile/uuid.pdf",
         template: "professional",
@@ -846,7 +846,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should return 400 when the resume has no PDF file", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "No File",
         url: "",
       });
@@ -858,7 +858,7 @@ describe("Upload Resume (e2e)", () => {
 
     it("should return 400 with an invalid provider", async () => {
       const resume = await dbService.create("resume", {
-        profileId: testUserId ?? "app",
+        profileId: testUserId,
         name: "No File",
         url: "url",
       });

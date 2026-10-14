@@ -35,6 +35,6 @@ export class FileUploadController {
     file: Express.Multer.File,
     @UserId() userId?: string,
   ): Promise<TUploadResponse> {
-    return this.uploadService.uploadFile(file, userId ?? "app");
+    return this.uploadService.uploadFile(file, userId ?? "");
   }
 }

@@ -158,37 +158,37 @@ describe("toGeminiResponseSchema", () => {
   });
 });
 
+const skeletonOf = (schema: z.ZodType): unknown => {
+  const rendered = jsonSchemaSkeleton(schema);
+  if (rendered === null) throw new Error("expected a skeleton");
+  return JSON.parse(rendered);
+};
+
 describe("jsonSchemaSkeleton", () => {
   it("collapses a nullable union to a single representative value", () => {
-    const shape = JSON.parse(
-      jsonSchemaSkeleton(z.object({ a: z.string().nullish() })),
-    );
-
-    expect(shape).toEqual({ a: "" });
+    expect(skeletonOf(z.object({ a: z.string().nullish() }))).toEqual({
+      a: "",
+    });
   });
 
   it("uses an enum member rather than a blank string", () => {
-    const shape = JSON.parse(
-      jsonSchemaSkeleton(z.object({ kind: z.enum(["a", "b"]) })),
-    );
-
-    expect(shape).toEqual({ kind: "a" });
+    expect(skeletonOf(z.object({ kind: z.enum(["a", "b"]) }))).toEqual({
+      kind: "a",
+    });
   });
 
   it("keeps arrays, nesting and every key of the real schema", () => {
-    const shape = JSON.parse(
-      jsonSchemaSkeleton(
-        z.object({
-          list: z.array(z.object({ name: z.string() })).default([]),
-        }),
-      ),
+    const shape = skeletonOf(
+      z.object({
+        list: z.array(z.object({ name: z.string() })).default([]),
+      }),
     );
 
     expect(shape).toEqual({ list: [{ name: "" }] });
   });
 
   it("renders the whole resume profile without throwing", () => {
-    const shape = JSON.parse(jsonSchemaSkeleton(extractedProfileSchema)) as {
+    const shape = skeletonOf(extractedProfileSchema) as {
       workExperience: unknown;
       projects: unknown;
     };
@@ -197,8 +197,9 @@ describe("jsonSchemaSkeleton", () => {
     expect(Array.isArray(shape.projects)).toBe(true);
   });
 
-  it("returns an empty string rather than failing on an unrenderable schema", () => {
-    expect(jsonSchemaSkeleton(z.date())).toBeTypeOf("string");
+  it("returns null rather than failing on an unrenderable schema", () => {
+    expect(jsonSchemaSkeleton(z.date())).toBeTypeOf("object");
+    expect(jsonSchemaSkeleton(z.date())).toBeNull();
   });
 });
 
@@ -219,4 +220,10 @@ describe("isBadRequest", () => {
     expect(isBadRequest(new Error("network down"))).toBe(false);
     expect(isBadRequest(null)).toBe(false);
   });
+});
+it("guards against output schema features that break Gemini structured output", () => {
+  expect(
+    jsonSchemaSkeleton(z.object({ v: z.string().transform((x) => x) })),
+  ).toBeNull();
+  expect(jsonSchemaSkeleton(z.date())).toBeNull();
 });

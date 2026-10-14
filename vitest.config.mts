@@ -16,6 +16,6 @@ export default defineConfig({
       exclude: ["node_modules/", "dist/", "test/", "**/*.mock.ts"],
     },
     maxWorkers: 1,
-    isolate: false,
+    isolate: true,
   },
 });
