@@ -13,9 +13,11 @@ interface IOpOutcome {
 
 // The entry points the Sandpack project cannot run without;
 // an AI `delete` op must not remove them (the client refuses it too, but ops bypass that).
-// /styles.css is `/index.js`'s import target, so it is part of the contract.
+// /index.js is the sandbox's script entry, /styles.css is its import target,
+// so both are part of the contract even though only /App.js is the React root.
 const PROTECTED_ENTRY_FILES = new Set([
   "/App.js",
+  "/index.js",
   "/styles.css",
   "/public/index.html",
 ]);
@@ -112,6 +114,12 @@ const applyCreate = (
     };
   }
 
+  // `create` means "a file that does not exist yet" (see the builder prompt);
+  // overwriting a file the client sent would discard it without the unique-search check an `update` requires.
+  if (Object.hasOwn(files, op.path)) {
+    return { error: `create ${op.path}: file already exists; use update` };
+  }
+
   files[op.path] = op.content;
   return { applied: `created ${op.path}` };
 };
@@ -205,6 +213,13 @@ export const applyFileOperations = (
     if (outcome.error) {
       errors.push(outcome.error);
     }
+  }
+
+  // All-or-nothing: a later failed edit (e.g. fixing an import after a delete
+  // succeeded) must not leave a half-applied project behind. Roll back to the
+  // original when anything failed; the errors list tells the model what to retry.
+  if (errors.length > 0) {
+    return { files: { ...currentFiles }, applied: [], errors };
   }
 
   return { files, applied, errors };

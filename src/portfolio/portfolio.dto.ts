@@ -123,11 +123,13 @@ export const generateProjectSchema = aiCommonSchema.extend({
 export class GenerateProjectDto extends createZodDto(generateProjectSchema) {}
 
 // Chunks streamed from POST /portfolio/generate for the genesis flow.
+// `error` is emitted by the SSE wrapper itself when generation throws mid-stream.
 export type TProjectStreamChunk =
   | { type: "plan"; files: { path: string; description: string }[] }
   | { type: "file-start"; path: string }
   | { type: "file-complete"; path: string; content: string }
-  | { type: "finish"; files: Record<string, string>; message: string };
+  | { type: "finish"; files: Record<string, string>; message: string }
+  | { type: "error"; message: string };
 
 export const sketchSchema = aiCommonSchema.extend({
   prompt: str(DEFAULT_MAX_STRING_LENGTH),

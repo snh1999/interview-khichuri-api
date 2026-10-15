@@ -7,6 +7,8 @@ export interface ISseStreamOptions<TChunk> {
   mapChunk: (chunk: TChunk) => MessageEvent["data"];
   getErrorMessage?: (error: unknown) => string;
   finishData?: MessageEvent["data"];
+  // Set when the source emits its own terminal event (a payload-bearing `finish` chunk), so clients get one finish instead of two.
+  skipFinish?: boolean;
 }
 
 export function createSseStream<TChunk>(
@@ -17,6 +19,7 @@ export function createSseStream<TChunk>(
     mapChunk,
     getErrorMessage = () => "Something went wrong",
     finishData = { type: "finish" },
+    skipFinish = false,
   } = options;
 
   return new Observable<MessageEvent>((subscriber) => {
@@ -33,7 +36,9 @@ export function createSseStream<TChunk>(
         }
 
         if (cancelled) return;
-        subscriber.next({ data: finishData });
+        if (!skipFinish) {
+          subscriber.next({ data: finishData });
+        }
         subscriber.complete();
       } catch (error) {
         if (cancelled) return;

@@ -33,6 +33,7 @@ const ENTRY_FILE = "/App.js";
 const STYLES_FILE = "/styles.css";
 const FILE_CONCURRENCY = 5;
 const MAX_FILE_ATTEMPTS = 2;
+const QUOTA_HTTP_STATUS = 429;
 
 // Bounded-concurrency map that reports each item as it starts and finishes, so the genesis stream can show live per-file progress.
 type TConcurrentEvent<T, R> =
@@ -42,6 +43,7 @@ async function* mapConcurrent<T, R>(
   items: readonly T[],
   limit: number,
   task: (item: T) => Promise<R>,
+  signal?: AbortSignal,
 ): AsyncGenerator<TConcurrentEvent<T, R>> {
   const pending = new Map<
     number,
@@ -50,7 +52,8 @@ async function* mapConcurrent<T, R>(
   let next = 0;
 
   const launch = (): TConcurrentEvent<T, R> | null => {
-    if (next >= items.length) {
+    // Aborted: stop starting new work; anything already in flight still drains.
+    if (next >= items.length || signal?.aborted) {
       return null;
     }
     const index = next;
@@ -85,10 +88,15 @@ async function* mapConcurrent<T, R>(
 // Keep /App.js first and guarantee /styles.css exists before generating,
 // so the plan can't produce a project the sandbox cannot run.
 const normalizePlan = (entries: TFilePlanEntry[]): TFilePlanEntry[] => {
-  const normalized = entries.map((entry) => ({
-    ...entry,
-    path: normalizePath(entry.path),
-  }));
+  const normalized = entries
+    .map((entry) => ({
+      ...entry,
+      path: normalizePath(entry.path),
+    }))
+    .filter(
+      (entry, index, all) =>
+        all.findIndex((other) => other.path === entry.path) === index,
+    );
   const ordered = [
     ...normalized.filter((entry) => entry.path === ENTRY_FILE),
     ...normalized.filter((entry) => entry.path !== ENTRY_FILE),
@@ -203,7 +211,7 @@ export class PortfolioService {
       files: { ...updatedFiles, ...validateAndFixCode(changed) },
       message:
         errors.length > 0
-          ? `${result.message}\n\nSome edits could not be applied: ${errors.join("; ")}`
+          ? `${result.message}\n\nNo changes were applied; the edits that failed: ${errors.join("; ")}`
           : result.message,
       applied,
     };
@@ -214,6 +222,7 @@ export class PortfolioService {
   public async *generateProject(
     dto: GenerateProjectDto,
     userId: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<TProjectStreamChunk> {
     const { prompt, provider, model, instruction } = dto;
 
@@ -245,29 +254,56 @@ export class PortfolioService {
     };
 
     const generated: Record<string, string> = {};
-    const failed: string[] = [];
+    const failed: { path: string; reason?: string }[] = [];
     let entryError: string | undefined;
+
+    // Record one file's outcome: a success lands in `generated` (with the chunk to emit), a failure in `failed` with its reason
+    // so the finish message can say why the file is missing rather than just that it is.
+    const record = (
+      planned: TFilePlanEntry,
+      result: IFileGeneration,
+    ): TProjectStreamChunk | null => {
+      if (result.code === null) {
+        failed.push({ path: planned.path, reason: result.error });
+        if (planned.path === ENTRY_FILE) {
+          entryError = result.error;
+        }
+        return null;
+      }
+      generated[planned.path] = result.code;
+      return {
+        type: "file-complete",
+        path: planned.path,
+        content: result.code,
+      };
+    };
+
+    // /App.js goes first and alone so every other file's prompt includes the root component's real implementation,
+    // not just the plan summary (normalizePlan guarantees it is entries[0]).
+    const [entry, ...rest] = entries;
+    yield { type: "file-start", path: entry.path };
+    const entryChunk = record(
+      entry,
+      await this._generateFile(entry, planText, generated, dto, userId, signal),
+    );
+    if (entryChunk) {
+      yield entryChunk;
+    }
+
     for await (const event of mapConcurrent(
-      entries,
+      rest,
       FILE_CONCURRENCY,
-      (entry) => this._generateFile(entry, planText, generated, dto, userId),
+      (item) =>
+        this._generateFile(item, planText, generated, dto, userId, signal),
+      signal,
     )) {
       if (event.type === "start") {
         yield { type: "file-start", path: event.item.path };
         continue;
       }
-      if (event.value.code !== null) {
-        generated[event.item.path] = event.value.code;
-        yield {
-          type: "file-complete",
-          path: event.item.path,
-          content: event.value.code,
-        };
-      } else {
-        failed.push(event.item.path);
-        if (event.item.path === ENTRY_FILE) {
-          entryError = event.value.error;
-        }
+      const chunk = record(event.item, event.value);
+      if (chunk) {
+        yield chunk;
       }
     }
 
@@ -280,7 +316,11 @@ export class PortfolioService {
     }
 
     const failedNote =
-      failed.length > 0 ? ` Could not generate: ${failed.join(", ")}.` : "";
+      failed.length > 0
+        ? ` Could not generate: ${failed
+            .map(({ path, reason }) => (reason ? `${path} (${reason})` : path))
+            .join(", ")}.`
+        : "";
     yield {
       type: "finish",
       files: generated,
@@ -294,6 +334,7 @@ export class PortfolioService {
     generated: Record<string, string>,
     dto: GenerateProjectDto,
     userId: string,
+    signal?: AbortSignal,
   ): Promise<IFileGeneration> {
     const generatedText = Object.entries(generated)
       .map(([path, content]) => `<file path="${path}">\n${content}\n</file>`)
@@ -305,6 +346,10 @@ export class PortfolioService {
       <generated_files>${generatedText}</generated_files>`;
 
     for (let attempt = 0; attempt < MAX_FILE_ATTEMPTS; attempt += 1) {
+      // Client is gone: don't start (or spend a retry on) a call nobody will read.
+      if (signal?.aborted) {
+        return { code: null };
+      }
       try {
         const { code } = await this.genAiService.generateStructured({
           prompt,
@@ -316,9 +361,14 @@ export class PortfolioService {
         });
         return { code: validateAndFixCode({ [entry.path]: code })[entry.path] };
       } catch (err) {
-        // Config/quota errors won't fix themselves, and the last attempt is the
-        // last: give up on this file and let the rest of the project continue.
-        if (attempt === MAX_FILE_ATTEMPTS - 1 || err instanceof HttpException) {
+        // Quota/rate-limit errors won't fix themselves;
+        // everything else (transient provider failure/ malformed response) — gets the second attempt.
+        // After second failure: give up on this file and let the rest of the project continue.
+        if (
+          attempt === MAX_FILE_ATTEMPTS - 1 ||
+          (err instanceof HttpException &&
+            err.getStatus() === QUOTA_HTTP_STATUS)
+        ) {
           return {
             code: null,
             error: err instanceof HttpException ? err.message : undefined,

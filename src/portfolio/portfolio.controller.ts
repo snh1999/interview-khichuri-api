@@ -55,9 +55,12 @@ export class PortfolioController {
     @UserId() userId?: string,
   ): Observable<MessageEvent> {
     return createSseStream<TProjectStreamChunk>({
-      getSource: () =>
+      // generateProject owns the terminal event: it yields a finish chunk carrying
+      // the files and message, so the stream must not append a bare second finish.
+      skipFinish: true,
+      getSource: (signal) =>
         Promise.resolve(
-          this.portfolioService.generateProject(dto, userId ?? ""),
+          this.portfolioService.generateProject(dto, userId ?? "", signal),
         ),
       mapChunk: (chunk) => chunk,
       getErrorMessage: (error) =>
