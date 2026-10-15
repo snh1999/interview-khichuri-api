@@ -18,6 +18,7 @@ import { HealthModule } from "./health/health.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { LookupsModule } from "./lookups/lookups.module";
 import { NotesModule } from "./notes/notes.module";
+import { PortfolioModule } from "./portfolio/portfolio.module";
 import { PrepSessionModule } from "./prep-session/prep-session.module";
 import { ProfileModule } from "./profile/profile.module";
 import { ResumeModule } from "./resume/resume.module";
@@ -53,6 +54,7 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     CompanyModule,
     UtilitiesModule,
     ResumeModule,
+    PortfolioModule,
   ],
   providers: [
     {
