@@ -33,7 +33,6 @@ const ENTRY_FILE = "/App.js";
 const STYLES_FILE = "/styles.css";
 const FILE_CONCURRENCY = 5;
 const MAX_FILE_ATTEMPTS = 2;
-const QUOTA_HTTP_STATUS = 429;
 
 // Bounded-concurrency map that reports each item as it starts and finishes, so the genesis stream can show live per-file progress.
 type TConcurrentEvent<T, R> =
@@ -325,6 +324,7 @@ export class PortfolioService {
       type: "finish",
       files: generated,
       message: `Generated ${Object.keys(generated).length} files (${plan.projectName}).${failedNote}`,
+      failed: failed.map(({ path }) => path),
     };
   }
 
@@ -361,14 +361,13 @@ export class PortfolioService {
         });
         return { code: validateAndFixCode({ [entry.path]: code })[entry.path] };
       } catch (err) {
-        // Quota/rate-limit errors won't fix themselves;
-        // everything else (transient provider failure/ malformed response) — gets the second attempt.
-        // After second failure: give up on this file and let the rest of the project continue.
-        if (
-          attempt === MAX_FILE_ATTEMPTS - 1 ||
-          (err instanceof HttpException &&
-            err.getStatus() === QUOTA_HTTP_STATUS)
-        ) {
+        // Retryable: malformed output (BadRequestException), transient 5xx provider errors (incl. the default-503 unknown provider errors),
+        // and non-HTTP errors. 4xx credential/config/quota HttpExceptions are permanent — stop and report.
+        const permanent =
+          err instanceof HttpException &&
+          !(err instanceof BadRequestException) &&
+          err.getStatus() < 500;
+        if (attempt === MAX_FILE_ATTEMPTS - 1 || permanent) {
           return {
             code: null,
             error: err instanceof HttpException ? err.message : undefined,

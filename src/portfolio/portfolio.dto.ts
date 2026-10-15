@@ -128,7 +128,12 @@ export type TProjectStreamChunk =
   | { type: "plan"; files: { path: string; description: string }[] }
   | { type: "file-start"; path: string }
   | { type: "file-complete"; path: string; content: string }
-  | { type: "finish"; files: Record<string, string>; message: string }
+  | {
+      type: "finish";
+      files: Record<string, string>;
+      message: string;
+      failed: string[];
+    }
   | { type: "error"; message: string };
 
 export const sketchSchema = aiCommonSchema.extend({

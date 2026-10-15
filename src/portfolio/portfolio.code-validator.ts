@@ -27,8 +27,10 @@ const JSX_ATTRIBUTES = String.raw`(?:"[^"]*"|'[^']*'|\{(?:[^{}]|\{[^{}]*\})*\}|[
 // elements `<input>`/`<link>`.
 const VOID_PATTERNS = VOID_ELEMENTS.map((tag) => ({
   tag,
+  // `(?!\s*</tag>)` leaves paired void tags (`<img></img>`) alone: they already
+  // compile, and self-closing the opener would orphan the closing tag.
   pattern: new RegExp(
-    String.raw`<${tag}(?=[\s>])(${JSX_ATTRIBUTES}?)(?<!/)>`,
+    String.raw`<${tag}(?=[\s>])(${JSX_ATTRIBUTES}?)(?<!/)>(?!\s*</${tag}>)`,
     "g",
   ),
 }));
@@ -46,6 +48,8 @@ const FENCE_CLOSE = /\n```\s*$/;
 const JS_EXTENSION = /\.(js|jsx|ts|tsx)$/;
 const FILE_EXTENSION = /\.\w+$/;
 const DEFAULT_EXPORT = /export\s+default\s+/;
+// `export { App as default };` already provides a default export; appending `export default App;` on top would be a duplicate-export compile error.
+const DEFAULT_EXPORT_LIST = /\bexport\s*\{[^}]*\bdefault\b[^}]*\}/;
 const COMPONENT_DECL =
   /^(?:export\s+)?(?:function\s+(?<fn>[A-Z]\w*)\s*\(|const\s+(?<cn>[A-Z]\w*)\s*=\s*(?:\(|function))/gm;
 
@@ -75,7 +79,7 @@ const selfCloseVoidElements = (code: string): string => {
 // Prefer the declaration whose name matches the file; fall back to the sole declaration.
 // When several declarations exist and none matches the file the component is ambiguous, so leave the file untouched.
 const ensureDefaultExport = (code: string, path: string): string => {
-  if (DEFAULT_EXPORT.test(code)) {
+  if (DEFAULT_EXPORT.test(code) || DEFAULT_EXPORT_LIST.test(code)) {
     return code;
   }
 

@@ -155,7 +155,7 @@ const applyUpdate = (
 const applyDelete = (
   files: Record<string, string>,
   op: TFileOp,
-  knownPaths: ReadonlySet<string>,
+  knownPaths: Set<string>,
 ): IOpOutcome => {
   if (PROTECTED_ENTRY_FILES.has(op.path)) {
     return { error: `delete ${op.path}: cannot delete an entry file` };
@@ -167,13 +167,15 @@ const applyDelete = (
   }
 
   Reflect.deleteProperty(files, op.path);
+  // Drop it from the known set too, so a later `create` in the same turn is not mistaken for overwriting a manifest-only file.
+  knownPaths.delete(op.path);
   return { applied: `deleted ${op.path}` };
 };
 
 const applyOperation = (
   files: Record<string, string>,
   op: TFileOp,
-  knownPaths: ReadonlySet<string>,
+  knownPaths: Set<string>,
 ): IOpOutcome => {
   switch (op.op) {
     case "create":
