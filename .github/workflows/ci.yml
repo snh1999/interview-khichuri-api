@@ -46,4 +46,4 @@ jobs:
           npm run db:test:push
           npm run db:test:push:app
       - name: E2E (Postgres + SQLite projects)
-        run: npx vitest run --config vitest.e2e.config.mts
+        run: bash -c 'npx vitest run --config vitest.e2e.config.mts --project web & p1=$!; npx vitest run --config vitest.e2e.config.mts --project app & p2=$!; rc=0; wait $p1 || rc=1; wait $p2 || rc=1; exit $rc'
