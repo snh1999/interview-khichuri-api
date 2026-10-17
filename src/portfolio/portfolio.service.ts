@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { BadRequestException, HttpException, Injectable } from "@nestjs/common";
 
+import { omitArrayKeys, omitKeys } from "@/src/common/helpers";
 import {
   PORTFOLIO_BUILDER_PROMPT,
   PORTFOLIO_FILE_CODE_PROMPT,
@@ -9,6 +10,8 @@ import {
   PORTFOLIO_SKETCH_PROMPT,
 } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { ProfileService } from "@/src/profile/profile.service";
+import type { TPortfolioProfile } from "@/src/profile/profile.service";
 
 import { validateAndFixCode } from "./portfolio.code-validator";
 import {
@@ -124,7 +127,62 @@ interface IFileGeneration {
 
 @Injectable()
 export class PortfolioService {
-  constructor(private readonly genAiService: GenAiService) {}
+  constructor(
+    private readonly genAiService: GenAiService,
+    private readonly profileService: ProfileService,
+  ) {}
+
+  private _profileTag(profile: TPortfolioProfile | null): string {
+    if (!profile) {
+      return "<profile>null</profile>";
+    }
+
+    return `<profile>${JSON.stringify({
+      personal: {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        country: profile.country,
+        email: profile.email,
+      },
+      links: omitArrayKeys(profile.links, ["id", "profileId"]),
+      workOverviews: profile.workOverviews.map((overview) =>
+        omitKeys(
+          {
+            ...overview,
+            skills: overview.skills.map((skill) => skill.topic?.name ?? ""),
+            industries: overview.industries.map(
+              (industry) => industry.industry?.name ?? "",
+            ),
+          },
+          ["id", "profileId", "createdAt", "updatedAt"],
+        ),
+      ),
+      workExperiences: omitArrayKeys(profile.workExperiences, [
+        "id",
+        "profileId",
+        "companyId",
+        "createdAt",
+        "updatedAt",
+      ]),
+      educations: omitArrayKeys(profile.educations, [
+        "id",
+        "profileId",
+        "createdAt",
+        "updatedAt",
+      ]),
+      publications: omitArrayKeys(profile.publications, ["id", "profileId"]),
+      projects: profile.projects.map((project) =>
+        omitKeys(
+          {
+            ...project,
+            skills: project.skills.map((skill) => skill.topic.name),
+          },
+          ["id", "profileId"],
+        ),
+      ),
+      activities: omitArrayKeys(profile.activities, ["id", "profileId"]),
+    })}</profile>`;
+  }
 
   public async generateSketch(
     dto: GenerateSketchDto,
@@ -133,9 +191,13 @@ export class PortfolioService {
     const { frame, elements, theme, provider, model, instruction } = dto;
     const promptText =
       dto.prompt.length > 0 ? dto.prompt : DEFAULT_SKETCH_PROMPT;
+    const profileTag = this._profileTag(
+      await this.profileService.getPortfolioProfile(userId),
+    );
 
     const content = await this.genAiService.generateStructured({
       prompt: `${PORTFOLIO_SKETCH_PROMPT}
+        ${profileTag}
         <user_prompt>${promptText}</user_prompt>
         <frame>${JSON.stringify(frame)}</frame>
         <elements>${JSON.stringify(elements)}</elements>
@@ -225,8 +287,12 @@ export class PortfolioService {
   ): AsyncGenerator<TProjectStreamChunk> {
     const { prompt, provider, model, instruction } = dto;
 
+    const profileTag = this._profileTag(
+      await this.profileService.getPortfolioProfile(userId),
+    );
+
     const plan = await this.genAiService.generateStructured({
-      prompt: `${PORTFOLIO_FILE_PLAN_PROMPT}\n<user_prompt>\n${prompt}\n</user_prompt>`,
+      prompt: `${PORTFOLIO_FILE_PLAN_PROMPT}\n${profileTag}\n<user_prompt>\n${prompt}\n</user_prompt>`,
       schema: filePlanSchema,
       provider,
       model,
@@ -283,7 +349,15 @@ export class PortfolioService {
     yield { type: "file-start", path: entry.path };
     const entryChunk = record(
       entry,
-      await this._generateFile(entry, planText, generated, dto, userId, signal),
+      await this._generateFile(
+        entry,
+        planText,
+        generated,
+        dto,
+        userId,
+        profileTag,
+        signal,
+      ),
     );
     if (entryChunk) {
       yield entryChunk;
@@ -293,7 +367,15 @@ export class PortfolioService {
       rest,
       FILE_CONCURRENCY,
       (item) =>
-        this._generateFile(item, planText, generated, dto, userId, signal),
+        this._generateFile(
+          item,
+          planText,
+          generated,
+          dto,
+          userId,
+          profileTag,
+          signal,
+        ),
       signal,
     )) {
       if (event.type === "start") {
@@ -334,12 +416,14 @@ export class PortfolioService {
     generated: Record<string, string>,
     dto: GenerateProjectDto,
     userId: string,
+    profileTag: string,
     signal?: AbortSignal,
   ): Promise<IFileGeneration> {
     const generatedText = Object.entries(generated)
       .map(([path, content]) => `<file path="${path}">\n${content}\n</file>`)
       .join("\n");
     const prompt = `${PORTFOLIO_FILE_CODE_PROMPT}
+      ${profileTag}
       <project_plan>${planText}</project_plan>
       <page_goal>${dto.prompt}</page_goal>
       <current_file path="${entry.path}">${entry.description}</current_file>
