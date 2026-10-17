@@ -213,7 +213,7 @@ export class PortfolioService {
 
     // Elements with no owning frame (e.g. geometrically-contained ones the client could not attribute) attach to the first page so none is silently lost.
     const assigned = new Set([...pages.values()].flatMap((p) => p.elements));
-    const [first] = pages.values();
+    const first = [...pages.values()].at(0);
     for (const el of canvas) {
       if (!assigned.has(el) && el.frameId === undefined) {
         first?.elements.push(el);
