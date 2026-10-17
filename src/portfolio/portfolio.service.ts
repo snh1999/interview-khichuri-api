@@ -112,7 +112,7 @@ const normalizePlan = (entries: TFilePlanEntry[]): TFilePlanEntry[] => {
   if (!ordered.some((entry) => entry.path === STYLES_FILE)) {
     ordered.push({
       path: STYLES_FILE,
-      description: "Global styles (Tailwind entry point)",
+      description: "Custom global CSS only (no Tailwind import)",
     });
   }
   return ordered;
@@ -184,23 +184,63 @@ export class PortfolioService {
     })}</profile>`;
   }
 
+  // Collapse the selected artboards into pages: one page per distinct route (`route || "/"`), so a desktop + mobile pair sharing "/" is a single page.
+  private _pagesFromFrames(
+    frames: GenerateSketchDto["frames"],
+    elements: GenerateSketchDto["elements"],
+  ): { route: string; title: string; elements: Record<string, unknown>[] }[] {
+    const canvas = elements as Record<string, unknown>[];
+    const pages = new Map<
+      string,
+      { route: string; title: string; elements: Record<string, unknown>[] }
+    >();
+
+    for (const frame of frames) {
+      const route = frame.route?.length ? frame.route : "/";
+      const page = pages.get(route) ?? {
+        route,
+        title: "Portfolio Page",
+        elements: [],
+      };
+      page.elements.push(
+        ...canvas.filter((el) => el.frameId === frame.id || el.id === frame.id),
+      );
+      if (frame.title?.length) {
+        page.title = frame.title;
+      }
+      pages.set(route, page);
+    }
+
+    // Elements with no owning frame (e.g. geometrically-contained ones the client could not attribute) attach to the first page so none is silently lost.
+    const assigned = new Set([...pages.values()].flatMap((p) => p.elements));
+    const [first] = pages.values();
+    for (const el of canvas) {
+      if (!assigned.has(el) && el.frameId === undefined) {
+        first?.elements.push(el);
+      }
+    }
+
+    return [...pages.values()];
+  }
+
   public async generateSketch(
     dto: GenerateSketchDto,
     userId: string,
   ): Promise<TGeneratedDesign> {
-    const { frame, elements, theme, provider, model, instruction } = dto;
+    const { frames, elements, theme, provider, model, instruction } = dto;
     const promptText =
       dto.prompt.length > 0 ? dto.prompt : DEFAULT_SKETCH_PROMPT;
     const profileTag = this._profileTag(
       await this.profileService.getPortfolioProfile(userId),
     );
 
+    const pages = this._pagesFromFrames(frames, elements);
+
     const content = await this.genAiService.generateStructured({
       prompt: `${PORTFOLIO_SKETCH_PROMPT}
         ${profileTag}
         <user_prompt>${promptText}</user_prompt>
-        <frame>${JSON.stringify(frame)}</frame>
-        <elements>${JSON.stringify(elements)}</elements>
+        <pages>${JSON.stringify(pages)}</pages>
         <theme>${JSON.stringify(theme)}</theme>`,
       schema: designContentSchema,
       provider,
@@ -211,16 +251,13 @@ export class PortfolioService {
 
     return {
       id: `design-${Date.now()}-${randomUUID().slice(0, 8)}`,
-      frameId: frame.id,
-      frameTitle: frame.title?.length ? frame.title : "Portfolio Page",
+      routes: content.routes,
       createdAt: new Date().toISOString(),
       prompt: promptText,
       themeUsed: theme,
       previewType: "interactive",
-      ...content,
-      reactCode: validateAndFixCode({ [ENTRY_FILE]: content.reactCode })[
-        ENTRY_FILE
-      ],
+      wireframeSummary: content.wireframeSummary,
+      files: validateAndFixCode(content.files),
     };
   }
 

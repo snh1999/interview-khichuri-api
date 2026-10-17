@@ -33,24 +33,27 @@ const wireframeSummarySchema = z.object({
 
 export const generatedDesignSchema = z.object({
   id: z.string(),
-  frameId: z.string(),
-  frameTitle: z.string(),
+  routes: z.array(z.string()),
   createdAt: z.string(),
   prompt: z.string().optional(),
   themeUsed: themeConfigSchema,
   wireframeSummary: wireframeSummarySchema,
-  htmlCode: z.string(),
-  reactCode: z.string(),
+  // Path-keyed file map: "/App.js" (router) + one file per route + "/styles.css".
+  files: z.record(z.string(), z.string()),
   previewType: z.enum(["interactive", "code", "side-by-side"]),
 });
 
 export type TGeneratedDesign = z.infer<typeof generatedDesignSchema>;
 
-// What the model itself produces for a sketch; the service fills in the bookkeeping fields (id, frameId, timestamps, theme) from the request.
+// What the model itself produces for a sketch; the service fills in the bookkeeping fields (id, timestamps, theme) from the request.
 export const designContentSchema = z.object({
   wireframeSummary: wireframeSummarySchema,
-  htmlCode: z.string(),
-  reactCode: z.string(),
+  routes: z.array(z.string()).min(1).max(12),
+  files: z
+    .record(z.string(), z.string())
+    .refine((files) => Object.keys(files).length <= 20, {
+      message: "At most 20 files per design",
+    }),
 });
 
 // What the model produces for a builder turn: a minimal list of file edits instead of whole rewritten files.
@@ -138,12 +141,18 @@ export type TProjectStreamChunk =
 
 export const sketchSchema = aiCommonSchema.extend({
   prompt: str(DEFAULT_MAX_STRING_LENGTH),
-  // Frame and canvas elements are only serialized into the AI prompt,
+  // Frames are only serialized into the AI prompt (grouped by route into pages),
   // so loose objects keep whatever the frontend sends without re-declaring the whole canvas element union here.
-  frame: z.looseObject({
-    id: z.string().min(1).max(MID_LENGTH),
-    title: z.string().max(MID_LENGTH).optional(),
-  }),
+  frames: z
+    .array(
+      z.looseObject({
+        id: z.string().min(1).max(MID_LENGTH),
+        title: z.string().max(MID_LENGTH).optional(),
+        route: z.string().max(MID_LENGTH).optional(),
+      }),
+    )
+    .min(1)
+    .max(12),
   elements: z.array(z.looseObject({})).max(500),
   theme: themeConfigSchema,
 });

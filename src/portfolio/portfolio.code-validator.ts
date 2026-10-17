@@ -61,6 +61,22 @@ const stripFences = (code: string): string =>
     .replace(FENCE_OPEN, "")
     .replace(FENCE_CLOSE, "");
 
+// Tailwind is supplied by the sandbox (the web app loads it via CDN), so an
+// `@import 'tailwindcss'` or a legacy `@tailwind base` directive in the
+// project's CSS has nothing to resolve. Sandpack's postcss compiler then calls
+// `path.isAbsolute(null)` and the whole preview crashes; drop them. The
+// `tw-` utility classes the model writes still work via the CDN.
+const TAILWIND_CSS_DIRECTIVE =
+  /^[ \t]*@(?:import\s+["']tailwindcss(?:\/[^"']*)?["']|tailwind\s+(?:base|components|utilities))\s*;?[ \t]*$/gm;
+
+const stripTailwindDirectives = (css: string): string =>
+  css.search(TAILWIND_CSS_DIRECTIVE) === -1
+    ? css
+    : css
+        .replace(TAILWIND_CSS_DIRECTIVE, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
 const fixClassAttribute = (code: string): string =>
   code.replace(CLASS_ATTRIBUTE, "$1 className=");
 
@@ -109,6 +125,8 @@ export const validateAndFixCode = (
       code = fixClassAttribute(code);
       code = selfCloseVoidElements(code);
       code = ensureDefaultExport(code, path);
+    } else if (path.endsWith(".css")) {
+      code = stripTailwindDirectives(code);
     }
     fixed[path] = code;
   }
