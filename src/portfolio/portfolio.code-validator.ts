@@ -1,0 +1,135 @@
+// Ported from the tutorial. Post-generation auto-fixer for builder turns.
+// The model emits JSX that commonly breaks the Sandpack compile
+// (markdown fences, `class=` instead of`className=`, unclosed void tags, a missing default export).
+// Repair those before the resulting project is returned.
+const VOID_ELEMENTS = [
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+];
+
+// A JSX attribute run: quoted strings and one level of brace nesting,
+// so `=>` and `>` inside attributes don't terminate the match. `<`/`>` excluded so a run can never cross into the next tag.
+const JSX_ATTRIBUTES = String.raw`(?:"[^"]*"|'[^']*'|\{(?:[^{}]|\{[^{}]*\})*\}|[^<>"'{}])*`;
+
+// Case-sensitive on purpose: `<Input>`/`<Link>` are components, not the void
+// elements `<input>`/`<link>`.
+const VOID_PATTERNS = VOID_ELEMENTS.map((tag) => ({
+  tag,
+  // `(?!\s*</tag>)` leaves paired void tags (`<img></img>`) alone: they already
+  // compile, and self-closing the opener would orphan the closing tag.
+  pattern: new RegExp(
+    String.raw`<${tag}(?=[\s>])(${JSX_ATTRIBUTES}?)(?<!/)>(?!\s*</${tag}>)`,
+    "g",
+  ),
+}));
+
+// `\sclass=` (not `\bclass=`) so `data-class=` is left alone; JSX-aware so `=>` earlier in the tag doesn't stop the match.
+const CLASS_ATTRIBUTE = new RegExp(
+  String.raw`(<[a-zA-Z][\w.-]*${JSX_ATTRIBUTES})\sclass=`,
+  "g",
+);
+
+const FENCE_PATTERN =
+  /^```(?:jsx?|javascript|css|html|tsx?|react)?\s*\n([\s\S]*?)\n```\s*$/;
+const FENCE_OPEN = /^```[^\n]*\n/;
+const FENCE_CLOSE = /\n```\s*$/;
+const JS_EXTENSION = /\.(js|jsx|ts|tsx)$/;
+const FILE_EXTENSION = /\.\w+$/;
+const DEFAULT_EXPORT = /export\s+default\s+/;
+// `export { App as default };` already provides a default export; appending `export default App;` on top would be a duplicate-export compile error.
+const DEFAULT_EXPORT_LIST = /\bexport\s*\{[^}]*\bdefault\b[^}]*\}/;
+const COMPONENT_DECL =
+  /^(?:export\s+)?(?:function\s+(?<fn>[A-Z]\w*)\s*\(|const\s+(?<cn>[A-Z]\w*)\s*=\s*(?:\(|function))/gm;
+
+const isJavaScript = (path: string): boolean => JS_EXTENSION.test(path);
+
+const stripFences = (code: string): string =>
+  code
+    .replace(FENCE_PATTERN, "$1")
+    .replace(FENCE_OPEN, "")
+    .replace(FENCE_CLOSE, "");
+
+// Tailwind is supplied by the sandbox (the web app loads it via CDN), so an
+// `@import 'tailwindcss'` or a legacy `@tailwind base` directive in the
+// project's CSS has nothing to resolve. Sandpack's postcss compiler then calls
+// `path.isAbsolute(null)` and the whole preview crashes; drop them. The
+// `tw-` utility classes the model writes still work via the CDN.
+const TAILWIND_CSS_DIRECTIVE =
+  /^[ \t]*@(?:import\s+["']tailwindcss(?:\/[^"']*)?["']|tailwind\s+(?:base|components|utilities))\s*;?[ \t]*$/gm;
+
+const stripTailwindDirectives = (css: string): string =>
+  css.search(TAILWIND_CSS_DIRECTIVE) === -1
+    ? css
+    : css
+        .replace(TAILWIND_CSS_DIRECTIVE, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+const fixClassAttribute = (code: string): string =>
+  code.replace(CLASS_ATTRIBUTE, "$1 className=");
+
+const selfCloseVoidElements = (code: string): string => {
+  let next = code;
+  for (const { tag, pattern } of VOID_PATTERNS) {
+    next = next.replace(
+      pattern,
+      (_match, attrs: string | undefined) =>
+        `<${tag}${(attrs ?? "").trimEnd()} />`,
+    );
+  }
+  return next;
+};
+
+// Prefer the declaration whose name matches the file; fall back to the sole declaration.
+// When several declarations exist and none matches the file the component is ambiguous, so leave the file untouched.
+const ensureDefaultExport = (code: string, path: string): string => {
+  if (DEFAULT_EXPORT.test(code) || DEFAULT_EXPORT_LIST.test(code)) {
+    return code;
+  }
+
+  const names = [...code.matchAll(COMPONENT_DECL)].map(
+    (match) => match.groups?.fn ?? match.groups?.cn,
+  );
+  const base = path.split("/").pop()?.replace(FILE_EXTENSION, "");
+  const componentName =
+    names.find((name) => name === base) ??
+    (names.length === 1 ? names[0] : undefined);
+
+  if (!componentName) {
+    return code;
+  }
+
+  return `${code.trimEnd()}\n\nexport default ${componentName};\n`;
+};
+
+export const validateAndFixCode = (
+  files: Record<string, string>,
+): Record<string, string> => {
+  const fixed: Record<string, string> = {};
+
+  for (const [path, raw] of Object.entries(files)) {
+    let code = stripFences(raw);
+    if (isJavaScript(path)) {
+      code = fixClassAttribute(code);
+      code = selfCloseVoidElements(code);
+      code = ensureDefaultExport(code, path);
+    } else if (path.endsWith(".css")) {
+      code = stripTailwindDirectives(code);
+    }
+    fixed[path] = code;
+  }
+
+  return fixed;
+};

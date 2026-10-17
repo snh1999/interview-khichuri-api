@@ -31,6 +31,8 @@ import {
   TViewUrlResponse,
 } from "@/src/utilities/upload/file-upload.service";
 
+import { omitKeys, stripId } from "../common/helpers";
+
 const MAX_RESUMES = 5;
 
 export type TResumeResponse = Omit<TResume, "content"> & {
@@ -45,14 +47,6 @@ function generateSlug(name: string): string {
     .slice(0, 24);
   return `${slug}-${crypto.randomUUID().slice(0, 8)}`;
 }
-
-const omitKeys = <T extends object, K extends keyof T>(
-  obj: T,
-  keys: readonly K[],
-): Omit<T, K> =>
-  Object.fromEntries(
-    Object.entries(obj).filter(([key]) => !keys.includes(key as K)),
-  ) as Omit<T, K>;
 
 @Injectable()
 export class ResumeService {
@@ -427,24 +421,14 @@ export class ResumeService {
         "country",
       ]),
       professional: content.professional,
-      skillGroups: (content.skillGroups ?? []).map((group) =>
-        omitKeys(group, ["id"]),
-      ),
+      skillGroups: stripId(content.skillGroups ?? []),
       workExperience: content.workExperience.map((exp) =>
         omitKeys(exp, ["id", "companyId", "startDate", "endDate"]),
       ),
-      education: content.education.map((ed) =>
-        omitKeys(ed, ["id", "location", "startDate", "endDate"]),
-      ),
-      projects: content.projects.map((project) =>
-        omitKeys(project, ["id", "link"]),
-      ),
-      publications: content.publications.map((pub) =>
-        omitKeys(pub, ["id", "link"]),
-      ),
-      activities: content.activities.map((activity) =>
-        omitKeys(activity, ["id", "startDate", "endDate"]),
-      ),
+      education: stripId(content.education),
+      projects: stripId(content.projects),
+      publications: stripId(content.publications),
+      activities: stripId(content.activities),
     }).slice(0, 12000);
   }
 

@@ -4,9 +4,21 @@ import { User } from "better-auth";
 import { IDatabaseService } from "@/src/database/database.service";
 import type {
   TDatabase,
+  TIndustry,
   TProfile,
   TProfilePopulated,
+  TTopics,
+  TWorkIndustry,
+  TWorkOverview,
+  TWorkSkill,
 } from "@/src/database/database.types";
+
+export type TPortfolioProfile = Omit<TProfilePopulated, "workOverviews"> & {
+  workOverviews: (TWorkOverview & {
+    skills: (TWorkSkill & { topic: TTopics | null })[];
+    industries: (TWorkIndustry & { industry: TIndustry | null })[];
+  })[];
+};
 
 import type {
   ActivitiesDto,
@@ -27,27 +39,12 @@ export class ProfileService {
 
   public async findProfile(user?: User): Promise<TProfilePopulated> {
     const userId = user?.id;
-    const name = user?.name;
-
-    const [profile] = (await this.db.findAllByColumn("profiles", {
-      filter: userId ? { id: userId } : {},
-      relation: {
-        links: true,
-        workOverviews: { with: { skills: true, industries: true } },
-        workExperiences: true,
-        educations: true,
-        jobPreferences: { with: { titles: true } },
-        publications: true,
-        projects: { with: { skills: { with: { topic: true } } } },
-        references: true,
-        activities: true,
-      },
-    })) as unknown as [TProfilePopulated | undefined];
+    const profile = await this._loadPopulatedProfile(userId);
 
     if (!profile) {
-      const profile = await this.db.create("profiles", {
+      const created = await this.db.create("profiles", {
         id: userId ?? crypto.randomUUID(),
-        firstName: name ?? "",
+        firstName: user?.name ?? "",
       });
 
       return {
@@ -60,7 +57,7 @@ export class ProfileService {
         projects: [],
         references: [],
         activities: [],
-        ...profile,
+        ...created,
       };
     }
 
@@ -71,6 +68,43 @@ export class ProfileService {
         authors: this._deserializeAuthors(publication.authors),
       })),
     };
+  }
+
+  // The portfolio prompt embeds the packed profile (see PortfolioService). A
+  // user with no profile gets null rather than an empty shell or a new row.
+  public async getPortfolioProfile(
+    userId: string,
+  ): Promise<TPortfolioProfile | null> {
+    return (
+      ((await this._loadPopulatedProfile(userId)) as
+        TPortfolioProfile | undefined) ?? null
+    );
+  }
+
+  private async _loadPopulatedProfile(
+    userId?: string,
+  ): Promise<TProfilePopulated | undefined> {
+    const [profile] = (await this.db.findAllByColumn("profiles", {
+      filter: userId ? { id: userId } : {},
+      relation: {
+        links: true,
+        workOverviews: {
+          with: {
+            skills: { with: { topic: true } },
+            industries: { with: { industry: true } },
+          },
+        },
+        workExperiences: true,
+        educations: true,
+        jobPreferences: { with: { titles: true } },
+        publications: true,
+        projects: { with: { skills: { with: { topic: true } } } },
+        references: true,
+        activities: true,
+      },
+    })) as unknown as [TProfilePopulated | undefined];
+
+    return profile;
   }
 
   public async updateProfile(

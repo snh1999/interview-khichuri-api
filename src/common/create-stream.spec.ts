@@ -51,6 +51,21 @@ describe("createSseStream", () => {
     expect(events).toEqual([{ data: { type: "done", count: 0 } }]);
   });
 
+  it("emits no finish event when the source owns the terminal event", async () => {
+    const events = await collect(
+      createSseStream<string>({
+        getSource: async () =>
+          (async function* () {
+            yield "done-payload";
+          })(),
+        mapChunk: (text) => ({ type: "text", text }),
+        skipFinish: true,
+      }),
+    );
+
+    expect(events).toEqual([{ data: { type: "text", text: "done-payload" } }]);
+  });
+
   // A source that resolves is still allowed to fail later while draining, so
   // the error event has to come from the iteration, not just the await.
   it("emits an error event when the source throws mid-stream, keeping chunks already sent", async () => {
