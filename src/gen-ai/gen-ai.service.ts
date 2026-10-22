@@ -24,6 +24,7 @@ import {
   EXTRACTION_PROMPT,
   GENERATE_INTERVIEW_QUESTIONS_PROMPT_FALLBACK,
   PROVIDER_CONFIG,
+  providerBaseUrl,
   RESUME_EXTRACTION_PROMPT,
   ATS_SCORE_PROMPT,
   STANDALONE_REVIEW_PROMPT,
@@ -117,13 +118,16 @@ export class GenAiService {
     return this.apiKeyService.useApiKey(
       provider,
       // eslint-disable-next-line sonarjs/cognitive-complexity
-      async ({ key, model: defaultModel }) => {
+      async ({ key, model: defaultModel, baseUrl }) => {
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         const modelName = model || defaultModel || config.defaultModel;
         const providerInstance =
           config.sdk === "google"
             ? createGoogle({ apiKey: key })
-            : createOpenAI({ apiKey: key, baseURL: config.baseURL });
+            : createOpenAI({
+                apiKey: key,
+                baseURL: providerBaseUrl(provider, baseUrl),
+              });
 
         try {
           const shape =
@@ -243,13 +247,16 @@ export class GenAiService {
 
     return this.apiKeyService.useApiKey(
       provider,
-      ({ key, model: defaultModel }) => {
+      ({ key, model: defaultModel, baseUrl }) => {
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         const modelName = model || defaultModel || config.defaultModel;
         const providerInstance =
           config.sdk === "google"
             ? createGoogle({ apiKey: key })
-            : createOpenAI({ apiKey: key, baseURL: config.baseURL });
+            : createOpenAI({
+                apiKey: key,
+                baseURL: providerBaseUrl(provider, baseUrl),
+              });
 
         const result = streamText({
           model: providerInstance(modelName),
@@ -274,13 +281,16 @@ export class GenAiService {
 
     return this.apiKeyService.useApiKey(
       provider,
-      ({ key, model: defaultModel }) => {
+      ({ key, model: defaultModel, baseUrl }) => {
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         const modelName = model || defaultModel || config.defaultModel;
         const providerInstance =
           config.sdk === "google"
             ? createGoogle({ apiKey: key })
-            : createOpenAI({ apiKey: key, baseURL: config.baseURL });
+            : createOpenAI({
+                apiKey: key,
+                baseURL: providerBaseUrl(provider, baseUrl),
+              });
 
         const result = streamText({
           model: providerInstance(modelName),

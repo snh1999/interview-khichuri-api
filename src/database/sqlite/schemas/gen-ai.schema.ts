@@ -20,6 +20,7 @@ export const api_key = sqliteTable(
     provider: text("provider", {
       enum: GEN_AI_PROVIDERS,
     }).notNull(),
+    baseUrl: text("base_url"),
     key: text("key").notNull(),
     isActive: integer("is_active", { mode: "boolean" })
       .notNull()

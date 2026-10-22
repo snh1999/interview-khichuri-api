@@ -18,8 +18,12 @@ import {
   CreateApiKeyDto,
   UpdateApiKeyDto,
 } from "@/src/gen-ai/api-key/api-key.dto";
-import { PROVIDER_CONFIG } from "@/src/gen-ai/gen-ai.constants";
+import {
+  PROVIDER_CONFIG,
+  providerBaseUrl,
+} from "@/src/gen-ai/gen-ai.constants";
 import { toQuotaExceededHttpException } from "@/src/gen-ai/gen-ai.errors";
+import { assertSafeProviderBaseUrl } from "@/src/gen-ai/provider-url";
 
 import { EncryptionService } from "./encryption.service";
 
@@ -35,9 +39,9 @@ export class ApiKeyService {
     dto: CreateApiKeyDto,
     userId?: string,
   ): Promise<TApiKeyInsecure> {
-    const { key, isActive, provider, name, model } = dto;
+    const { key, isActive, provider, name, model, baseUrl } = dto;
 
-    await this._verifyKey(provider, key);
+    await this._verifyKey(provider, key, model, baseUrl);
 
     const encrypted = this.encryptionService.encrypt(key);
     return this.db.withTransaction(async (transaction) => {
@@ -46,7 +50,7 @@ export class ApiKeyService {
       }
       return this.db.create(
         "api_key",
-        { provider, name, userId, isActive, key: encrypted, model },
+        { provider, name, userId, isActive, key: encrypted, model, baseUrl },
         transaction,
       );
     });
@@ -61,9 +65,17 @@ export class ApiKeyService {
       filter: { ...(userId ? { userId } : {}) },
     });
 
-    if (dto.model) {
+    const baseUrlChanged =
+      dto.baseUrl !== undefined && dto.baseUrl !== existing.baseUrl;
+
+    if (dto.model || baseUrlChanged) {
       const decryptedKey = this.encryptionService.decrypt(existing.key);
-      await this._verifyKey(existing.provider, decryptedKey, dto.model);
+      await this._verifyKey(
+        existing.provider,
+        decryptedKey,
+        dto.model ?? existing.model,
+        dto.baseUrl !== undefined ? dto.baseUrl : existing.baseUrl,
+      );
     }
 
     const [updated] = await this.db.update("api_key", dto, { id });
@@ -98,7 +110,12 @@ export class ApiKeyService {
     });
 
     const decryptedKey = this.encryptionService.decrypt(apiKey.key);
-    await this._verifyKey(apiKey.provider, decryptedKey);
+    await this._verifyKey(
+      apiKey.provider,
+      decryptedKey,
+      apiKey.model,
+      apiKey.baseUrl,
+    );
 
     await this.db.withTransaction(async (transaction) => {
       await this._disableActiveKeys(apiKey.provider, userId, transaction);
@@ -146,12 +163,17 @@ export class ApiKeyService {
     operation: (keyInfo: {
       key: string;
       model: string | null;
+      baseUrl: string | null;
     }) => Promise<T> | T,
     userId?: string,
   ): Promise<T> {
     const apiKey = await this._findActiveKey(provider, userId);
     const decryptedKey = this.encryptionService.decrypt(apiKey.key);
-    return operation({ key: decryptedKey, model: apiKey.model ?? null });
+    return operation({
+      key: decryptedKey,
+      model: apiKey.model ?? null,
+      baseUrl: apiKey.baseUrl ?? null,
+    });
   }
 
   private async _findActiveKey(
@@ -170,16 +192,26 @@ export class ApiKeyService {
     provider: TApiKeyProvider,
     key: string,
     model?: string | null,
+    baseUrl?: string | null,
   ): Promise<void> {
+    const config = PROVIDER_CONFIG[provider];
+    const resolvedBaseUrl = providerBaseUrl(provider, baseUrl);
+
+    if (config.requiresBaseUrl && !resolvedBaseUrl) {
+      throw new BadRequestException(`${provider} requires a base URL`);
+    }
+    if (resolvedBaseUrl && resolvedBaseUrl !== config.baseURL) {
+      await assertSafeProviderBaseUrl(resolvedBaseUrl);
+    }
+
     if (this.config.get("NODE_ENV") === "test") {
       return;
     }
 
-    const config = PROVIDER_CONFIG[provider];
     const providerInstance =
       config.sdk === "google"
         ? createGoogle({ apiKey: key })
-        : createOpenAI({ apiKey: key, baseURL: config.baseURL });
+        : createOpenAI({ apiKey: key, baseURL: resolvedBaseUrl });
 
     try {
       await generateText({
