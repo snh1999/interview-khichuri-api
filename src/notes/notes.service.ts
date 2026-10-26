@@ -8,13 +8,7 @@ import { Observable } from "rxjs";
 
 import { createSseStream } from "@/src/common/create-stream";
 import { IDatabaseService } from "@/src/database/database.service";
-import {
-  TNote,
-  TNoteWithJobTitle,
-  TPagination,
-  TQuestion,
-  TSortBy,
-} from "@/src/database/database.types";
+import { TNote, TPagination, TSortBy } from "@/src/database/database.types";
 import { EXPLAIN_INTERVIEW_QUESTION_PROMPT } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
@@ -27,11 +21,6 @@ import {
   UpdateNoteDto,
 } from "./notes.dto";
 
-type TNoteWithJobRelation = TNote & { job: { title: string | null } | null };
-type TQuestionWithSession = TQuestion & {
-  session: { userId: string | null } | null;
-};
-
 @Injectable()
 export class NotesService {
   constructor(
@@ -40,32 +29,10 @@ export class NotesService {
   ) {}
 
   async create(dto: CreateNoteDto, userId?: string): Promise<TNote> {
-    if (dto.questionId && dto.jobId) {
-      throw new BadRequestException(
-        "A note can only be linked to one question or job.",
-      );
-    }
-
-    const user = userId ? { userId } : {};
-
-    if (dto.jobId) {
-      await this.db.findById("jobs", dto.jobId, { filter: user });
-    }
-
-    if (dto.questionId) {
-      const question = (await this.db.findById("questions", dto.questionId, {
-        relation: { session: { columns: { userId: true } } },
-      })) as unknown as TQuestionWithSession;
-
-      if (userId && question.session?.userId !== userId) {
-        throw new ForbiddenException("Question not found");
-      }
-    }
-
     return this.db.create("notes", {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       ...dto,
-      ...user,
+      ...(userId ? { userId } : {}),
     });
   }
 
@@ -109,17 +76,14 @@ export class NotesService {
     });
   }
 
-  async findById(id: string, userId?: string): Promise<TNoteWithJobTitle> {
-    const note = (await this.db.findById("notes", id, {
-      relation: { job: { columns: { title: true } } },
-    })) as unknown as TNoteWithJobRelation;
+  async findById(id: string, userId?: string): Promise<TNote> {
+    const note = await this.db.findById("notes", id);
 
     if (userId && note.userId !== userId) {
       throw new ForbiddenException("You can only access your own notes");
     }
 
-    const { job, ...rest } = note;
-    return { ...rest, jobTitle: job?.title ?? undefined };
+    return note;
   }
 
   async update(
