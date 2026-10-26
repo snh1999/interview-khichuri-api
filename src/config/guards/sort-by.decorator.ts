@@ -60,15 +60,21 @@ export const SortBy = createParamDecorator(
 );
 
 export const JOB_SORTABLE = [
-  "isFavorite",
   "title",
   "description",
-  "status",
   "createdAt",
   "updatedAt",
   "deadline",
-  "interviewDate",
 ] as const satisfies readonly TpgCols<"jobs">[];
+
+export const TRACK_SORTABLE = [
+  "isFavorite",
+  "status",
+  "interviewDate",
+  "appliedAt",
+  "createdAt",
+  "updatedAt",
+] as const satisfies readonly TpgCols<"tracked_jobs">[];
 
 export const SESSION_SORTABLE = [
   "isFavorite",

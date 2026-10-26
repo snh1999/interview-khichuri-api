@@ -9,20 +9,10 @@ import {
   dateStr,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
+import { JOB_STATUS } from "@/src/database/database.constants";
 import type { TJob } from "@/src/database/database.types";
 import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 import { PROFILE_WORK_TYPES } from "@/src/profile/profile.dto";
-
-export const JOB_STATUS = [
-  "applied",
-  "saved",
-  "scheduled",
-  "interviewed",
-  "offer",
-  "rejected",
-  "not_selected",
-  "withdrawn",
-] as const;
 
 export const JOB_DATE_TYPES = ["deadline", "interview", "applied"] as const;
 
