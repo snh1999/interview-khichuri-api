@@ -4,7 +4,6 @@ import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { IDatabaseService } from "@/src/database/database.service";
-import type { TJobInsert } from "@/src/database/database.types";
 import type { CreateJobDto } from "@/src/jobs/jobs.dto";
 
 import { expectedJobStructure, getJobPayload } from "./job.test-data";
@@ -19,7 +18,7 @@ describe("Jobs (e2e)", () => {
   let httpServer: ReturnType<typeof supertest>;
   let dbService: IDatabaseService;
   let authCookie: string;
-  let jobPayload: TJobInsert;
+  let jobPayload: CreateJobDto;
 
   beforeAll(async () => {
     const { appInstance, httpServerInstance, dbServiceInstance } =
@@ -73,7 +72,7 @@ describe("Jobs (e2e)", () => {
         title: jobPayload.title,
         companyName: jobPayload.companyName,
         description: jobPayload.description,
-        status: "saved",
+        track: expect.objectContaining({ status: "saved" }),
       });
       expect(body.data.id).toEqual(expect.any(String));
       expect(body.data.roleId).toBeNull();
@@ -158,7 +157,7 @@ describe("Jobs (e2e)", () => {
         .send({ ...jobPayload, status: "scheduled" })
         .expect(201)
         .expect(({ body: { data } }) => {
-          expect(data.status).toBe("scheduled");
+          expect(data.track.status).toBe("scheduled");
         });
     });
 
@@ -189,7 +188,7 @@ describe("Jobs (e2e)", () => {
         .send({ ...jobPayload, topicIds })
         .expect(201);
 
-      expect(body.data.topicIds).toBeUndefined();
+      expect(body.data.topicIds).toEqual(topicIds);
     });
 
     it("should create a job with links and notes", async () => {
@@ -204,7 +203,7 @@ describe("Jobs (e2e)", () => {
         .expect(201);
 
       expect(body.data.links).toBe(payload.links);
-      expect(body.data.notes).toBe(payload.notes);
+      expect(body.data.track.notes).toBe(payload.notes);
     });
 
     it("should create a job with deadline", async () => {
@@ -224,7 +223,7 @@ describe("Jobs (e2e)", () => {
         .send({ ...jobPayload, appliedAt })
         .expect(201);
 
-      expect(body.data.appliedAt).toEqual(appliedAt);
+      expect(body.data.track.appliedAt).toEqual(appliedAt);
     });
 
     it("should return 400 for non-integer topicIds", async () => {
@@ -281,7 +280,7 @@ describe("Jobs (e2e)", () => {
         httpServer.get(`/jobs/${jobId}`),
       ).expect(200);
 
-      expect(fetched.data.jobTopics).toHaveLength(2);
+      expect(fetched.data.topicIds).toHaveLength(2);
     });
 
     it("should ignore topicNames since only topicIds are accepted", async () => {
@@ -289,7 +288,7 @@ describe("Jobs (e2e)", () => {
         .send({ ...jobPayload, topicNames: ["Ignored"] })
         .expect(201);
 
-      expect(body.data.topicIds).toBeUndefined();
+      expect(body.data.topicIds).toEqual([]);
     });
 
     it("should return 400 for whitespace-only title", async () => {
@@ -368,17 +367,16 @@ describe("Jobs (e2e)", () => {
     });
 
     it("should return jobs with all expected fields", async () => {
-      const jobDto = getJobPayload();
       const {
         body: { data: createdPost },
-      } = await createJob(jobDto);
+      } = await createJob(getJobPayload());
 
       const { body } = await auth(httpServer.get("/jobs")).expect(200);
 
       expect(body.data).toHaveLength(1);
-      expect(body.data[0]).toMatchObject({
-        ...createdPost,
-      });
+      expect(body.data[0]).toMatchObject(expectedJobStructure());
+      expect(body.data[0].id).toBe(createdPost.id);
+      expect(body.data[0].track.status).toBe(createdPost.track.status);
     });
 
     it("should return 401 without auth cookie in web mode", async () => {
@@ -666,15 +664,15 @@ describe("Jobs (e2e)", () => {
         (j) => j.title === "Favorite Job",
       )?.id;
 
-      await auth(httpServer.patch(`/jobs/${jobId}`))
+      await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ isFavorite: true })
         .expect(200);
 
       const { body } = await auth(httpServer.get("/jobs")).expect(200);
 
-      expect(body.data[0].isFavorite).toBe(true);
+      expect(body.data[0].track.isFavorite).toBe(true);
       expect(body.data[0].title).toBe("Favorite Job");
-      expect(body.data[1].isFavorite).toBe(false);
+      expect(body.data[1].track.isFavorite).toBe(false);
     });
   });
 
@@ -689,10 +687,10 @@ describe("Jobs (e2e)", () => {
 
       expect(body.data).toMatchObject({ ...created });
       expect(body.data).toMatchObject(expectedJobStructure());
-      expect(body.data.jobTopics).toEqual([]);
+      expect(body.data.topicIds).toEqual([]);
     });
 
-    it("should return populated jobTopics when job has topics", async () => {
+    it("should return populated topicIds when job has topics", async () => {
       const topic = await createTestTopic(httpServer, authCookie);
       const topicIds = [topic.id];
 
@@ -705,8 +703,8 @@ describe("Jobs (e2e)", () => {
 
       const { body } = await auth(httpServer.get(`/jobs/${jobId}`)).expect(200);
 
-      expect(body.data.jobTopics).toHaveLength(1);
-      expect(body.data.jobTopics[0].topicId).toBe(topicIds[0]);
+      expect(body.data.topicIds).toHaveLength(1);
+      expect(body.data.topicIds[0]).toBe(topicIds[0]);
     });
 
     it("should return 404 trying to access other user's job by id in web mode", async () => {
@@ -751,10 +749,9 @@ describe("Jobs (e2e)", () => {
         .expect(200)
         .expect(({ body: { data } }) => {
           expect(data.title).toBe(newTitle);
-          expect(data).toMatchObject({
-            ...jobDto,
-            title: newTitle,
-          });
+          expect(data.companyName).toBe(jobDto.companyName);
+          expect(data.description).toBe(jobDto.description);
+          expect(data.track.status).toBe("saved");
         });
     });
 
@@ -768,20 +765,28 @@ describe("Jobs (e2e)", () => {
       const description = "New Job Description";
       const status = "applied";
 
-      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
-        .send({ title, description, status })
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ title, description })
         .expect(200);
 
-      expect(body.data).toMatchObject({ title, description, status });
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}/track`))
+        .send({ status })
+        .expect(200);
+
+      expect(body.data).toMatchObject({
+        title,
+        description,
+        track: expect.objectContaining({ status }),
+      });
     });
 
-    it("should return 400 when patching with invalid status", async () => {
+    it("should return 400 when patching the track with invalid status", async () => {
       const {
         body: { data: created },
       } = await createJob();
       const jobId: string = created.id;
 
-      await auth(httpServer.patch(`/jobs/${jobId}`))
+      await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ status: "invalid" })
         .expect(400);
     });
@@ -796,7 +801,7 @@ describe("Jobs (e2e)", () => {
       const roleId: number = role.id;
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
-        .send({ roleId })
+        .send({ title: "Updated", roleId })
         .expect(200)
         .expect(({ body: { data } }) => {
           expect(data.roleId).toBeNull();
@@ -817,7 +822,6 @@ describe("Jobs (e2e)", () => {
         .expect(200)
         .expect(({ body: { data } }) => {
           expect(data.title).toBe("Updated Job");
-          expect(data.jobTopics).toHaveLength(1);
           expect(data.topicIds[0]).toBe(topicIds[0]);
         });
     });
@@ -831,12 +835,16 @@ describe("Jobs (e2e)", () => {
       const links = "https://example.com/updated";
       const notes = "Updated notes about the job";
 
-      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
-        .send({ links, notes })
+      await auth(httpServer.patch(`/jobs/${jobId}`))
+        .send({ links })
+        .expect(200);
+
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}/track`))
+        .send({ notes })
         .expect(200);
 
       expect(body.data.links).toBe(links);
-      expect(body.data.notes).toBe(notes);
+      expect(body.data.track.notes).toBe(notes);
     });
 
     it("should toggle isFavorite", async () => {
@@ -845,18 +853,18 @@ describe("Jobs (e2e)", () => {
       } = await createJob();
       const jobId: string = created.id;
 
-      await auth(httpServer.patch(`/jobs/${jobId}`))
+      await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ isFavorite: true })
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.isFavorite).toBe(true);
+          expect(data.track.isFavorite).toBe(true);
         });
 
-      await auth(httpServer.patch(`/jobs/${jobId}`))
+      await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ isFavorite: false })
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.isFavorite).toBe(false);
+          expect(data.track.isFavorite).toBe(false);
         });
     });
 
@@ -883,11 +891,11 @@ describe("Jobs (e2e)", () => {
 
       const appliedAt = "2025-07-01T14:00:00.000Z";
 
-      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ appliedAt })
         .expect(200);
 
-      expect(body.data.appliedAt).toEqual(appliedAt);
+      expect(body.data.track.appliedAt).toEqual(appliedAt);
     });
 
     it("should clear appliedAt by setting null", async () => {
@@ -899,11 +907,11 @@ describe("Jobs (e2e)", () => {
       });
       const jobId: string = created.id;
 
-      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ appliedAt: null })
         .expect(200);
 
-      expect(body.data.appliedAt).toBeNull();
+      expect(body.data.track.appliedAt).toBeNull();
     });
 
     it("should clear deadline by setting null", async () => {
@@ -931,11 +939,11 @@ describe("Jobs (e2e)", () => {
       });
       const jobId: string = created.id;
 
-      const { body } = await auth(httpServer.patch(`/jobs/${jobId}`))
+      const { body } = await auth(httpServer.patch(`/jobs/${jobId}/track`))
         .send({ interviewDate: null })
         .expect(200);
 
-      expect(body.data.interviewDate).toBeNull();
+      expect(body.data.track.interviewDate).toBeNull();
     });
 
     it("should not clear appliedAt when patching other fields", async () => {
@@ -951,7 +959,7 @@ describe("Jobs (e2e)", () => {
         .send({ title: "Updated Title" })
         .expect(200);
 
-      expect(body.data.appliedAt).toEqual("2025-06-15T00:00:00.000Z");
+      expect(body.data.track.appliedAt).toEqual("2025-06-15T00:00:00.000Z");
       expect(body.data.title).toBe("Updated Title");
     });
 
@@ -966,8 +974,8 @@ describe("Jobs (e2e)", () => {
         .send({ topicIds: [topic.id] })
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.jobTopics).toHaveLength(1);
-          expect(data.jobTopics[0].topicId).toBe(topic.id);
+          expect(data.topicIds).toHaveLength(1);
+          expect(data.topicIds[0]).toBe(topic.id);
         });
     });
 
@@ -1006,10 +1014,10 @@ describe("Jobs (e2e)", () => {
         .send({ topicIds: [] })
         .expect(200);
 
-      expect(body.data.jobTopics).toHaveLength(0);
+      expect(body.data.topicIds).toHaveLength(0);
     });
 
-    it("should return ok when patching with non-integer roleId", async () => {
+    it("should reject a patch with only an omitted roleId", async () => {
       const {
         body: { data: created },
       } = await createJob();
@@ -1017,7 +1025,7 @@ describe("Jobs (e2e)", () => {
 
       await auth(httpServer.patch(`/jobs/${jobId}`))
         .send({ roleId: "abc" })
-        .expect(200); // no validation done as it is omitted
+        .expect(400); // roleId is omitted, leaving no updatable field
     });
 
     it("should return 400 when patching with empty title", async () => {

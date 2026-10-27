@@ -1,6 +1,8 @@
 export const RAW_DATABASE_CLIENT = Symbol("RAW_DATABASE_CLIENT");
 export const DATABASE_CONNECTION = Symbol("DATABASE_CONNECTION");
 
+export const LOCAL_USER_ID = "local";
+
 export const COMPANY_PROVIDERS = [
   "greenhouse",
   "lever",

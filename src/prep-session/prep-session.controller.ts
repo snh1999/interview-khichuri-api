@@ -51,14 +51,15 @@ export class PrepSessionController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
-    @Query("jobId", new ParseUUIDPipe({ optional: true })) jobId?: string,
+    @Query("trackedJobId", new ParseUUIDPipe({ optional: true }))
+    trackedJobId?: string,
     @SortBy(SESSION_SORTABLE)
     sortBy?: TSortEntry[],
     @UserId() userId?: string,
   ): Promise<TPrepSession[]> {
     return this.prepSessionService.findAll({
       userId,
-      jobId,
+      trackedJobId,
       pagination,
       sortBy,
     });

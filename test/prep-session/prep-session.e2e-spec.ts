@@ -73,7 +73,7 @@ describe("PrepSession (e2e)", () => {
       });
       expect(body.data.id).toEqual(expect.any(String));
       expect(body.data.experience).toBeNull();
-      expect(body.data.jobId).toBeNull();
+      expect(body.data.trackedJobId).toBeNull();
       expect(body.data.roleId).toBeNull();
       if (!isAppMode) expect(body.data.userId).toEqual(expect.any(String));
     });
@@ -112,7 +112,7 @@ describe("PrepSession (e2e)", () => {
       expect(body.data.experience).toBe(experience);
     });
 
-    it("should create a session with a valid jobId", async () => {
+    it("should create a session with a valid trackedJobId", async () => {
       const { body: jobBody } = await auth(httpServer.post("/jobs"))
         .send({
           title: "Engineer",
@@ -121,13 +121,13 @@ describe("PrepSession (e2e)", () => {
         })
         .expect(201);
 
-      const jobId: string = jobBody.data.id;
+      const trackedJobId: string = jobBody.data.track.id;
 
       const { body } = await auth(httpServer.post("/prep-session"))
-        .send({ ...sessionPayload, jobId })
+        .send({ ...sessionPayload, trackedJobId })
         .expect(201);
 
-      expect(body.data.jobId).toBe(jobId);
+      expect(body.data.trackedJobId).toBe(trackedJobId);
     });
 
     it("should create a session with a valid roleId", async () => {
@@ -401,7 +401,7 @@ describe("PrepSession (e2e)", () => {
         });
     });
 
-    it("should not update jobId", async () => {
+    it("should not update trackedJobId", async () => {
       const {
         body: { data: created },
       } = await createSession();
@@ -415,13 +415,13 @@ describe("PrepSession (e2e)", () => {
         })
         .expect(201);
 
-      const jobId: string = jobBody.data.id;
+      const trackedJobId: string = jobBody.data.track.id;
 
       await auth(httpServer.patch(`/prep-session/${sessionId}`))
-        .send({ title: "new", jobId }) // keeping title or it would be bad request
+        .send({ title: "new", trackedJobId }) // keeping title or it would be bad request
         .expect(200)
         .expect(({ body: { data } }) => {
-          expect(data.jobId).toBeNull();
+          expect(data.trackedJobId).toBeNull();
         });
     });
 

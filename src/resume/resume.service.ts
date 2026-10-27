@@ -284,7 +284,7 @@ export class ResumeService {
     });
 
     const job = (await this.db.findById("jobs", jobId, {
-      filter: { ...(userId ? { userId } : {}) },
+      filter: userId ? { userId: [null, userId] } : {},
       relation: { company: true },
     })) as TJobWithCompany;
 

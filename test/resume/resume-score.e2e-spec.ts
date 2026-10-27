@@ -145,7 +145,6 @@ describe("Resume ATS Score (e2e)", () => {
         companyName,
         companyId: (company as { id: number }).id,
         description: "Build React UIs with TypeScript",
-        status: "saved",
       });
       genAiMock.scoreResumeForJob.mockResolvedValue(atsResult);
 
@@ -168,7 +167,6 @@ describe("Resume ATS Score (e2e)", () => {
         title: "No desc",
         companyName: "Some Co",
         description: "",
-        status: "saved",
       });
 
       await auth(httpServer.post("/resume/score"))

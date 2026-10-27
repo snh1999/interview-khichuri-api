@@ -34,6 +34,13 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<TPrepSession> {
     const { topicIds, ...data } = dto;
+    if (dto.trackedJobId) {
+      await this.db.findById(
+        "tracked_jobs",
+        dto.trackedJobId,
+        userId ? { filter: { userId } } : undefined,
+      );
+    }
 
     return this.db.withTransaction(async (transaction) => {
       const session = await this.db.create(
@@ -48,12 +55,12 @@ export class PrepSessionService {
 
   public async findAll({
     userId,
-    jobId,
+    trackedJobId,
     pagination,
     sortBy,
   }: {
     userId?: string;
-    jobId?: string;
+    trackedJobId?: string;
     pagination?: TPagination;
     sortBy?: TSortEntry[];
   }): Promise<TPrepSession[]> {
@@ -66,7 +73,7 @@ export class PrepSessionService {
     return this.db.findAllByColumn("prep_session", {
       filter: {
         ...(userId ? { userId } : {}),
-        ...(jobId ? { jobId } : {}),
+        ...(trackedJobId ? { trackedJobId } : {}),
       },
       pagination,
       sortBy: sort as TSortBy<"prep_session">[],
@@ -90,13 +97,14 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
     const { topicIds, ...sessionFields } = dto;
+    await this.findOne(id, userId);
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(sessionFields).length > 0) {
         await this.db.update(
           "prep_session",
           sessionFields,
-          userId ? { id, userId } : { id },
+          { id },
           transaction,
         );
       }
@@ -141,7 +149,9 @@ export class PrepSessionService {
       filter: { ...(userId ? { userId } : {}) },
       relation: {
         ...(avoidRepeat ? { questions: true } : {}),
-        ...(includeJobDescription ? { job: true } : {}),
+        ...(includeJobDescription
+          ? { trackedJob: { with: { job: true } } }
+          : {}),
       },
     })) as TPrepSessionWithQuestions;
 

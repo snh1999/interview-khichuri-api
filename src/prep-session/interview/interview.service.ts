@@ -274,7 +274,11 @@ export class InterviewService {
   ): Promise<TPrepSessionWithQuestions> {
     return this.db.findById("prep_session", sessionId, {
       filter: { ...(userId ? { userId } : {}) },
-      relation: { questions: true, sessionTopics: true, job: true },
+      relation: {
+        questions: true,
+        sessionTopics: true,
+        trackedJob: { with: { job: true } },
+      },
     }) as Promise<TPrepSessionWithQuestions>;
   }
 
@@ -323,7 +327,7 @@ export class InterviewService {
 
     const focusSet = new Set<TInterviewFocusType>(focusTypes);
 
-    const job = session.job;
+    const job = session.trackedJob?.job;
     const reuseSessionQuestions = focusSet.has("prepsession");
 
     const resumeText = focusSet.has("resume")

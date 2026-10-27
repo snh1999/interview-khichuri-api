@@ -104,7 +104,7 @@ describe("JobsController", () => {
     it("should delegate with undefined userId when not provided", async () => {
       mockJobsService.findAll.mockResolvedValue([]);
 
-      const query: TJobsQuery = { dateFilter: [] };
+      const query: TJobsQuery = {};
       const pagination = { offset: 0, limit: 20 };
 
       await controller.findAll(pagination, undefined, query);
@@ -122,8 +122,6 @@ describe("JobsController", () => {
 
       const query: TJobsQuery = {
         search: "test",
-        status: "saved",
-        dateFilter: [{ type: "deadline", from: new Date(), to: undefined }],
       };
       const sort: TSortEntry[] = [{ column: "title", order: "desc" }];
       const pagination = { offset: 0, limit: 20 };
@@ -165,12 +163,18 @@ describe("JobsController", () => {
   });
 
   describe("remove", () => {
-    it("should delegate to jobsService.delete with id and userId", async () => {
+    it("should pass force only for truthy query values", async () => {
       mockJobsService.delete.mockResolvedValue(undefined);
 
-      await controller.remove("1", "user-1");
+      await controller.remove("1", "true", "user-1");
+      expect(mockJobsService.delete).toHaveBeenCalledWith("1", "user-1", true);
 
-      expect(mockJobsService.delete).toHaveBeenCalledWith("1", "user-1");
+      await controller.remove("1", undefined, "user-1");
+      expect(mockJobsService.delete).toHaveBeenLastCalledWith(
+        "1",
+        "user-1",
+        false,
+      );
     });
   });
 });

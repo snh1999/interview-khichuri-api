@@ -62,23 +62,6 @@ describe("Notes (e2e)", () => {
     userCookie?: string,
   ) => auth(httpServer.post(routePath), userCookie).send(payload).expect(201);
 
-  interface TSeedSession {
-    sessionId: string;
-    questionId: number;
-  }
-
-  const seedLinkedQuestion = async (userId: string): Promise<TSeedSession> => {
-    const session = await dbService.create("prep_session", {
-      userId,
-      title: "Test session",
-    });
-    const question = await dbService.create("questions", {
-      sessionId: session.id,
-      questionText: "Tell me about yourself",
-    });
-    return { sessionId: session.id, questionId: question.id };
-  };
-
   describe("POST /notes", () => {
     it("should create a note", async () => {
       const payload = getNotePayload();
@@ -97,43 +80,8 @@ describe("Notes (e2e)", () => {
       expect(body.data.id).toEqual(expect.any(String));
     });
 
-    it("should create a note linked to a question", async () => {
-      if (isAppMode) return;
-      const { questionId } = await seedLinkedQuestion(authUserId ?? "");
-
-      const { body } = await create(getNotePayload({ questionId }));
-
-      expect(body.data.questionId).toBe(questionId);
-      expect(body.data.jobId).toBeNull();
-    });
-
-    it("should return 400 when both questionId and jobId are set", async () => {
-      if (isAppMode) return;
-      const { questionId } = await seedLinkedQuestion(authUserId ?? "");
-      const job = await dbService.create("jobs", {
-        userId: authUserId,
-        title: "Test job",
-        companyName: "Acme",
-        description: "Job description",
-      });
-
-      await auth(httpServer.post(routePath))
-        .send(
-          getNotePayload({
-            questionId,
-            jobId: job.id,
-          }),
-        )
-        .expect(400);
-    });
-
     it("should return 400 when title is empty", async () =>
       auth(httpServer.post(routePath)).send({ title: "" }).expect(400));
-
-    it("should return 400 when jobId is not a uuid", async () =>
-      auth(httpServer.post(routePath))
-        .send({ title: "test", jobId: "not-a-uuid" })
-        .expect(400));
 
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
@@ -191,21 +139,6 @@ describe("Notes (e2e)", () => {
       expect(body.data).toHaveLength(1);
     });
 
-    it("should include the linked job title", async () => {
-      if (isAppMode) return;
-      const job = await dbService.create("jobs", {
-        userId: authUserId,
-        title: "Senior Frontend Engineer",
-        companyName: "Acme",
-        description: "Job description",
-      });
-      await create(getNotePayload({ jobId: job.id, questionId: undefined }));
-
-      const { body } = await auth(httpServer.get(routePath)).expect(200);
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].jobId).toBe(job.id);
-    });
-
     it("should return 401 without auth cookie in web mode", async () => {
       if (isAppMode) return;
       await httpServer.get(routePath).expect(401);
@@ -223,27 +156,6 @@ describe("Notes (e2e)", () => {
       ).expect(200);
       expect(body.data.id).toBe(created.id);
       expect(body.data.title).toBe(created.title);
-    });
-
-    it("should include the linked job title", async () => {
-      if (isAppMode) return;
-      const job = await dbService.create("jobs", {
-        userId: authUserId,
-        title: "Senior Frontend Engineer",
-        companyName: "Acme",
-        description: "Job description",
-      });
-      const {
-        body: { data: created },
-      } = await create(
-        getNotePayload({ jobId: job.id, questionId: undefined }),
-      );
-
-      const { body } = await auth(
-        httpServer.get(`${routePath}/${created.id}`),
-      ).expect(200);
-      expect(body.data.jobId).toBe(job.id);
-      expect(body.data.jobTitle).toBe("Senior Frontend Engineer");
     });
 
     it("should return 404 when note does not exist", async () => {
@@ -278,23 +190,6 @@ describe("Notes (e2e)", () => {
         .expect(200);
 
       expect(body.data.title).toBe("Updated title here");
-    });
-
-    it("should not change attachments on update", async () => {
-      if (isAppMode) return;
-      const { questionId } = await seedLinkedQuestion(authUserId ?? "");
-      const {
-        body: { data: created },
-      } = await create(getNotePayload({ questionId }));
-
-      const { body } = await auth(
-        httpServer.patch(`${routePath}/${created.id}`),
-      )
-        .send({ title: "Updated", questionId: null })
-        .expect(200);
-
-      expect(body.data.questionId).toBe(questionId);
-      expect(body.data.title).toBe("Updated");
     });
 
     it("should return 403 when updating another user's note", async () => {

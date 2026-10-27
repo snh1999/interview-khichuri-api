@@ -7,7 +7,7 @@ const createPrepSessionSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
   description: nullishStr(),
   experience: nullishStr(),
-  jobId: z.uuid().nullish(),
+  trackedJobId: z.uuid().nullish(),
   roleId: z.number().int().positive().nullish(),
   topicIds: z.array(z.number().int().positive()).optional(),
   isFavorite: z.boolean().default(false),
@@ -18,7 +18,7 @@ export class CreatePrepSessionDto extends createZodDto(
 ) {}
 export class UpdatePrepSessionDto extends createZodDto(
   createPrepSessionSchema
-    .omit({ jobId: true, roleId: true })
+    .omit({ trackedJobId: true, roleId: true })
     .partial()
     .refine((obj) => Object.keys(obj).length > 0, {
       message: "At least one field required",

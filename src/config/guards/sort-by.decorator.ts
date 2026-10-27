@@ -67,7 +67,7 @@ export const JOB_SORTABLE = [
   "deadline",
 ] as const satisfies readonly TpgCols<"jobs">[];
 
-export const TRACK_SORTABLE = [
+export const TRACKED_JOB_SORTABLE = [
   "isFavorite",
   "status",
   "interviewDate",
