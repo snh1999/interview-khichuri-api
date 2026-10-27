@@ -277,7 +277,7 @@ export class InterviewService {
       relation: {
         questions: true,
         sessionTopics: true,
-        trackedJob: { with: { job: true } },
+        job: true,
       },
     }) as Promise<TPrepSessionWithQuestions>;
   }
@@ -327,7 +327,7 @@ export class InterviewService {
 
     const focusSet = new Set<TInterviewFocusType>(focusTypes);
 
-    const job = session.trackedJob?.job;
+    const job = session.job;
     const reuseSessionQuestions = focusSet.has("prepsession");
 
     const resumeText = focusSet.has("resume")

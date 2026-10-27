@@ -456,9 +456,7 @@ export class GenAiService {
 
     const contextParts = [
       session.description ? `Description: ${session.description}` : "",
-      session.trackedJob?.job
-        ? `Job description: ${session.trackedJob.job.description}`
-        : "",
+      session.job ? `Job description: ${session.job.description}` : "",
       session.experience ? `Experience Level: ${session.experience}` : "",
       roleName ? `Target Role: ${roleName}` : "",
       topicNames.length > 0 ? `Topics: ${topicNames.join(", ")}` : "",

@@ -29,7 +29,7 @@ export const expectedPrepSessionStructure = () =>
     description: expect.any(String),
     experience: expectNullableString,
     isFavorite: expect.any(Boolean),
-    trackedJobId: expectNullableString,
+    jobId: expectNullableString,
     roleId: expectNullableNumber,
     createdAt: expect.any(String),
     updatedAt: expect.any(String),

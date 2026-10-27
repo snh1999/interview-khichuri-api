@@ -466,7 +466,7 @@ export class JobsService {
 
     if (trackedJob) {
       const sessions = await this.db.findAllByColumn("prep_session", {
-        filter: { trackedJobId: trackedJob.id },
+        filter: { userId, jobId: job.id },
       });
       if (sessions.length > 0 && !force) {
         throw new ConflictException({

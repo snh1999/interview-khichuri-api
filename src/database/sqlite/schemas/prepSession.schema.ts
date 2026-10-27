@@ -9,7 +9,7 @@ import {
 
 import { defaultTimeStamps } from "@/src/database/sqlite/schemas/helpers";
 
-import { tracked_jobs } from "./jobs.schema";
+import { jobs } from "./jobs.schema";
 import { roles, topics } from "./lookups.schema";
 
 export const prep_session = sqliteTable(
@@ -19,7 +19,7 @@ export const prep_session = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     userId: text("user_id"),
-    trackedJobId: text("tracked_job_id").references(() => tracked_jobs.id, {
+    jobId: text("job_id").references(() => jobs.id, {
       onDelete: "set null",
     }),
     roleId: integer("role_id").references(() => roles.id, {
@@ -33,7 +33,7 @@ export const prep_session = sqliteTable(
   },
   (table) => [
     index("idx_session_user_id").on(table.userId),
-    index("idx_job_session").on(table.trackedJobId),
+    index("idx_job_session").on(table.jobId),
     index("idx_session_fav_created").on(table.isFavorite, table.createdAt),
   ],
 );
@@ -71,9 +71,9 @@ export const sessionRelations = relations(prep_session, ({ one, many }) => ({
   sessionTopics: many(session_topics),
   questions: many(questions),
   interviews: many(interviews),
-  trackedJob: one(tracked_jobs, {
-    fields: [prep_session.trackedJobId],
-    references: [tracked_jobs.id],
+  job: one(jobs, {
+    fields: [prep_session.jobId],
+    references: [jobs.id],
   }),
 }));
 

@@ -1943,8 +1943,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "tracked_job_id": {
-          "name": "tracked_job_id",
+        "job_id": {
+          "name": "job_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -2015,7 +2015,7 @@
           "name": "idx_job_session",
           "columns": [
             {
-              "expression": "tracked_job_id",
+              "expression": "job_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2062,12 +2062,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "prep_session_tracked_job_id_tracked_jobs_id_fk": {
-          "name": "prep_session_tracked_job_id_tracked_jobs_id_fk",
+        "prep_session_job_id_jobs_id_fk": {
+          "name": "prep_session_job_id_jobs_id_fk",
           "tableFrom": "prep_session",
-          "tableTo": "tracked_jobs",
+          "tableTo": "jobs",
           "columnsFrom": [
-            "tracked_job_id"
+            "job_id"
           ],
           "columnsTo": [
             "id"

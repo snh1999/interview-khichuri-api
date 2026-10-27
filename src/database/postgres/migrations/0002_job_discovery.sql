@@ -46,9 +46,6 @@ FROM "jobs"
 WHERE "user_id" IS NOT NULL;--> statement-breakpoint
 UPDATE "jobs" SET "state" = 'ok' WHERE "description" IS NOT NULL;--> statement-breakpoint
 UPDATE "jobs" SET "provider" = 'manual';--> statement-breakpoint
-ALTER TABLE "prep_session" ADD COLUMN "tracked_job_id" uuid;--> statement-breakpoint
-UPDATE "prep_session" SET "tracked_job_id" = "tracked_jobs"."id" FROM "tracked_jobs" WHERE "tracked_jobs"."job_id" = "prep_session"."job_id";--> statement-breakpoint
-ALTER TABLE "prep_session" ADD CONSTRAINT "prep_session_tracked_job_id_tracked_jobs_id_fk" FOREIGN KEY ("tracked_job_id") REFERENCES "public"."tracked_jobs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 DROP INDEX "idx_jobs_fav_created";--> statement-breakpoint
 ALTER TABLE "jobs" DROP COLUMN "status";--> statement-breakpoint
 ALTER TABLE "jobs" DROP COLUMN "is_favorite";--> statement-breakpoint
@@ -63,9 +60,6 @@ CREATE INDEX "idx_jobs_company_state" ON "jobs" USING btree ("company_id","state
 CREATE INDEX "idx_jobs_state_created" ON "jobs" USING btree ("state","created_at");--> statement-breakpoint
 CREATE INDEX "idx_jobs_closed_at" ON "jobs" USING btree ("closed_at");--> statement-breakpoint
 CREATE INDEX "idx_jobs_system_url" ON "jobs" USING btree ("url") WHERE "jobs"."user_id" IS NULL;--> statement-breakpoint
-ALTER TABLE "prep_session" DROP CONSTRAINT "prep_session_job_id_jobs_id_fk";--> statement-breakpoint
-ALTER TABLE "prep_session" DROP COLUMN "job_id";--> statement-breakpoint
-CREATE INDEX "idx_job_session" ON "prep_session" USING btree ("tracked_job_id");--> statement-breakpoint
 ALTER TABLE "notes" DROP CONSTRAINT "notes_single_attachment_invariant";--> statement-breakpoint
 ALTER TABLE "notes" DROP CONSTRAINT "notes_question_id_questions_id_fk";--> statement-breakpoint
 ALTER TABLE "notes" DROP CONSTRAINT "notes_job_id_jobs_id_fk";--> statement-breakpoint

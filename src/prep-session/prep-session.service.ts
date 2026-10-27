@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -34,12 +38,13 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<TPrepSession> {
     const { topicIds, ...data } = dto;
-    if (dto.trackedJobId) {
-      await this.db.findById(
-        "tracked_jobs",
-        dto.trackedJobId,
-        userId ? { filter: { userId } } : undefined,
-      );
+    if (dto.jobId) {
+      const tracks = await this.db.findAllByColumn("tracked_jobs", {
+        filter: { userId, jobId: dto.jobId },
+      });
+      if (tracks.length === 0) {
+        throw new NotFoundException("Tracked job not found");
+      }
     }
 
     return this.db.withTransaction(async (transaction) => {
@@ -55,12 +60,12 @@ export class PrepSessionService {
 
   public async findAll({
     userId,
-    trackedJobId,
+    jobId,
     pagination,
     sortBy,
   }: {
     userId?: string;
-    trackedJobId?: string;
+    jobId?: string;
     pagination?: TPagination;
     sortBy?: TSortEntry[];
   }): Promise<TPrepSession[]> {
@@ -73,7 +78,7 @@ export class PrepSessionService {
     return this.db.findAllByColumn("prep_session", {
       filter: {
         ...(userId ? { userId } : {}),
-        ...(trackedJobId ? { trackedJobId } : {}),
+        ...(jobId ? { jobId } : {}),
       },
       pagination,
       sortBy: sort as TSortBy<"prep_session">[],
@@ -149,9 +154,7 @@ export class PrepSessionService {
       filter: { ...(userId ? { userId } : {}) },
       relation: {
         ...(avoidRepeat ? { questions: true } : {}),
-        ...(includeJobDescription
-          ? { trackedJob: { with: { job: true } } }
-          : {}),
+        ...(includeJobDescription ? { job: true } : {}),
       },
     })) as TPrepSessionWithQuestions;
 

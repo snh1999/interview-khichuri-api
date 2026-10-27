@@ -51,7 +51,7 @@ const isPrivateIpv6 = (ip: string): boolean => {
   );
 };
 
-const isPrivateIp = (ip: string): boolean => {
+export const isPrivateIp = (ip: string): boolean => {
   const version = isIP(ip);
   if (version === 4) {
     return isPrivateIpv4(ip);

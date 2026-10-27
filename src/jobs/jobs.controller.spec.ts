@@ -80,8 +80,6 @@ describe("JobsController", () => {
 
       const query: TJobsQuery = {
         search: "eng",
-        status: "applied",
-        dateFilter: [],
       };
       const pagination = { offset: 0, limit: 20 };
 

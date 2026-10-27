@@ -90,7 +90,7 @@ export type TPrepSessionWithQuestions = InferSelectModel<
   typeof prep_session
 > & {
   questions: TQuestion[];
-  trackedJob?: TTrackedJobWithJob;
+  job?: TJob;
   sessionTopics?: { topicId: number }[];
 };
 
