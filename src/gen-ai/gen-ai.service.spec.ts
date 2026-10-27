@@ -652,7 +652,7 @@ describe("GenAiService", () => {
   describe("generateQuestions", () => {
     const session = {
       description: "Backend role",
-      job: { description: "JOB DESC" },
+      trackedJob: { job: { description: "JOB DESC" } },
       experience: "senior",
       questions: [{ questionText: "What is a closure?" }],
     } as never;

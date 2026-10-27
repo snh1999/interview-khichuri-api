@@ -23,7 +23,10 @@ import {
   providerBaseUrl,
 } from "@/src/gen-ai/gen-ai.constants";
 import { toQuotaExceededHttpException } from "@/src/gen-ai/gen-ai.errors";
-import { assertSafeProviderBaseUrl } from "@/src/gen-ai/provider-url";
+import {
+  assertSafeProviderBaseUrl,
+  safeProviderFetch,
+} from "@/src/gen-ai/provider-url";
 
 import { EncryptionService } from "./encryption.service";
 
@@ -187,7 +190,7 @@ export class ApiKeyService {
     return result[0];
   }
 
-  // GenAiService uses ApiKeyService internally, can not place it there
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   private async _verifyKey(
     provider: TApiKeyProvider,
     key: string,
@@ -211,7 +214,11 @@ export class ApiKeyService {
     const providerInstance =
       config.sdk === "google"
         ? createGoogle({ apiKey: key })
-        : createOpenAI({ apiKey: key, baseURL: resolvedBaseUrl });
+        : createOpenAI({
+            apiKey: key,
+            baseURL: resolvedBaseUrl,
+            fetch: safeProviderFetch,
+          });
 
     try {
       await generateText({

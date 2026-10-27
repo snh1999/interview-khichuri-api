@@ -112,3 +112,17 @@ export const assertSafeProviderBaseUrl = async (
 
   return url.toString().replace(/\/+$/u, "");
 };
+
+// Validates on every request, not just when the URL is saved: the host can
+// rebind DNS after saving, and manual redirects stop a public host from
+// bouncing the server into the private network.
+// ponytail: re-resolution leaves a tiny DNS TOCTOU window between this lookup
+// and the socket connect; pin the IP via an undici dispatcher if that matters.
+export const safeProviderFetch: typeof globalThis.fetch = async (
+  input,
+  init,
+) => {
+  const url = input instanceof Request ? input.url : input.toString();
+  await assertSafeProviderBaseUrl(url);
+  return fetch(input, { ...init, redirect: "manual" });
+};

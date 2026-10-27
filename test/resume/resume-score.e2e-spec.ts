@@ -104,7 +104,6 @@ describe("Resume ATS Score (e2e)", () => {
       companyName,
       companyId: (company as { id: number }).id,
       description: "Build React UIs with TypeScript",
-      status: "saved",
     });
 
     return { resume, job };

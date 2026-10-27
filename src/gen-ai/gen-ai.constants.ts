@@ -124,15 +124,8 @@ Field rules:
 - salaryUpper: the upper bound of the same stated salary range, as an integer ("$120k - $150k" → 150000). Skip/use undefined when only a single figure or no salary is stated.
 - currency: the ISO 4217 code of a stated salary (e.g. "$" → "USD", "€" → "EUR", "£" → "GBP"). Skip/use undefined when the posting names no salary.
 - experienceRequired: the lower bound of a stated years-of-experience requirement ("5+ years" → 5, "3–5 years" → 3). Skip/use undefined when unstated or vague ("several years").
-- source: where the job was found, if mentioned.
+- url: the canonical URL of the original job posting, if mentioned.
 - deadline: ISO date string (YYYY-MM-DD) if a specific date is mentioned. If only a vague timeframe is given (e.g. "ASAP", "Q3 2026"), skip rather than guessing a specific date.
-- interviewDate: ISO date string (YYYY-MM-DD) if mentioned, otherwise skip(undefined).
-- status: one of "saved", "applied", "scheduled", "interviewed", "offer", "rejected", "not_selected", "withdrawn".
-  - Use "scheduled" if an interviewDate is present.
-  - Use "applied" only if the text explicitly indicates an application was already submitted.
-  - Use "interviewed", "offer", "rejected", "not_selected", or "withdrawn" only if the text explicitly states that outcome.
-  - Otherwise use "saved".
-  - If truly undeterminable, skip/use undefined.
 - If the job description lists multiple distinct roles, extract only the first role mentioned.
 - Skip/use undefined for any field that cannot be determined from the text (for array fields return empty array).
 - If the input text is empty, garbled, or not a usable job description,skip/return all fields as undefined. Do not invent or hallucinate content.

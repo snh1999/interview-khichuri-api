@@ -38,6 +38,7 @@ import {
   toAiHttpException,
   toQuotaExceededHttpException,
 } from "@/src/gen-ai/gen-ai.errors";
+import { safeProviderFetch } from "@/src/gen-ai/provider-url";
 import {
   ExtractedJob,
   extractedJobSchema,
@@ -127,6 +128,7 @@ export class GenAiService {
             : createOpenAI({
                 apiKey: key,
                 baseURL: providerBaseUrl(provider, baseUrl),
+                fetch: safeProviderFetch,
               });
 
         try {
@@ -256,6 +258,7 @@ export class GenAiService {
             : createOpenAI({
                 apiKey: key,
                 baseURL: providerBaseUrl(provider, baseUrl),
+                fetch: safeProviderFetch,
               });
 
         const result = streamText({
@@ -290,6 +293,7 @@ export class GenAiService {
             : createOpenAI({
                 apiKey: key,
                 baseURL: providerBaseUrl(provider, baseUrl),
+                fetch: safeProviderFetch,
               });
 
         const result = streamText({
@@ -318,8 +322,8 @@ export class GenAiService {
     options: ExtractJobDto,
     userId?: string,
   ): Promise<ExtractedJob> {
-    const { description, provider, links, model } = options;
-    const prompt = `${EXTRACTION_PROMPT}${description}${links ? `\n\nLinks/URLs:\n${links}` : ""}`;
+    const { description, provider, model } = options;
+    const prompt = `${EXTRACTION_PROMPT}${description}`;
     return this.generateStructured({
       prompt,
       schema: extractedJobSchema,
@@ -452,7 +456,9 @@ export class GenAiService {
 
     const contextParts = [
       session.description ? `Description: ${session.description}` : "",
-      session.job ? `Job description: ${session.job.description}` : "",
+      session.trackedJob?.job
+        ? `Job description: ${session.trackedJob.job.description}`
+        : "",
       session.experience ? `Experience Level: ${session.experience}` : "",
       roleName ? `Target Role: ${roleName}` : "",
       topicNames.length > 0 ? `Topics: ${topicNames.join(", ")}` : "",
