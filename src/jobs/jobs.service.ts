@@ -230,7 +230,7 @@ export class JobsService {
     const profileId = userId ?? "";
 
     const job = await this.db.findById("jobs", id, {
-      filter: { ...(userId ? { userId } : {}) },
+      filter: { ...(userId ? { userId: [null, userId] } : {}) },
     });
 
     const [preferences] = (await this.db.findAllByColumn("job_preference", {
@@ -335,8 +335,7 @@ export class JobsService {
     sort?: TSortEntry[];
     companyId?: number;
   }): Promise<TJob[]> {
-    // App mode has no crawler and no system jobs; discovery stays empty until
-    // app clients get a real identity (magic-link auth).
+    // App mode has no crawler and no system jobs; discovery stays empty until app clients get a real identity (magic-link auth).
     if (process.env.IS_APP_MODE) {
       return [];
     }
@@ -466,7 +465,7 @@ export class JobsService {
 
     if (trackedJob) {
       const sessions = await this.db.findAllByColumn("prep_session", {
-        filter: { userId, jobId: job.id },
+        filter: { jobId: job.id },
       });
       if (sessions.length > 0 && !force) {
         throw new ConflictException({
@@ -582,6 +581,13 @@ export class JobsService {
       for (const { column, order = "asc" } of sortEntries) {
         const av = this._sortValue(a, column);
         const bv = this._sortValue(b, column);
+        const aMissing = av === null || av === undefined;
+        const bMissing = bv === null || bv === undefined;
+        // missing values sort last in both directions, so "appliedAt:desc" leads with real applications instead of nulls
+        if (aMissing || bMissing) {
+          if (aMissing && bMissing) continue;
+          return aMissing ? 1 : -1;
+        }
         const comparison = this._compare(av, bv);
         if (comparison !== 0) {
           return order === "desc" ? -comparison : comparison;

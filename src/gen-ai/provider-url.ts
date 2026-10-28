@@ -31,11 +31,49 @@ const isPrivateIpv4 = (ip: string): boolean => {
   );
 };
 
+/** Expands an IPv6 literal to eight numeric groups; null when it is not one. */
+const ipv6Groups = (value: string): number[] | null => {
+  const parts = value.split("::");
+  if (parts.length > 2) return null;
+
+  const parseGroups = (part: string): number[] | null => {
+    if (!part) return [];
+    const groups = part.split(":");
+    if (!groups.every((group) => /^[0-9a-f]{1,4}$/u.test(group))) return null;
+    return groups.map((group) => parseInt(group, 16));
+  };
+
+  const hasTail = parts.length === 2;
+  const left = parseGroups(parts[0]);
+  const right = parseGroups(hasTail ? parts[1] : "");
+  if (!left || !right) return null;
+  if (!hasTail) return left.length === 8 ? left : null;
+
+  const missing = 8 - left.length - right.length;
+  if (missing < 1) return null;
+  return [...left, ...Array.from({ length: missing }, () => 0), ...right];
+};
+
 const isPrivateIpv6 = (ip: string): boolean => {
   const value = ip.toLowerCase();
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/u.exec(value);
   if (mapped) {
     return isPrivateIpv4(mapped[1]);
+  }
+
+  // URL parsing rewrites `::ffff:10.0.0.1` to `::ffff:a00:1`, so the dotted
+  // form above never sees it; without this a mapped private address gets in.
+  const groups = ipv6Groups(value);
+  if (
+    groups &&
+    groups.slice(0, 5).every((group) => group === 0) &&
+    groups[5] === 0xffff
+  ) {
+    const high = groups[6];
+    const low = groups[7];
+    return isPrivateIpv4(
+      `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`,
+    );
   }
 
   return (
@@ -116,13 +154,22 @@ export const assertSafeProviderBaseUrl = async (
 // Validates on every request, not just when the URL is saved: the host can
 // rebind DNS after saving, and manual redirects stop a public host from
 // bouncing the server into the private network.
-// ponytail: re-resolution leaves a tiny DNS TOCTOU window between this lookup
-// and the socket connect; pin the IP via an undici dispatcher if that matters.
 export const safeProviderFetch: typeof globalThis.fetch = async (
   input,
   init,
 ) => {
   const url = input instanceof Request ? input.url : input.toString();
   await assertSafeProviderBaseUrl(url);
-  return fetch(input, { ...init, redirect: "manual" });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort(new Error("Provider request timed out"));
+  }, 60_000);
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, controller.signal])
+    : controller.signal;
+  try {
+    return await fetch(input, { ...init, redirect: "manual", signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 };

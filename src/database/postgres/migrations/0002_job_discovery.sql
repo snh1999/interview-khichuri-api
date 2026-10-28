@@ -34,7 +34,10 @@ CREATE TABLE "tracked_jobs" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "idx_tracked_jobs_user_job_unique" UNIQUE("user_id","job_id")
-);
+);--> statement-breakpoint
+ALTER TABLE "api_key" ADD COLUMN "base_url" text;--> statement-breakpoint
+ALTER TYPE "public"."provider" ADD VALUE IF NOT EXISTS 'cloudflare';--> statement-breakpoint
+ALTER TYPE "public"."provider" ADD VALUE IF NOT EXISTS 'custom';
 --> statement-breakpoint
 ALTER TABLE "tracked_jobs" ADD CONSTRAINT "tracked_jobs_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tracked_jobs" ADD CONSTRAINT "tracked_jobs_job_id_jobs_id_fk" FOREIGN KEY ("job_id") REFERENCES "public"."jobs"("id") ON DELETE no action ON UPDATE no action DEFERRABLE INITIALLY DEFERRED;--> statement-breakpoint
