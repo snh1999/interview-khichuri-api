@@ -465,14 +465,10 @@ export class JobsService {
 
     if (trackedJob) {
       const sessions = await this.db.findAllByColumn("prep_session", {
-        filter: { jobId: job.id },
+        filter: { jobId: job.id, userId },
       });
       if (sessions.length > 0 && !force) {
-        throw new ConflictException({
-          code: "TRACKED_JOB_HAS_PREP_SESSIONS",
-          hasPrepSessions: true,
-          count: sessions.length,
-        });
+        throw new ConflictException("This job has associated prep sessions");
       }
     }
 
