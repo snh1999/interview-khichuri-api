@@ -674,6 +674,52 @@ describe("Jobs (e2e)", () => {
       expect(body.data[0].title).toBe("Favorite Job");
       expect(body.data[1].track.isFavorite).toBe(false);
     });
+
+    it("should sort jobs by interview date ascending (track column)", async () => {
+      await createJob({
+        ...getJobPayload(),
+        interviewDate: new Date("2026-09-01"),
+        title: "Later Interview",
+      });
+      await createJob({
+        ...getJobPayload(),
+        interviewDate: new Date("2026-02-01"),
+        title: "Sooner Interview",
+      });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=interviewDate:asc"),
+      ).expect(200);
+
+      expect((body.data as { title: string }[]).map((j) => j.title)).toEqual([
+        "Sooner Interview",
+        "Later Interview",
+      ]);
+    });
+
+    it("should sort jobs by applied date descending with unset dates last", async () => {
+      await createJob({
+        ...getJobPayload(),
+        appliedAt: new Date("2026-02-01"),
+        title: "Older Application",
+      });
+      await createJob({
+        ...getJobPayload(),
+        appliedAt: new Date("2026-09-01"),
+        title: "Recent Application",
+      });
+      await createJob({ ...getJobPayload(), title: "No Application" });
+
+      const { body } = await auth(
+        httpServer.get("/jobs?sort=appliedAt:desc"),
+      ).expect(200);
+
+      expect((body.data as { title: string }[]).map((j) => j.title)).toEqual([
+        "Recent Application",
+        "Older Application",
+        "No Application",
+      ]);
+    });
   });
 
   describe("GET /jobs/:id", () => {

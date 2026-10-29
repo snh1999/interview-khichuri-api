@@ -122,6 +122,27 @@ describe("Resume ATS Score (e2e)", () => {
       expect(body.data).toEqual(atsResult);
     });
 
+    it("scores a discovered system job with no owner", async () => {
+      const { resume, job: privateJob } = await setup();
+      const job = await dbService.create("jobs", {
+        userId: null,
+        title: "Discovered Frontend Engineer",
+        companyName: "Acme",
+        companyId: (privateJob as { companyId: number }).companyId,
+        url: "https://example.com/jobs/discovered-1",
+        description: "Build React UIs",
+        provider: "manual",
+        state: "ok",
+      });
+      genAiMock.scoreResumeForJob.mockResolvedValue(atsResult);
+
+      const { body } = await auth(httpServer.post("/resume/score"))
+        .send({ jobId: job.id, resumeId: resume.id, provider: "openai" })
+        .expect(200);
+
+      expect(body.data).toEqual(atsResult);
+    });
+
     it("passes company details when a dossier is present", async () => {
       const companyName = "Acme Corp";
       const company = await dbService.create("companies", {

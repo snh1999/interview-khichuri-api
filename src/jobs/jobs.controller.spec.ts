@@ -11,10 +11,15 @@ describe("JobsController", () => {
   let controller: JobsController;
   const mockJobsService = {
     create: vi.fn(),
+    extractJob: vi.fn(),
     findAll: vi.fn(),
+    discover: vi.fn(),
     findOne: vi.fn(),
+    trackJob: vi.fn(),
+    updateTrackedJob: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    findFromUrl: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -132,6 +137,80 @@ describe("JobsController", () => {
         pagination,
         sort,
       });
+    });
+  });
+
+  describe("extractJob", () => {
+    it("should delegate to jobsService.extractJob with dto and userId", async () => {
+      const dto = { description: "desc", provider: "google" as const };
+      const extracted = { title: "Acme - Engineer" };
+      mockJobsService.extractJob.mockResolvedValue(extracted);
+
+      const result = await controller.extractJob(dto, "user-1");
+
+      expect(mockJobsService.extractJob).toHaveBeenCalledWith(dto, "user-1");
+      expect(result).toEqual(extracted);
+    });
+  });
+
+  describe("discover", () => {
+    it("should delegate to jobsService.discover with query, pagination and sort", async () => {
+      mockJobsService.discover.mockResolvedValue([]);
+
+      const query: TJobsQuery = {};
+      const pagination = { offset: 0, limit: 20 };
+      const sort: TSortEntry[] = [{ column: "createdAt", order: "desc" }];
+
+      await controller.discover(pagination, sort, query);
+
+      expect(mockJobsService.discover).toHaveBeenCalledWith({
+        query,
+        pagination,
+        sort,
+      });
+    });
+  });
+
+  describe("trackJob", () => {
+    it("should delegate to jobsService.trackJob with id and userId", async () => {
+      const tracked = { id: "1" };
+      mockJobsService.trackJob.mockResolvedValue(tracked);
+
+      const result = await controller.trackJob("1", "user-1");
+
+      expect(mockJobsService.trackJob).toHaveBeenCalledWith("1", "user-1");
+      expect(result).toEqual(tracked);
+    });
+  });
+
+  describe("updateTrackedJob", () => {
+    it("should delegate to jobsService.updateTrackedJob with id, dto and userId", async () => {
+      const dto = { status: "applied" as const };
+      mockJobsService.updateTrackedJob.mockResolvedValue({ id: "1" });
+
+      await controller.updateTrackedJob("1", dto, "user-1");
+
+      expect(mockJobsService.updateTrackedJob).toHaveBeenCalledWith(
+        "1",
+        dto,
+        "user-1",
+      );
+    });
+  });
+
+  describe("findFromUrl", () => {
+    it("should delegate to jobsService.findFromUrl with the query url", async () => {
+      const jobs = [{ id: "1" }];
+      mockJobsService.findFromUrl.mockResolvedValue(jobs);
+
+      const result = await controller.findFromUrl({
+        url: "https://example.com/job",
+      });
+
+      expect(mockJobsService.findFromUrl).toHaveBeenCalledWith(
+        "https://example.com/job",
+      );
+      expect(result).toEqual(jobs);
     });
   });
 

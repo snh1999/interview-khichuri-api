@@ -332,8 +332,9 @@ describe("JobsService", () => {
     it("uses search when provided", async () => {
       mockDb.search.mockResolvedValue({ data: [baseJob] });
 
-      await service.discover({ query: { search: "eng" } });
+      const result = await service.discover({ query: { search: "eng" } });
 
+      expect(result).toEqual([baseJob]);
       expect(mockDb.search).toHaveBeenCalledWith(
         "jobs",
         ["title", "description"],
@@ -342,6 +343,19 @@ describe("JobsService", () => {
           filter: { state: "ok", userId: null, closedAt: null },
         }),
       );
+    });
+
+    it("scopes the company feed to that company", async () => {
+      await service.discover({
+        companyId: 7,
+        pagination: { offset: 0, limit: 5 },
+      });
+
+      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
+        filter: { state: "ok", userId: null, closedAt: null, companyId: 7 },
+        sortBy: [{ column: "createdAt", order: "desc" }],
+        pagination: { offset: 0, limit: 5 },
+      });
     });
   });
 
@@ -460,7 +474,13 @@ describe("JobsService", () => {
 
       await service.delete("job-1", "user-1", true);
 
-      expect(mockDb.delete).toHaveBeenCalled();
+      expect(mockDb.delete).toHaveBeenCalledTimes(1);
+      expect(mockDb.delete).toHaveBeenCalledWith(
+        "tracked_jobs",
+        { id: "track-1", userId: "user-1" },
+        false,
+        mockTransaction,
+      );
     });
 
     it("404s for an untracked system job", async () => {
