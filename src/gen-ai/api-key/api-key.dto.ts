@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   MID_LENGTH,
   SHORT_LENGTH,
+  URL_LENGTH,
   nullishStr,
   requiredStr,
   str,
@@ -17,6 +18,7 @@ import {
 const apiKeySchema = aiCommonSchema.extend({
   name: requiredStr(SHORT_LENGTH),
   key: str(MID_LENGTH),
+  baseUrl: nullishStr(URL_LENGTH),
   isActive: z.boolean().default(false),
 }) satisfies z.ZodType<TApiKeyInsert>;
 
@@ -25,6 +27,7 @@ export class CreateApiKeyDto extends createZodDto(apiKeySchema) {}
 const updateApiKeySchema = z.object({
   name: requiredStr(SHORT_LENGTH).optional(),
   model: nullishStr(SHORT_LENGTH),
+  baseUrl: nullishStr(URL_LENGTH),
 });
 
 export class UpdateApiKeyDto extends createZodDto(updateApiKeySchema) {}

@@ -104,7 +104,6 @@ describe("Resume ATS Score (e2e)", () => {
       companyName,
       companyId: (company as { id: number }).id,
       description: "Build React UIs with TypeScript",
-      status: "saved",
     });
 
     return { resume, job };
@@ -120,6 +119,27 @@ describe("Resume ATS Score (e2e)", () => {
         .expect(200);
 
       expect(body.statusCode).toBe(200);
+      expect(body.data).toEqual(atsResult);
+    });
+
+    it("scores a discovered system job with no owner", async () => {
+      const { resume, job: privateJob } = await setup();
+      const job = await dbService.create("jobs", {
+        userId: null,
+        title: "Discovered Frontend Engineer",
+        companyName: "Acme",
+        companyId: (privateJob as { companyId: number }).companyId,
+        url: "https://example.com/jobs/discovered-1",
+        description: "Build React UIs",
+        provider: "manual",
+        state: "ok",
+      });
+      genAiMock.scoreResumeForJob.mockResolvedValue(atsResult);
+
+      const { body } = await auth(httpServer.post("/resume/score"))
+        .send({ jobId: job.id, resumeId: resume.id, provider: "openai" })
+        .expect(200);
+
       expect(body.data).toEqual(atsResult);
     });
 
@@ -145,7 +165,6 @@ describe("Resume ATS Score (e2e)", () => {
         companyName,
         companyId: (company as { id: number }).id,
         description: "Build React UIs with TypeScript",
-        status: "saved",
       });
       genAiMock.scoreResumeForJob.mockResolvedValue(atsResult);
 
@@ -168,7 +187,6 @@ describe("Resume ATS Score (e2e)", () => {
         title: "No desc",
         companyName: "Some Co",
         description: "",
-        status: "saved",
       });
 
       await auth(httpServer.post("/resume/score"))

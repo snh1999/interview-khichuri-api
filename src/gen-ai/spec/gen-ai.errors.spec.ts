@@ -7,7 +7,7 @@ import {
   providerErrorDetails,
   toQuotaExceededHttpException,
   toAiHttpException,
-} from "./gen-ai.errors";
+} from "../gen-ai.errors";
 
 const quotaApiError = new APICallError({
   message:

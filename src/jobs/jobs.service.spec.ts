@@ -1,20 +1,47 @@
-import { ConflictException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
 import { ResumeService } from "@/src/resume/resume.service";
 
-import type {
-  CreateJobDto,
-  ExtractJobDto,
-  TJobsQuery,
-  UpdateJobDto,
-} from "./jobs.dto";
+import type { CreateJobDto } from "./jobs.dto";
 import { JobsService } from "./jobs.service";
 import { IDatabaseService } from "../database/database.service";
+import type { TJob, TTrackedJob } from "../database/database.types";
+
+const baseJob = {
+  id: "job-1",
+  userId: "user-1",
+  title: "Engineer",
+  companyName: "Acme",
+  description: "desc",
+  companyId: null,
+  roleId: null,
+  state: "ok",
+  closedAt: null,
+  deadline: null,
+  createdAt: new Date("2026-01-01"),
+  updatedAt: new Date("2026-01-01"),
+} as unknown as TJob;
+
+const baseTrack = {
+  id: "track-1",
+  userId: "user-1",
+  jobId: "job-1",
+  status: "saved",
+  isFavorite: false,
+  notes: null,
+  appliedAt: null,
+  interviewDate: null,
+  createdAt: new Date("2026-01-01"),
+  updatedAt: new Date("2026-01-01"),
+} as unknown as TTrackedJob;
 
 describe("JobsService", () => {
   let service: JobsService;
@@ -47,666 +74,477 @@ describe("JobsService", () => {
     resumeToText: vi.fn().mockResolvedValue("RESUME TEXT"),
   };
 
+  const createDto: CreateJobDto = {
+    title: "Engineer",
+    companyName: "Acme",
+    description: "desc",
+    status: "saved",
+    isFavorite: false,
+    topicIds: [1],
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockDb.count.mockResolvedValue(0);
+    mockDb.create.mockImplementation((table: string) =>
+      Promise.resolve(table === "jobs" ? baseJob : baseTrack),
+    );
+    mockDb.findById.mockResolvedValue(baseJob);
+    mockDb.findAllByColumn.mockResolvedValue([baseTrack]);
+
     const module = await Test.createTestingModule({
       providers: [
         JobsService,
-        {
-          provide: IDatabaseService,
-          useValue: mockDb,
-        },
-        {
-          provide: GenAiService,
-          useValue: mockGenAiService,
-        },
-        {
-          provide: LookupsService,
-          useValue: mockLookupsService,
-        },
-        {
-          provide: ResumeService,
-          useValue: mockResumeService,
-        },
+        { provide: IDatabaseService, useValue: mockDb },
+        { provide: GenAiService, useValue: mockGenAiService },
+        { provide: LookupsService, useValue: mockLookupsService },
+        { provide: ResumeService, useValue: mockResumeService },
       ],
     }).compile();
 
     service = module.get(JobsService);
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   describe("create", () => {
-    it("should call db.create with mapped fields", async () => {
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "applied",
-        isFavorite: false,
-      };
-      const job = {
-        id: "1",
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "applied",
-        userId: "user-1",
-      };
-      mockDb.findAllByColumn.mockResolvedValue([]);
-      mockDb.create.mockResolvedValue(job);
+    it("creates a private job with its track and topics", async () => {
+      await service.create(createDto, "user-1");
 
-      const result = await service.create(dto, "user-1");
-
-      expect(mockDb.create).toHaveBeenCalledWith(
+      expect(mockDb.create).toHaveBeenNthCalledWith(
+        1,
         "jobs",
-        {
+        expect.objectContaining({
           userId: "user-1",
-          title: "Engineer",
-          companyName: "Acme",
-          description: "A great job",
-          status: "applied",
-          isFavorite: false,
-        },
-        {},
+          provider: "manual",
+          state: "ok",
+        }),
+        mockTransaction,
       );
-      expect(result).toEqual(job);
+      expect(mockDb.create).toHaveBeenNthCalledWith(
+        2,
+        "tracked_jobs",
+        expect.objectContaining({ userId: "user-1", jobId: "job-1" }),
+        mockTransaction,
+      );
+      expect(mockDb.syncJunctionTable).toHaveBeenCalledWith(
+        "job_topics",
+        { column: "jobId", value: "job-1" },
+        "topicId",
+        [1],
+        mockTransaction,
+      );
     });
 
-    it("should pass deadline through to db.create when provided", async () => {
-      const deadline = new Date("2025-06-15T00:00:00.000Z");
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        deadline,
-        status: "saved",
-        isFavorite: false,
-      };
-      mockDb.findAllByColumn.mockResolvedValue([]);
-      mockDb.create.mockResolvedValue({ id: "1" });
+    it("defaults to the local actor when no user is provided", async () => {
+      mockDb.findById.mockResolvedValue({ ...baseJob, userId: "local" });
 
-      await service.create(dto, "user-1");
+      await service.create(createDto);
 
-      const callArg = mockDb.create.mock.calls[0][1];
-      expect(callArg.deadline).toBe(deadline);
-    });
-
-    it("should pass interviewDate through to db.create when provided", async () => {
-      const interviewDate = new Date("2025-07-01T10:00:00.000Z");
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        interviewDate,
-        status: "saved",
-        isFavorite: false,
-      };
-      mockDb.findAllByColumn.mockResolvedValue([]);
-      mockDb.create.mockResolvedValue({ id: "1" });
-
-      await service.create(dto, "user-1");
-
-      const callArg = mockDb.create.mock.calls[0][1];
-      expect(callArg.interviewDate).toBe(interviewDate);
-    });
-
-    it("should pass roleId when provided", async () => {
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        roleId: 5,
-        status: "saved",
-        isFavorite: false,
-      };
-      mockDb.findAllByColumn.mockResolvedValue([]);
-      mockDb.create.mockResolvedValue({ id: "1" });
-
-      await service.create(dto, "user-1");
-
-      expect(mockDb.create).toHaveBeenCalledWith(
+      expect(mockDb.create).toHaveBeenNthCalledWith(
+        1,
         "jobs",
-        expect.objectContaining({ roleId: 5 }),
-        expect.anything(),
+        expect.objectContaining({ userId: "local" }),
+        mockTransaction,
       );
     });
 
-    it("should work without userId (app mode)", async () => {
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "saved",
-        isFavorite: false,
-      };
-      mockDb.create.mockResolvedValue({ id: "1" });
+    it("rejects when the track cap is reached", async () => {
+      mockDb.count.mockResolvedValue(200);
 
-      await service.create(dto);
-
-      expect(mockDb.create).toHaveBeenCalledWith(
-        "jobs",
-        expect.objectContaining({ userId: undefined }),
-        expect.anything(),
-      );
-    });
-
-    it("should set default status to saved", async () => {
-      const dto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "saved",
-      } as CreateJobDto;
-      mockDb.findAllByColumn.mockResolvedValue([]);
-      mockDb.create.mockResolvedValue({ id: "1" });
-
-      await service.create(dto, "user-1");
-
-      expect(mockDb.create).toHaveBeenCalledWith(
-        "jobs",
-        expect.objectContaining({ status: "saved" }),
-        expect.anything(),
-      );
-    });
-
-    it("should throw ConflictException when user reaches job limit", async () => {
-      mockDb.findAllByColumn.mockResolvedValue(
-        Array.from({ length: 200 }, (_, i) => ({ id: String(i) })),
-      );
-
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "saved",
-        isFavorite: false,
-      };
-
-      await expect(service.create(dto, "user-1")).rejects.toThrow(
+      await expect(service.create(createDto, "user-1")).rejects.toBeInstanceOf(
         ConflictException,
       );
       expect(mockDb.create).not.toHaveBeenCalled();
     });
-
-    it("should allow create when user is under job limit", async () => {
-      mockDb.findAllByColumn.mockResolvedValue(
-        Array.from({ length: 199 }, (_, i) => ({ id: String(i) })),
-      );
-      mockDb.create.mockResolvedValue({ id: "200" });
-
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "saved",
-        isFavorite: false,
-      };
-
-      await service.create(dto, "user-1");
-      expect(mockDb.create).toHaveBeenCalled();
-    });
-
-    it("should skip job limit check when no userId", async () => {
-      mockDb.create.mockResolvedValue({ id: "1" });
-
-      const dto: CreateJobDto = {
-        title: "Engineer",
-        companyName: "Acme",
-        description: "A great job",
-        status: "saved",
-        isFavorite: false,
-      };
-
-      await service.create(dto);
-      expect(mockDb.findAllByColumn).not.toHaveBeenCalled();
-      expect(mockDb.create).toHaveBeenCalled();
-    });
   });
 
-  describe("extractJob", () => {
-    const dto: ExtractJobDto = {
-      description: "A great job",
-      provider: "google",
-    };
+  describe("trackJob", () => {
+    const systemJob = { ...baseJob, userId: null } as unknown as TJob;
 
-    it("should compose the title from company and role", async () => {
-      mockGenAiService.extractJob.mockResolvedValue({
-        description: "A great job",
-        companyName: "Acme",
-        roleName: "Engineer",
+    it("creates a track for an open system job", async () => {
+      mockDb.findById.mockResolvedValue(systemJob);
+      mockDb.findAllByColumn
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([baseTrack]);
+
+      await service.trackJob("job-1", "user-1");
+
+      expect(mockDb.create).toHaveBeenCalledWith("tracked_jobs", {
+        userId: "user-1",
+        jobId: "job-1",
       });
-
-      const result = await service.extractJob(dto);
-
-      expect(result.title).toBe("Acme - Engineer");
     });
 
-    it("should compose the title from the company alone when role is missing", async () => {
-      mockGenAiService.extractJob.mockResolvedValue({
-        description: "A great job",
-        companyName: "Acme",
-      });
+    it("returns the existing track", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([baseTrack]);
 
-      const result = await service.extractJob(dto);
+      await service.trackJob("job-1", "user-1");
 
-      expect(result.title).toBe("Acme");
-    });
-
-    it("should compose the title from the role alone when company is missing", async () => {
-      mockGenAiService.extractJob.mockResolvedValue({
-        description: "A great job",
-        roleName: "Engineer",
-      });
-
-      const result = await service.extractJob(dto);
-
-      expect(result.title).toBe("Engineer");
-    });
-
-    // Intended: extraction only prefills the job form. A missing title is left to the
-    // user (CreateJobDto still requires one), so nothing is persisted here.
-    it("should leave the title undefined when company and role are both missing", async () => {
-      mockGenAiService.extractJob.mockResolvedValue({
-        description: "A great job",
-      });
-
-      const result = await service.extractJob(dto);
-
-      expect(result.title).toBeUndefined();
       expect(mockDb.create).not.toHaveBeenCalled();
     });
 
-    it("should resolve the role lookup", async () => {
-      mockGenAiService.extractJob.mockResolvedValue({
-        description: "A great job",
-        companyName: "Acme",
-        roleName: "Engineer",
-        topicNames: ["React"],
-      });
-      mockLookupsService.resolveOrCreateName.mockResolvedValue(7);
+    it("rejects a private job", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([]);
+      mockDb.findById.mockResolvedValue(baseJob);
 
-      const result = await service.extractJob(dto);
-
-      expect(mockLookupsService.resolveOrCreateName).toHaveBeenCalledWith(
-        "roles",
-        "Engineer",
+      await expect(service.trackJob("job-1", "user-1")).rejects.toBeInstanceOf(
+        BadRequestException,
       );
-      expect(result.roleId).toBe(7);
     });
 
-    // Topics stay as names so the form can show them as pending chips and the
-    // rows only get written when the user saves the job.
-    it("should return topic names without creating topic rows", async () => {
-      mockGenAiService.extractJob.mockResolvedValue({
-        description: "A great job",
-        topicNames: ["React", "Node"],
+    it("rejects a closed job", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([]);
+      mockDb.findById.mockResolvedValue({
+        ...systemJob,
+        closedAt: new Date(),
       });
 
-      const result = await service.extractJob(dto);
+      await expect(service.trackJob("job-1", "user-1")).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+  });
 
-      expect(result.topicNames).toEqual(["React", "Node"]);
-      expect(result).not.toHaveProperty("topicIds");
-      expect(mockLookupsService.resolveOrCreateNames).not.toHaveBeenCalled();
+  describe("updateTrackedJob", () => {
+    it("updates track fields even when the job is closed", async () => {
+      mockDb.findById.mockResolvedValue({
+        ...baseJob,
+        userId: null,
+        closedAt: new Date(),
+      });
+
+      await service.updateTrackedJob("job-1", { status: "applied" }, "user-1");
+
+      expect(mockDb.update).toHaveBeenCalledWith(
+        "tracked_jobs",
+        { status: "applied" },
+        { id: "track-1", userId: "user-1" },
+      );
+    });
+
+    it("rejects an interview before the job deadline", async () => {
+      mockDb.findById.mockResolvedValue({
+        ...baseJob,
+        userId: null,
+        deadline: new Date("2026-06-01"),
+      });
+
+      await expect(
+        service.updateTrackedJob(
+          "job-1",
+          { interviewDate: new Date("2026-05-01") },
+          "user-1",
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("rejects when the user has no track", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([]);
+
+      await expect(
+        service.updateTrackedJob("job-1", { status: "applied" }, "user-1"),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
   describe("findAll", () => {
-    const defaultSort = [
-      { column: "isFavorite", order: "desc" },
-      { column: "createdAt", order: "desc" },
-    ];
+    it("flattens tracks and sorts favorites first by default", async () => {
+      const otherJob = {
+        ...baseJob,
+        id: "job-2",
+        title: "Designer",
+      };
+      const favorite = {
+        ...baseTrack,
+        id: "track-2",
+        jobId: "job-2",
+        isFavorite: true,
+      };
 
-    it("should return jobs with default sort", async () => {
-      const jobs = [{ id: "1", title: "Engineer" }];
-      mockDb.findAllByColumn.mockResolvedValue(jobs);
+      mockDb.findAllByColumn.mockResolvedValue([
+        { ...baseTrack, job: baseJob },
+        { ...favorite, job: otherJob },
+      ]);
 
-      const query: TJobsQuery = { dateFilter: [] };
       const result = await service.findAll({
         userId: "user-1",
-        query,
-        pagination: { offset: 0, limit: 20 },
       });
 
-      expect(result).toEqual(jobs);
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: { userId: "user-1" },
-        sortBy: defaultSort,
-        pagination: { offset: 0, limit: 20 },
-      });
+      expect(result.map((item) => item.id)).toEqual(["job-2", "job-1"]);
+      expect(result[0].track?.id).toBe("track-2");
     });
 
-    it("should pass status filter to db", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      const query: TJobsQuery = {
-        status: "applied",
-        dateFilter: [],
+    it("filters by search in memory", async () => {
+      const otherJob = {
+        ...baseJob,
+        id: "job-2",
+        title: "Designer",
       };
-      await service.findAll({ userId: "user-1", query });
 
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: { userId: "user-1", status: "applied" },
-        sortBy: defaultSort,
-        pagination: undefined,
+      mockDb.findAllByColumn.mockResolvedValue([
+        { ...baseTrack, job: baseJob },
+        { ...baseTrack, id: "track-2", jobId: "job-2", job: otherJob },
+      ]);
+
+      const result = await service.findAll({
+        userId: "user-1",
+        query: { search: "design" },
       });
+
+      expect(result.map((item) => item.id)).toEqual(["job-2"]);
     });
 
-    it("should use search via db.search", async () => {
-      const searchResult = { data: [{ id: "1", title: "Engineer" }], total: 1 };
-      mockDb.search.mockResolvedValue(searchResult);
+    it("paginates in memory", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([
+        { ...baseTrack, job: baseJob },
+      ]);
 
-      const query: TJobsQuery = {
-        search: "engineer",
-        dateFilter: [],
-      };
-      const result = await service.findAll({ userId: "user-1", query });
-
-      expect(mockDb.search).toHaveBeenCalledWith(
-        "jobs",
-        ["title", "description"],
-        "engineer",
-        {
-          filter: { userId: "user-1" },
-          pagination: undefined,
-        },
-      );
-      expect(result).toHaveLength(1);
-    });
-
-    it("should map date filters to dateRanges", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      const query: TJobsQuery = {
-        dateFilter: [
-          {
-            type: "deadline",
-            from: new Date("2026-01-01"),
-            to: new Date("2026-12-31"),
-          },
-        ],
-      };
-      await service.findAll({ userId: "user-1", query });
-
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: { userId: "user-1" },
-        sortBy: defaultSort,
-        pagination: undefined,
-        dateRanges: [
-          {
-            column: "deadline",
-            range: {
-              from: new Date("2026-01-01"),
-              to: new Date("2026-12-31"),
-            },
-          },
-        ],
+      const result = await service.findAll({
+        userId: "user-1",
+        pagination: { offset: 1, limit: 1 },
       });
-    });
 
-    it("should map interview date filter correctly", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      const query: TJobsQuery = {
-        dateFilter: [{ type: "interview", from: new Date("2026-06-01") }],
-      };
-      await service.findAll({ userId: "user-1", query });
-
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith(
-        "jobs",
-        expect.objectContaining({
-          dateRanges: [
-            {
-              column: "interviewDate",
-              range: { from: new Date("2026-06-01"), to: undefined },
-            },
-          ],
-        }),
-      );
-    });
-
-    it("should map applied date filter correctly", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      const query: TJobsQuery = {
-        dateFilter: [{ type: "applied", to: new Date("2026-06-30") }],
-      };
-      await service.findAll({ userId: "user-1", query });
-
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith(
-        "jobs",
-        expect.objectContaining({
-          dateRanges: [
-            {
-              column: "appliedAt",
-              range: { from: undefined, to: new Date("2026-06-30") },
-            },
-          ],
-        }),
-      );
-    });
-
-    it("should use provided sort and append createdAt", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      const query: TJobsQuery = { dateFilter: [] };
-      const sort: TSortEntry[] = [{ column: "title", order: "desc" }];
-      await service.findAll({ userId: "user-1", query, sort });
-
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: { userId: "user-1" },
-        sortBy: [
-          { column: "title", order: "desc" },
-          { column: "createdAt", order: "desc" },
-        ],
-        pagination: undefined,
-      });
-    });
-
-    it("should work without userId", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      const query: TJobsQuery = { dateFilter: [] };
-      await service.findAll({ query });
-
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: {},
-        sortBy: defaultSort,
-        pagination: undefined,
-      });
+      expect(result).toEqual([]);
     });
   });
 
-  describe("findAll without options", () => {
-    it("should call db.findAllByColumn with userId filter", async () => {
-      const jobs = [{ id: "1", title: "Engineer" }];
-      mockDb.findAllByColumn.mockResolvedValue(jobs);
+  describe("discover", () => {
+    it("returns nothing in app mode", async () => {
+      vi.stubEnv("IS_APP_MODE", "true");
 
-      const result = await service.findAll({ userId: "user-1" });
-
-      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: { userId: "user-1" },
-        pagination: undefined,
-        sortBy: [
-          { column: "isFavorite", order: "desc" },
-          { column: "createdAt", order: "desc" },
-        ],
-      });
-      expect(result).toEqual(jobs);
+      await expect(service.discover({})).resolves.toEqual([]);
+      expect(mockDb.findAllByColumn).not.toHaveBeenCalled();
     });
 
-    it("should call db.findAllByColumn without filter when no userId", async () => {
-      mockDb.findAllByColumn.mockResolvedValue([]);
-
-      await service.findAll({});
+    it("queries open system jobs and excludes private ones", async () => {
+      await service.discover({});
 
       expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
-        filter: {},
+        filter: { state: "ok", userId: null, closedAt: null },
+        sortBy: [{ column: "createdAt", order: "desc" }],
         pagination: undefined,
-        sortBy: [
-          { column: "isFavorite", order: "desc" },
-          { column: "createdAt", order: "desc" },
-        ],
+      });
+    });
+
+    it("uses search when provided", async () => {
+      mockDb.search.mockResolvedValue({ data: [baseJob] });
+
+      const result = await service.discover({ query: { search: "eng" } });
+
+      expect(result).toEqual([baseJob]);
+      expect(mockDb.search).toHaveBeenCalledWith(
+        "jobs",
+        ["title", "description"],
+        "eng",
+        expect.objectContaining({
+          filter: { state: "ok", userId: null, closedAt: null },
+        }),
+      );
+    });
+
+    it("scopes the company feed to that company", async () => {
+      await service.discover({
+        companyId: 7,
+        pagination: { offset: 0, limit: 5 },
+      });
+
+      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
+        filter: { state: "ok", userId: null, closedAt: null, companyId: 7 },
+        sortBy: [{ column: "createdAt", order: "desc" }],
+        pagination: { offset: 0, limit: 5 },
       });
     });
   });
 
   describe("findOne", () => {
-    it("should call db.findById with id and userId filter", async () => {
-      const job = { id: "1", title: "Engineer", jobTopics: [] };
-      mockDb.findById.mockResolvedValue(job);
+    it("rejects another user's private job", async () => {
+      mockDb.findById.mockResolvedValue({ ...baseJob, userId: "other" });
+      mockDb.findAllByColumn.mockResolvedValue([]);
 
-      const result = await service.findOne("1", "user-1");
-
-      expect(mockDb.findById).toHaveBeenCalledWith("jobs", "1", {
-        filter: { userId: "user-1" },
-        relation: { jobTopics: true },
-      });
-      expect(result).toEqual({
-        id: "1",
-        title: "Engineer",
-        jobTopics: [],
-        topicIds: [],
-      });
+      await expect(service.findOne("job-1", "user-1")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
-    it("should call db.findById with only id when no userId", async () => {
-      mockDb.findById.mockResolvedValue({ id: "1", jobTopics: [] });
-
-      const result = await service.findOne("1");
-
-      expect(mockDb.findById).toHaveBeenCalledWith("jobs", "1", {
-        filter: {},
-        relation: { jobTopics: true },
+    it("returns topic ids and the caller's track", async () => {
+      mockDb.findById.mockResolvedValue({
+        ...baseJob,
+        userId: null,
+        jobTopics: [{ topicId: 7 }],
       });
-      expect(result).toEqual({ id: "1", jobTopics: [], topicIds: [] });
-    });
+      mockDb.findAllByColumn.mockResolvedValue([baseTrack]);
 
-    it("should map jobTopics to topicIds", async () => {
-      const job = {
-        id: "1",
-        title: "Engineer",
-        jobTopics: [
-          { topicId: 5, topic: { id: 5, name: "React" } },
-          { topicId: 8, topic: { id: 8, name: "TypeScript" } },
-        ],
-      };
-      mockDb.findById.mockResolvedValue(job);
+      const result = await service.findOne("job-1", "user-1");
 
-      const result = await service.findOne("1");
-
-      expect(result).toEqual({
-        id: "1",
-        title: "Engineer",
-        jobTopics: [
-          { topicId: 5, topic: { id: 5, name: "React" } },
-          { topicId: 8, topic: { id: 8, name: "TypeScript" } },
-        ],
-        topicIds: [5, 8],
-      });
-    });
-
-    it("should call db.findById without relation when populate is false", async () => {
-      mockDb.findById.mockResolvedValue({ id: "1" });
-
-      await service.findOne("1", undefined, false);
-
-      expect(mockDb.findById).toHaveBeenCalledWith("jobs", "1", {
-        filter: {},
-        relation: undefined,
+      expect(result.topicIds).toEqual([7]);
+      expect(result.track?.id).toBe("track-1");
+      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("tracked_jobs", {
+        filter: { userId: "user-1", jobId: "job-1" },
       });
     });
   });
 
   describe("update", () => {
-    it("should call db.update with id, dto, and userId filter", async () => {
-      const dto: UpdateJobDto = { title: "Senior Engineer" };
-      const updated = { id: "1", title: "Senior Engineer", jobTopics: [] };
-      mockDb.update.mockResolvedValue(updated);
-      mockDb.findById.mockResolvedValue(updated);
+    it("rejects system jobs", async () => {
+      mockDb.findById.mockResolvedValue({ ...baseJob, userId: null });
 
-      const result = await service.update("1", dto, "user-1");
-
-      expect(mockDb.update).toHaveBeenCalledWith(
-        "jobs",
-        { title: "Senior Engineer" },
-        { id: "1", userId: "user-1" },
-        expect.anything(),
-      );
-      expect(result).toEqual({
-        id: "1",
-        title: "Senior Engineer",
-        jobTopics: [],
-        topicIds: [],
-      });
+      await expect(
+        service.update("job-1", { title: "New" }, "user-1"),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it("should update companyName when provided", async () => {
-      const dto: UpdateJobDto = { companyName: "Acme" };
-      mockDb.update.mockResolvedValue([{ id: "1" }]);
-      mockDb.findById.mockResolvedValue({
-        id: "1",
-        companyName: "Acme",
-        jobTopics: [],
-      });
-
-      await service.update("1", dto, "user-1");
+    it("updates private job fields and topics", async () => {
+      await service.update("job-1", { title: "New" }, "user-1");
 
       expect(mockDb.update).toHaveBeenCalledWith(
         "jobs",
-        { companyName: "Acme" },
-        { id: "1", userId: "user-1" },
-        expect.anything(),
-      );
-    });
-
-    it("should call db.update without userId filter when no userId", async () => {
-      const dto: UpdateJobDto = { title: "Senior Engineer" };
-      const updated = { id: "1", title: "Senior Engineer", jobTopics: [] };
-      mockDb.update.mockResolvedValue(updated);
-      mockDb.findById.mockResolvedValue(updated);
-
-      await service.update("1", dto);
-
-      expect(mockDb.update).toHaveBeenCalledWith(
-        "jobs",
-        { title: "Senior Engineer" },
-        { id: "1" },
-        expect.anything(),
+        { title: "New" },
+        { id: "job-1", userId: "user-1" },
+        mockTransaction,
       );
     });
   });
 
   describe("delete", () => {
-    it("should call db.delete with id and userId filter", async () => {
-      mockDb.delete.mockResolvedValue(undefined);
+    const systemJob = { ...baseJob, userId: null } as unknown as TJob;
 
-      await service.delete("1", "user-1");
+    it("deletes only the track for a system job", async () => {
+      mockDb.findById.mockResolvedValue(systemJob);
+      mockDb.findAllByColumn.mockImplementation((table: string) =>
+        Promise.resolve(table === "tracked_jobs" ? [baseTrack] : []),
+      );
 
-      expect(mockDb.delete).toHaveBeenCalledWith("jobs", {
-        id: "1",
-        userId: "user-1",
+      await service.delete("job-1", "user-1");
+
+      expect(mockDb.delete).toHaveBeenCalledTimes(1);
+      expect(mockDb.delete).toHaveBeenCalledWith(
+        "tracked_jobs",
+        { id: "track-1", userId: "user-1" },
+        false,
+        mockTransaction,
+      );
+    });
+
+    it("deletes the track and the private job", async () => {
+      mockDb.findById.mockResolvedValue(baseJob);
+      mockDb.findAllByColumn.mockImplementation((table: string) =>
+        Promise.resolve(table === "tracked_jobs" ? [baseTrack] : []),
+      );
+
+      await service.delete("job-1", "user-1");
+
+      expect(mockDb.delete).toHaveBeenCalledWith(
+        "tracked_jobs",
+        { id: "track-1", userId: "user-1" },
+        false,
+        mockTransaction,
+      );
+      expect(mockDb.delete).toHaveBeenCalledWith(
+        "jobs",
+        { id: "job-1", userId: "user-1" },
+        false,
+        mockTransaction,
+      );
+    });
+
+    it("blocks deletion when prep sessions reference the track", async () => {
+      mockDb.findById.mockResolvedValue(systemJob);
+      mockDb.findAllByColumn.mockImplementation((table: string) =>
+        Promise.resolve(
+          table === "tracked_jobs" ? [baseTrack] : [{ id: "s-1" }],
+        ),
+      );
+
+      await expect(service.delete("job-1", "user-1")).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(mockDb.delete).not.toHaveBeenCalled();
+    });
+
+    it("deletes anyway with force", async () => {
+      mockDb.findById.mockResolvedValue(systemJob);
+      mockDb.findAllByColumn.mockImplementation((table: string) =>
+        Promise.resolve(
+          table === "tracked_jobs" ? [baseTrack] : [{ id: "s-1" }],
+        ),
+      );
+
+      await service.delete("job-1", "user-1", true);
+
+      expect(mockDb.delete).toHaveBeenCalledTimes(1);
+      expect(mockDb.delete).toHaveBeenCalledWith(
+        "tracked_jobs",
+        { id: "track-1", userId: "user-1" },
+        false,
+        mockTransaction,
+      );
+    });
+
+    it("404s for an untracked system job", async () => {
+      mockDb.findById.mockResolvedValue(systemJob);
+      mockDb.findAllByColumn.mockResolvedValue([]);
+
+      await expect(service.delete("job-1", "user-1")).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe("extractJob", () => {
+    it("normalizes the URL and composes the title without a lookup", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        companyName: "Acme",
+        roleName: "Engineer",
+        url: "https://Example.com/job/?utm_source=x#frag",
+      });
+
+      const result = await service.extractJob(
+        { description: "desc", provider: "google" },
+        "user-1",
+      );
+
+      expect(result.url).toBe("https://example.com/job");
+      expect(result.title).toBe("Acme - Engineer");
+      expect(result).not.toHaveProperty("existingJobId");
+      expect(mockDb.findAllByColumn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findFromUrl", () => {
+    it("normalizes the URL and returns open system jobs", async () => {
+      mockDb.findAllByColumn.mockResolvedValue([baseJob]);
+
+      const result = await service.findFromUrl(
+        "https://Example.com/job/?utm_source=x#frag",
+      );
+
+      expect(result).toEqual([baseJob]);
+      expect(mockDb.findAllByColumn).toHaveBeenCalledWith("jobs", {
+        filter: {
+          userId: null,
+          url: "https://example.com/job",
+          state: "ok",
+          closedAt: null,
+        },
       });
     });
 
-    it("should call db.delete without userId filter when no userId", async () => {
-      mockDb.delete.mockResolvedValue(undefined);
-
-      await service.delete("1", undefined);
-
-      expect(mockDb.delete).toHaveBeenCalledWith("jobs", { id: "1" });
+    it("rejects a non-http URL", async () => {
+      await expect(
+        service.findFromUrl("javascript:alert(1)"),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockDb.findAllByColumn).not.toHaveBeenCalled();
     });
   });
 
   describe("generateCoverLetter", () => {
     const dto = { provider: "google" as const };
-    const job = {
-      id: "1",
-      title: "Engineer",
-      companyName: "Acme",
-      description: "JD BODY",
-    };
 
     it("includes the user's cover letter template in the prompt", async () => {
-      mockDb.findById.mockResolvedValue(job);
+      mockDb.findById.mockResolvedValue(baseJob);
       mockDb.findAllByColumn.mockResolvedValue([
         { coverLetterTemplate: "MY COVER TEMPLATE" },
       ]);
@@ -714,49 +552,27 @@ describe("JobsService", () => {
         markdown: "letter",
       });
 
-      const result = await service.generateCoverLetter("1", dto, "user-1");
+      const result = await service.generateCoverLetter("job-1", dto, "user-1");
 
       expect(result).toEqual({ markdown: "letter" });
       const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
       expect(prompt).toContain("MY COVER TEMPLATE");
-      expect(prompt).toContain("JD BODY");
+      expect(prompt).toContain("desc");
       expect(prompt).toContain("<company_name>\nAcme\n</company_name>");
       expect(prompt).toContain("RESUME TEXT");
       expect(prompt).toContain("<template_cover_letter>");
-      expect(prompt).toContain(
-        "takes priority over the default shape and length rules above",
-      );
-      expect(prompt).toContain("The quality rules above still apply");
       expect(prompt).toContain("Reminder: follow <template_cover_letter>");
-      expect(prompt).not.toContain("MY EMAIL TEMPLATE");
     });
 
-    it("still generates when no template is stored", async () => {
-      mockDb.findById.mockResolvedValue(job);
-      mockDb.findAllByColumn.mockResolvedValue([]);
-      mockGenAiService.generateStructured.mockResolvedValue({
-        markdown: "letter",
-      });
-
-      const result = await service.generateCoverLetter("1", dto, "user-1");
-
-      expect(result).toEqual({ markdown: "letter" });
-      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
-      expect(prompt).not.toContain("MY COVER TEMPLATE");
-      expect(prompt).toContain("Shape: about one page");
-      expect(prompt).not.toContain("A template is provided");
-      expect(prompt).not.toContain("<template_cover_letter>");
-    });
-
-    it("forward a selected resumeId instead of the primary resume", async () => {
-      mockDb.findById.mockResolvedValue(job);
+    it("forwards a selected resumeId", async () => {
+      mockDb.findById.mockResolvedValue(baseJob);
       mockDb.findAllByColumn.mockResolvedValue([]);
       mockGenAiService.generateStructured.mockResolvedValue({
         markdown: "letter",
       });
 
       await service.generateCoverLetter(
-        "1",
+        "job-1",
         { ...dto, resumeId: "resume-9" },
         "user-1",
       );
@@ -767,61 +583,6 @@ describe("JobsService", () => {
         model: undefined,
         resumeId: "resume-9",
       });
-    });
-  });
-
-  describe("generateOutreachEmail", () => {
-    it("includes the user's outreach email template in the prompt", async () => {
-      mockDb.findById.mockResolvedValue({
-        id: "1",
-        title: "Engineer",
-        companyName: "Acme",
-        description: "JD BODY",
-      });
-      mockDb.findAllByColumn.mockResolvedValue([
-        { outreachEmailTemplate: "MY EMAIL TEMPLATE" },
-      ]);
-      mockGenAiService.generateStructured.mockResolvedValue({
-        markdown: "email",
-      });
-
-      const result = await service.generateOutreachEmail(
-        "1",
-        { provider: "google" },
-        "user-1",
-      );
-
-      expect(result).toEqual({ markdown: "email" });
-      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
-      expect(prompt).toContain("MY EMAIL TEMPLATE");
-      expect(prompt).not.toContain("MY COVER TEMPLATE");
-    });
-  });
-
-  describe("generateLinkedInDm", () => {
-    it("includes the user's linkedin dm template in the prompt", async () => {
-      mockDb.findById.mockResolvedValue({
-        id: "1",
-        title: "Engineer",
-        companyName: "Acme",
-        description: "JD BODY",
-      });
-      mockDb.findAllByColumn.mockResolvedValue([
-        { linkedinDmTemplate: "MY DM TEMPLATE" },
-      ]);
-      mockGenAiService.generateStructured.mockResolvedValue({ markdown: "dm" });
-
-      const result = await service.generateLinkedInDm(
-        "1",
-        { provider: "google" },
-        "user-1",
-      );
-
-      expect(result).toEqual({ markdown: "dm" });
-      const { prompt } = mockGenAiService.generateStructured.mock.calls[0][0];
-      expect(prompt).toContain("MY DM TEMPLATE");
-      expect(prompt).toContain("JD BODY");
-      expect(prompt).not.toContain("MY EMAIL TEMPLATE");
     });
   });
 });

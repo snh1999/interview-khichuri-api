@@ -21,6 +21,7 @@ export const api_key = pgTable(
     name: text("name").notNull(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     provider: providerEnum("provider").notNull(),
+    baseUrl: text("base_url"),
     key: text("key").notNull(),
     isActive: boolean("is_active").notNull().default(false),
     model: text("model"),

@@ -2,7 +2,6 @@
 import { faker } from "@faker-js/faker/locale/en";
 import { expect } from "vitest";
 
-import type { TJob } from "@/src/database/database.types";
 import { statusEnum } from "@/src/database/postgres/schemas";
 import type { CreateJobDto } from "@/src/jobs/jobs.dto";
 
@@ -12,32 +11,34 @@ import {
   expectNullableString,
 } from "../utils/data-helpers";
 
-export const getJobPayload = (data?: Partial<TJob>): CreateJobDto => {
-  const { isFavorite, status, ...rest } = data ?? {};
-  return {
-    title: faker.string.alphanumeric(10),
-    companyName: faker.company.name(),
-    description: faker.string.sample(15),
-    status: status ?? "saved",
-    isFavorite: isFavorite ?? false,
-    ...rest,
-  };
-};
+export const getJobPayload = (data?: Partial<CreateJobDto>): CreateJobDto => ({
+  title: faker.string.alphanumeric(10),
+  companyName: faker.company.name(),
+  description: faker.string.sample(15),
+  status: "saved",
+  isFavorite: false,
+  ...data,
+});
 
 export const expectedJobStructure = () =>
   expect.objectContaining({
     title: expect.any(String),
     companyName: expect.any(String),
     description: expect.any(String),
-    status: expectEnum(statusEnum.enumValues),
-    isFavorite: expect.any(Boolean),
+    provider: expect.any(String),
+    state: "ok",
+    url: expectNullableString,
     roleId: expectNullableNumber,
     deadline: expectNullableString,
-    interviewDate: expectNullableString,
     location: expectNullableString,
-    source: expectNullableString,
     links: expectNullableString,
-    notes: expectNullableString,
+    track: expect.objectContaining({
+      status: expectEnum(statusEnum.enumValues),
+      isFavorite: expect.any(Boolean),
+      notes: expectNullableString,
+      interviewDate: expectNullableString,
+      appliedAt: expectNullableString,
+    }),
     createdAt: expect.any(String),
     updatedAt: expect.any(String),
   });

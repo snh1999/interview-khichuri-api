@@ -9,8 +9,9 @@ export const GEN_AI_PROVIDERS = [
   "groq",
   "openrouter",
   "mistral",
-  "github",
   "cerebras",
+  "cloudflare",
+  "custom",
 ] as const;
 
 export const MAX_INSTRUCTION_LENGTH = 1000;
@@ -29,6 +30,7 @@ interface IProviderConfig {
   sdk: "google" | "openai";
   baseURL: string;
   defaultModel: string;
+  requiresBaseUrl?: boolean;
 }
 
 export const PROVIDER_CONFIG: Record<TApiKeyProvider, IProviderConfig> = {
@@ -57,16 +59,34 @@ export const PROVIDER_CONFIG: Record<TApiKeyProvider, IProviderConfig> = {
     baseURL: "https://api.mistral.ai/v1",
     defaultModel: "mistral-small-latest",
   },
-  github: {
-    sdk: "openai",
-    baseURL: "https://models.github.ai/inference",
-    defaultModel: "openai/gpt-4o-mini",
-  },
   cerebras: {
     sdk: "openai",
     baseURL: "https://api.cerebras.ai/v1",
     defaultModel: "llama3.1-8b",
   },
+  cloudflare: {
+    sdk: "openai",
+    baseURL: "",
+    defaultModel: "@cf/meta/llama-3.1-8b-instruct",
+    requiresBaseUrl: true,
+  },
+  custom: {
+    sdk: "openai",
+    baseURL: "",
+    defaultModel: "gpt-4o-mini",
+    requiresBaseUrl: true,
+  },
+};
+
+export const providerBaseUrl = (
+  provider: TApiKeyProvider,
+  baseUrl?: string | null,
+): string => {
+  const trimmed = baseUrl?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+  return PROVIDER_CONFIG[provider].baseURL;
 };
 
 export const RESUME_EXTRACTION_PROMPT = `Extract structured profile information from the following resume text.
@@ -104,14 +124,8 @@ Field rules:
 - salaryUpper: the upper bound of the same stated salary range, as an integer ("$120k - $150k" → 150000). Skip/use undefined when only a single figure or no salary is stated.
 - currency: the ISO 4217 code of a stated salary (e.g. "$" → "USD", "€" → "EUR", "£" → "GBP"). Skip/use undefined when the posting names no salary.
 - experienceRequired: the lower bound of a stated years-of-experience requirement ("5+ years" → 5, "3–5 years" → 3). Skip/use undefined when unstated or vague ("several years").
-- source: where the job was found, if mentioned.
+- url: the canonical URL of the original job posting, if mentioned.
 - deadline: ISO date string (YYYY-MM-DD) if a specific date is mentioned. If only a vague timeframe is given (e.g. "ASAP", "Q3 2026"), skip rather than guessing a specific date.
-- interviewDate: ISO date string (YYYY-MM-DD) if mentioned, otherwise skip(undefined).
-- status: one of "saved", "applied", "scheduled".
-  - Use "scheduled" if an interviewDate is present.
-  - Use "applied" only if the text explicitly indicates an application was already submitted.
-  - Otherwise use "saved".
-  - If truly undeterminable, skip/use undefined.
 - If the job description lists multiple distinct roles, extract only the first role mentioned.
 - Skip/use undefined for any field that cannot be determined from the text (for array fields return empty array).
 - If the input text is empty, garbled, or not a usable job description,skip/return all fields as undefined. Do not invent or hallucinate content.

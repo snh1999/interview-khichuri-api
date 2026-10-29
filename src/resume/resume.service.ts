@@ -200,6 +200,18 @@ export class ResumeService {
   public async delete(resumeId: string, profileId: string): Promise<void> {
     const resume = await this._findById(resumeId, profileId);
 
+    if (resume.isPrimary) {
+      const resumes = await this.db.findAllByColumn("resume", {
+        filter: { profileId },
+      });
+
+      if (resumes.length > 1) {
+        throw new BadRequestException(
+          "Set another resume as primary before deleting this one",
+        );
+      }
+    }
+
     if (resume.url) {
       await this.fileService.deleteFile(resume.url);
     }
@@ -272,7 +284,7 @@ export class ResumeService {
     });
 
     const job = (await this.db.findById("jobs", jobId, {
-      filter: { ...(userId ? { userId } : {}) },
+      filter: userId ? { userId: [null, userId] } : {},
       relation: { company: true },
     })) as TJobWithCompany;
 

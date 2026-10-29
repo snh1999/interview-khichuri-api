@@ -279,6 +279,38 @@ describe("ResumeService", () => {
       );
     });
 
+    it("should reject deleting the primary resume while another resume exists", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        isPrimary: true,
+        profileId: "user-1",
+        url: "resumes/file.pdf",
+      });
+      mockDb.findAllByColumn.mockResolvedValue([{ id: "r1" }, { id: "r2" }]);
+
+      await expect(service.delete("r1", "user-1")).rejects.toThrow(
+        "Set another resume as primary before deleting this one",
+      );
+
+      expect(mockFileService.deleteFile).not.toHaveBeenCalled();
+      expect(mockDb.delete).not.toHaveBeenCalled();
+    });
+
+    it("should allow deleting the last remaining primary resume", async () => {
+      mockDb.findById.mockResolvedValue({
+        id: "r1",
+        isPrimary: true,
+        profileId: "user-1",
+        url: null,
+      });
+      mockDb.findAllByColumn.mockResolvedValue([{ id: "r1" }]);
+      mockDb.delete.mockResolvedValue(undefined);
+
+      await service.delete("r1", "user-1");
+
+      expect(mockDb.delete).toHaveBeenCalledWith("resume", { id: "r1" });
+    });
+
     it("should delete the file and the resume row", async () => {
       mockDb.findById.mockResolvedValue({
         id: "r1",

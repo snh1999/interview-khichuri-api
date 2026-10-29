@@ -9,7 +9,7 @@ import {
   jsonSchemaSkeleton,
   toGeminiResponseSchema,
   withJsonShape,
-} from "./gemini-schema";
+} from "../gemini-schema";
 
 // The subset Google documents for `responseJsonSchema`:
 // https://ai.google.dev/gemini-api/docs/generate-content/structured-output

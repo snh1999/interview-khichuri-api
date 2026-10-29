@@ -51,7 +51,8 @@ export class PrepSessionController {
   @Get()
   public findAll(
     @Pagination() pagination?: TPagination,
-    @Query("jobId", new ParseUUIDPipe({ optional: true })) jobId?: string,
+    @Query("jobId", new ParseUUIDPipe({ optional: true }))
+    jobId?: string,
     @SortBy(SESSION_SORTABLE)
     sortBy?: TSortEntry[],
     @UserId() userId?: string,
