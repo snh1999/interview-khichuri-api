@@ -2,7 +2,9 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import type { Request } from "express";
 
+import { resolveClientIp } from "@/src/common/client-ip";
 import { UtilitiesModule } from "@/src/utilities/utilities.module";
 
 import { BetterAuthModule } from "./better-auth/better-auth.module";
@@ -40,6 +42,7 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
           limit: 60,
         },
       ],
+      getTracker: (req) => resolveClientIp(req as Request),
     }),
     DatabaseModule,
     ...(isApplicationMode ? [] : [BetterAuthModule, EmailModule]),
