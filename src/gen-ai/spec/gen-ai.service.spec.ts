@@ -183,7 +183,7 @@ describe("GenAiService", () => {
 
     // The whole point is what leaves the process, so assert on that rather than
     // on the Zod schema the caller handed in.
-    it("strips the keywords Gemini rejects from the schema it sends", async () => {
+    it("sends the schema's size constraints through to Gemini", async () => {
       const constrained = z.object({
         name: z.string().min(1).max(5).default("x"),
       });
@@ -195,7 +195,8 @@ describe("GenAiService", () => {
       });
 
       const sent = await resolvedWireSchema(generateText);
-      expect(sent).not.toMatch(/"\$schema"|"default"|"minLength"|"maxLength"/);
+      expect(sent).toMatch(/"minLength"/);
+      expect(sent).toMatch(/"maxLength"/);
       expect(sent).toMatch(/"name"/);
     });
 
@@ -779,7 +780,7 @@ describe("GenAiService", () => {
 
     // A stream cannot be retried once it has started, so the schema Gemini gets
     // has to be acceptable on the first attempt.
-    it("sends Gemini a schema without the keywords it rejects", async () => {
+    it("sends the real schema to Gemini", async () => {
       const partialOutputStream = (async function* () {})();
       vi.mocked(streamText).mockReturnValue({ partialOutputStream } as never);
 
@@ -789,9 +790,8 @@ describe("GenAiService", () => {
       });
 
       const sent = await resolvedWireSchema(streamText);
-      expect(sent).not.toMatch(/"\$schema"|"default"|"minLength"|"maxLength"/);
-      // The shape itself has to survive, or the stream is useless.
       expect(sent).toMatch(/"questions"/);
+      expect(sent).toMatch(/"maxLength"/);
     });
 
     it("leaves the OpenAI stream on the schema it already accepts", async () => {

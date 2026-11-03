@@ -7,7 +7,6 @@ export const COMPANY_PROVIDERS = [
   "greenhouse",
   "lever",
   "ashby",
-  "workday",
   "scrape",
 ] as const;
 export const JOB_PROVIDERS = [...COMPANY_PROVIDERS, "manual"] as const;

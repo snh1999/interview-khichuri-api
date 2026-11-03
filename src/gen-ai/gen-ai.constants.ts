@@ -16,6 +16,10 @@ export const GEN_AI_PROVIDERS = [
 
 export const MAX_INSTRUCTION_LENGTH = 1000;
 
+/** Removes attempts to close the tag the value is wrapped in. */
+export const sanitizeForTag = (value: string, tag: string): string =>
+  value.replaceAll(new RegExp(`<\\/?${tag}[^>]*>`, "giu"), "");
+
 export const aiCommonSchema = z.object({
   provider: z.enum(GEN_AI_PROVIDERS),
   model: str(SHORT_LENGTH).nullish(),

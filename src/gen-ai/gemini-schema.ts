@@ -4,18 +4,16 @@ import { z } from "zod";
 type TJsonSchemaNode = Record<string, unknown>;
 
 /**
- * Gemini's `responseJsonSchema` only accepts a subset of JSON Schema and rejects
- * the entire request with a bare `400 INVALID_ARGUMENT` ("Request contains an
- * invalid argument.", no `fieldViolations`) when it sees a keyword outside that
- * subset. `@ai-sdk/google` forwards validation keywords verbatim -- its
- * `sanitizeResponseJsonSchema` only restructures `properties`/`items`/`anyOf`
- * and strips nothing -- so a Zod schema carrying `minLength`, `maxLength`,
- * `pattern`, `format`, `default`, `minimum`, `maxItems` and
- * `additionalProperties: false` cannot be sent to Gemini as-is.
+ * Gemini's `responseJsonSchema` supports a subset of JSON Schema. Keywords
+ * outside that subset (`minLength`, `maxLength`, `pattern`, `default`, ...)
+ * are ignored by the server rather than rejected, so the Zod schema can be
+ * sent as-is. Length and size limits are therefore not enforced by the model;
+ * they are still checked client-side by the `validate` hook below.
  *
- * When the schema has to be dropped we still need the model to emit the right
- * shape, so we render a type-only skeleton of the very same Zod schema and put
- * it in the prompt. Deriving it from the schema keeps the two from drifting.
+ * Very large or deeply nested schemas can still be rejected with a bare
+ * `400 INVALID_ARGUMENT`. When that happens the schema is dropped and we put a
+ * type-only skeleton of the same Zod schema in the prompt, so the two cannot
+ * drift.
  */
 
 const METADATA_KEYS = ["title", "description"] as const;
@@ -166,125 +164,45 @@ export function isBadRequest(error: unknown): boolean {
   return !AUTH_ERROR_PATTERN.test(msg);
 }
 
-// https://ai.google.dev/gemini-api/docs/generate-content/structured-output
-// documents the accepted subset: type, properties, required, additionalProperties,
-// description, enum, format, minimum, maximum, items, prefixItems, minItems,
-// maxItems, anyOf and $ref. `format` is supported, so an email or uri format is
-// not the problem; the keywords below are simply absent from the list, and one
-// of them anywhere in the tree fails the whole request.
-const UNSUPPORTED_KEYWORDS = new Set([
-  "$schema",
-  "$id",
-  "$comment",
-  "title",
-  "default",
-  "minLength",
-  "maxLength",
-  "pattern",
-  "exclusiveMinimum",
-  "exclusiveMaximum",
-  "multipleOf",
-  "uniqueItems",
-  "additionalItems",
-  "contains",
-  "propertyNames",
-  "unevaluatedItems",
-  "unevaluatedProperties",
-  "if",
-  "then",
-  "else",
-  "not",
-  "dependentSchemas",
-  "dependentRequired",
-]);
+const toJsonSchema = <T>(schema: z.ZodType<T>): never =>
+  z.toJSONSchema(schema, {
+    io: "output",
+    unrepresentable: "any",
+  }) as never;
 
-// Keywords whose value is itself a schema, or an array of schemas.
-const NESTED_SCHEMA_KEYS = new Set([
-  "items",
-  "anyOf",
-  "oneOf",
-  "allOf",
-  "prefixItems",
-  "additionalProperties",
-]);
-
-// Keywords whose value is a map of name -> schema.
-const NESTED_SCHEMA_MAP_KEYS = new Set([
-  "properties",
-  "$defs",
-  "definitions",
-  "patternProperties",
-]);
-
-// eslint-disable-next-line sonarjs/cognitive-complexity
-function sanitizeNode(node: unknown): unknown {
-  if (Array.isArray(node)) {
-    return node.map(sanitizeNode);
-  }
-
-  if (node === null || typeof node !== "object") {
-    return node;
-  }
-
-  const result: TJsonSchemaNode = {};
-
-  for (const [key, value] of Object.entries(node as TJsonSchemaNode)) {
-    if (UNSUPPORTED_KEYWORDS.has(key)) {
-      continue;
-    }
-
-    if (NESTED_SCHEMA_MAP_KEYS.has(key)) {
-      result[key] = Object.fromEntries(
-        Object.entries((value ?? {}) as TJsonSchemaNode).map(([name, sub]) => [
-          name,
-          sanitizeNode(sub),
-        ]),
-      );
-      continue;
-    }
-
-    if (key === "const") {
-      result.enum = [value];
-      continue;
-    }
-
-    if (key === "oneOf") {
-      result.anyOf = Array.isArray(value)
-        ? (value as unknown[]).map(sanitizeNode)
-        : sanitizeNode(value);
-      continue;
-    }
-
-    if (NESTED_SCHEMA_KEYS.has(key)) {
-      result[key] = sanitizeNode(value);
-      continue;
-    }
-
-    result[key] = value;
-  }
-
-  return result;
+/**
+ * Sends the Zod schema as-is and validates the response against the original,
+ * so the app keeps every guarantee the schema was written to provide.
+ */
+export function toResponseSchema<T>(schema: z.ZodType<T>): Schema<T> {
+  return jsonSchema<T>(() => toJsonSchema(schema), {
+    validate: async (value) => {
+      const result = await schema.safeParseAsync(value);
+      return result.success
+        ? { success: true as const, value: result.data }
+        : { success: false as const, error: result.error };
+    },
+  });
 }
 
 /**
- * The Zod schema for Google, minus the keywords its `responseJsonSchema` does
- * not accept, with the original Zod schema still attached as the validator --
- * so the model gets a schema it will accept and the app still gets the
- * guarantees the Zod schema was written to provide.
+ * Like `toResponseSchema`, but size violations (`too_big`/`too_small` on
+ * strings, arrays and numbers) pass through. Used where the generated JSON is
+ * shown to the user but never written to the database.
  */
-export function toGeminiResponseSchema<T>(schema: z.ZodType<T>): Schema<T> {
-  return jsonSchema<T>(
-    () =>
-      sanitizeNode(
-        z.toJSONSchema(schema, { io: "output", unrepresentable: "any" }),
-      ) as never,
-    {
-      validate: async (value) => {
-        const result = await schema.safeParseAsync(value);
-        return result.success
-          ? { success: true as const, value: result.data }
-          : { success: false as const, error: result.error };
-      },
+export function toLenientSchema<T>(schema: z.ZodType<T>): Schema<T> {
+  return jsonSchema<T>(() => toJsonSchema(schema), {
+    validate: async (value) => {
+      const result = await schema.safeParseAsync(value);
+      if (result.success) {
+        return { success: true as const, value: result.data };
+      }
+      const onlySize = result.error.issues.every(
+        (issue) => issue.code === "too_big" || issue.code === "too_small",
+      );
+      return onlySize
+        ? { success: true as const, value: value as T }
+        : { success: false as const, error: result.error };
     },
-  );
+  });
 }

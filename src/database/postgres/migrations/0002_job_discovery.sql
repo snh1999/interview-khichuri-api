@@ -1,5 +1,5 @@
-CREATE TYPE "public"."company_provider" AS ENUM('greenhouse', 'lever', 'ashby', 'workday', 'scrape');--> statement-breakpoint
-CREATE TYPE "public"."job_provider" AS ENUM('greenhouse', 'lever', 'ashby', 'workday', 'scrape', 'manual');--> statement-breakpoint
+CREATE TYPE "public"."company_provider" AS ENUM('greenhouse', 'lever', 'ashby', 'scrape');--> statement-breakpoint
+CREATE TYPE "public"."job_provider" AS ENUM('greenhouse', 'lever', 'ashby', 'scrape', 'manual');--> statement-breakpoint
 CREATE TYPE "public"."job_state" AS ENUM('none', 'ok', 'failed');--> statement-breakpoint
 ALTER TYPE "public"."status" ADD VALUE 'interviewed';--> statement-breakpoint
 ALTER TYPE "public"."status" ADD VALUE 'offer';--> statement-breakpoint

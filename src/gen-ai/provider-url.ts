@@ -159,7 +159,7 @@ export const assertSafeProviderBaseUrl = async (
   } else {
     let addresses: { address: string }[];
     try {
-      addresses = await resolveHost(hostname, { all: true, verbatim: true });
+      addresses = await resolveHost(hostname, { all: true, order: "verbatim" });
     } catch {
       throw new BadRequestException("Base URL host could not be resolved");
     }
