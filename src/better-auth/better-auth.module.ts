@@ -140,7 +140,12 @@ import { EmailService } from "../email/email.service";
           },
           advanced: {
             ipAddress: {
-              ipAddressHeaders: ["x-forwarded-for", "cf-connecting-ip"],
+              // On Render, Cloudflare overwrites cf-connecting-ip. Elsewhere keep
+              // the original x-forwarded-for behavior (single-hop only).
+              ipAddressHeaders:
+                process.env.RENDER === "true"
+                  ? ["cf-connecting-ip"]
+                  : ["x-forwarded-for", "cf-connecting-ip"],
             },
             // The frontend and API are different sites, so the default Lax cookie is
             // never sent on cross-site fetch. None + Secure is required in production;

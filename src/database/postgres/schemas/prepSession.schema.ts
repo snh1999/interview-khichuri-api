@@ -22,7 +22,9 @@ export const prep_session = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
-    jobId: uuid("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    jobId: uuid("job_id").references(() => jobs.id, {
+      onDelete: "set null",
+    }),
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),

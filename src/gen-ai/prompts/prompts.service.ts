@@ -146,7 +146,7 @@ export class PromptsService {
     }
 
     return this.db.withTransaction(async (tx) => {
-      await this.db.findById("prompts", promptId);
+      await this.findById(promptId, userId);
 
       const inserted = await this.db.createMany(
         "prompt_likes",

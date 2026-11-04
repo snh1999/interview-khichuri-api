@@ -48,6 +48,7 @@ export type TdbPostgres = PostgresJsDatabase<typeof schemas>;
 
 const postgresTableRegistry = {
   [getTableName(schemas.jobs)]: schemas.jobs,
+  [getTableName(schemas.tracked_jobs)]: schemas.tracked_jobs,
   [getTableName(schemas.categories)]: schemas.categories,
   [getTableName(schemas.roles)]: schemas.roles,
   [getTableName(schemas.topics)]: schemas.topics,
@@ -79,6 +80,7 @@ const postgresTableRegistry = {
   [getTableName(schemas.prompts)]: schemas.prompts,
   [getTableName(schemas.prompt_likes)]: schemas.prompt_likes,
   [getTableName(schemas.user_default_prompts)]: schemas.user_default_prompts,
+  [getTableName(schemas.feedback)]: schemas.feedback,
 } as const;
 
 type TdbQuery = TdbPostgres extends { query: infer Q } ? Q : never;
@@ -91,7 +93,8 @@ export type TpgWithRelations<K extends TpgTableKey> = K extends keyof TdbQuery
   : never;
 
 export type TpgTableRegistry = typeof postgresTableRegistry;
-export type TpgTableKey = keyof TpgTableRegistry;
+// `feedback` is Postgres-only (it has no SQLite twin), so keep it out of the shared IDatabaseService key union that assumes both drivers implement a table.
+export type TpgTableKey = Exclude<keyof TpgTableRegistry, "feedback">;
 
 type PgTableWithId = AnyPgTable & { id: AnyPgColumn };
 

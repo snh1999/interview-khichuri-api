@@ -1,5 +1,12 @@
 import { BadRequestException } from "@nestjs/common";
-import { eq, getTableColumns, getTableName, inArray } from "drizzle-orm";
+import {
+  eq,
+  getTableColumns,
+  getTableName,
+  inArray,
+  isNull,
+  or,
+} from "drizzle-orm";
 import type { AnyPgTable } from "drizzle-orm/pg-core";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 
@@ -157,14 +164,26 @@ export function buildConditions(
   columns: Record<string, unknown>,
 ): ReturnType<typeof eq>[] {
   const schemaColumns = getTableColumns(schema);
-  return Object.entries(columns).map(([colName, value]) => {
+  return Object.entries(columns).flatMap(([colName, value]) => {
     if (!(colName in schemaColumns)) {
       throw new BadRequestException(
         `Column "${colName}" not supported by ${getTableName(schema)}`,
       );
     }
-    return Array.isArray(value)
-      ? inArray(schemaColumns[colName], value)
-      : eq(schemaColumns[colName], value);
+    const col = schemaColumns[colName];
+
+    if (value === undefined) return [];
+    if (value === null) return [isNull(col)];
+    if (!Array.isArray(value)) return [eq(col, value)];
+
+    if (value.length === 0) return [inArray(col, value)];
+
+    const nonNull = value.filter((item) => item !== null);
+    if (nonNull.length === 0) return [isNull(col)];
+    if (nonNull.length === value.length) return [inArray(col, nonNull)];
+
+    const nullOrIn = or(isNull(col), inArray(col, nonNull));
+    if (!nullOrIn) return [];
+    return [nullOrIn];
   });
 }

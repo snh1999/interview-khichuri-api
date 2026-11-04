@@ -34,7 +34,9 @@ import { SqliteService, TdbSqlite } from "./sqlite/sqlite.service";
           if (databaseUrl.startsWith("file://")) {
             databaseUrl = databaseUrl.slice(7);
           }
-          return new Database(databaseUrl);
+          const sqlite = new Database(databaseUrl);
+          sqlite.pragma("foreign_keys = ON");
+          return sqlite;
         }
         // Supabase session pooler: the direct host is IPv6-only, so Render's build containers can't reach it.
         // Pooled mode multiplexes these sessions onto fewer backend connections; idle_timeout frees them across cold starts.

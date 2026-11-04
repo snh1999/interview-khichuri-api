@@ -12,15 +12,12 @@ import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
 const createNoteSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
   details: str().nullish(),
-  questionId: z.number().int().positive().nullish(),
-  jobId: z.uuid().nullish(),
   isFavorite: z.boolean().default(false),
 });
 
 export class CreateNoteDto extends createZodDto(createNoteSchema) {}
 
 const updateNoteSchema = createNoteSchema
-  .omit({ questionId: true, jobId: true })
   .partial()
   .refine((obj) => Object.keys(obj).length > 0, {
     message: "At least one field required",

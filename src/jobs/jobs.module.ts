@@ -11,5 +11,6 @@ import { JobsService } from "./jobs.service";
   imports: [GenAiModule, LookupsModule, ResumeModule],
   controllers: [JobsController],
   providers: [JobsService],
+  exports: [JobsService],
 })
 export class JobsModule {}

@@ -7,73 +7,16 @@ import { extractedProfileSchema } from "@/src/resume/resume.dto";
 import {
   isBadRequest,
   jsonSchemaSkeleton,
-  toGeminiResponseSchema,
+  toLenientSchema,
+  toResponseSchema,
   withJsonShape,
-} from "./gemini-schema";
-
-// The subset Google documents for `responseJsonSchema`:
-// https://ai.google.dev/gemini-api/docs/generate-content/structured-output
-const DOCUMENTED = new Set([
-  "type",
-  "properties",
-  "required",
-  "additionalProperties",
-  "description",
-  "enum",
-  "format",
-  "minimum",
-  "maximum",
-  "items",
-  "prefixItems",
-  "minItems",
-  "maxItems",
-  "anyOf",
-  "oneOf",
-  "allOf",
-  "$ref",
-  "$defs",
-  "definitions",
-]);
-
-const NESTED_MAPS = new Set(["properties", "$defs", "definitions"]);
-
-const unsupportedKeywords = (node: unknown, found = new Set<string>()) => {
-  if (Array.isArray(node)) {
-    node.forEach((entry) => unsupportedKeywords(entry, found));
-    return found;
-  }
-  if (node === null || typeof node !== "object") {
-    return found;
-  }
-  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
-    if (NESTED_MAPS.has(key)) {
-      Object.values(value as object).forEach((entry) =>
-        unsupportedKeywords(entry, found),
-      );
-      continue;
-    }
-    if (!DOCUMENTED.has(key)) {
-      found.add(key);
-    }
-    unsupportedKeywords(value, found);
-  }
-  return found;
-};
+} from "../gemini-schema";
 
 const wire = <T>(schema: z.ZodType<T>): Record<string, unknown> =>
-  asSchema(toGeminiResponseSchema(schema)).jsonSchema as Record<
-    string,
-    unknown
-  >;
+  asSchema(toResponseSchema(schema)).jsonSchema as Record<string, unknown>;
 
-describe("toGeminiResponseSchema", () => {
-  it("sends nothing outside the documented subset, at any depth", () => {
-    expect(unsupportedKeywords(wire(extractedProfileSchema))).toEqual(
-      new Set(),
-    );
-  });
-
-  it("strips the keywords a Zod validation schema adds", () => {
+describe("toResponseSchema", () => {
+  it("sends the size constraints instead of stripping them", () => {
     const constrained = z.object({
       name: z.string().min(1).max(5).default("x"),
       tags: z.array(z.string()).max(3).default([]),
@@ -81,13 +24,24 @@ describe("toGeminiResponseSchema", () => {
 
     const sent = JSON.stringify(wire(constrained));
 
-    for (const keyword of ["$schema", "default", "minLength", "maxLength"]) {
-      expect(sent).not.toContain(`"${keyword}"`);
+    for (const keyword of ["minLength", "maxLength", "default"]) {
+      expect(sent).toContain(`"${keyword}"`);
     }
   });
 
-  // Stripping the constraints must not flatten the shape, or Gemini has nothing
-  // to constrain the output to.
+  it("keeps title and description, which Gemini uses as guidance", () => {
+    const sent = JSON.stringify(
+      wire(
+        z.object({
+          title: z.string().meta({ title: "Job title" }).describe("At most 80"),
+        }),
+      ),
+    );
+
+    expect(sent).toContain('"title":"Job title"');
+    expect(sent).toContain('"description":"At most 80"');
+  });
+
   it("keeps the shape, the enums and the null unions", () => {
     const schema = z.object({
       kind: z.enum(["a", "b"]),
@@ -111,38 +65,13 @@ describe("toGeminiResponseSchema", () => {
     );
   });
 
-  it("drops the title keyword but keeps a field named title", () => {
-    const sent = JSON.stringify(wire(z.object({ title: z.string() })));
-
-    expect(sent).toContain('"title"');
-    expect(unsupportedKeywords(JSON.parse(sent))).toEqual(new Set());
-  });
-
-  it("recurses into anyOf branches and $defs", () => {
-    const sent = JSON.stringify(
-      wire(
-        z.object({
-          either: z.union([
-            z.object({ a: z.string().max(3) }),
-            z.object({ b: z.string().min(1) }),
-          ]),
-        }),
-      ),
-    );
-
-    expect(sent).toContain('"anyOf"');
-    expect(sent).not.toContain('"maxLength"');
-    expect(sent).not.toContain('"minLength"');
-  });
-
-  // The point of the wrapper: Gemini gets a looser schema, the app keeps the
-  // guarantees the Zod schema was written to provide.
-  it("validates against the original Zod schema, not the stripped one", async () => {
+  // Gemini only generates against the schema; the app must still enforce it.
+  it("validates against the original Zod schema", async () => {
     const schema = z.object({
       count: z.number().int().min(1).max(10),
       email: z.email(),
     });
-    const { validate } = asSchema(toGeminiResponseSchema(schema));
+    const { validate } = asSchema(toResponseSchema(schema));
 
     await expect(
       validate?.({ count: 0, email: "a@b.co" }),
@@ -155,6 +84,35 @@ describe("toGeminiResponseSchema", () => {
     await expect(
       validate?.({ count: 5, email: "a@b.co" }),
     ).resolves.toMatchObject({ success: true, value: { count: 5 } });
+  });
+});
+
+describe("toLenientSchema", () => {
+  it("accepts size-only violations", async () => {
+    const schema = z.object({ title: z.string().max(5) });
+
+    const { validate } = asSchema(toLenientSchema(schema));
+
+    await expect(validate?.({ title: "too long" })).resolves.toMatchObject({
+      success: true,
+    });
+  });
+
+  it("still rejects structural violations", async () => {
+    const schema = z.object({
+      title: z.string().max(5),
+      kind: z.enum(["a", "b"]),
+    });
+
+    const { validate } = asSchema(toLenientSchema(schema));
+
+    await expect(validate?.({ title: "ok", kind: "c" })).resolves.toMatchObject(
+      { success: false },
+    );
+
+    await expect(validate?.({ kind: "a" })).resolves.toMatchObject({
+      success: false,
+    });
   });
 });
 

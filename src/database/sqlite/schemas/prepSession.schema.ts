@@ -19,7 +19,9 @@ export const prep_session = sqliteTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     userId: text("user_id"),
-    jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    jobId: text("job_id").references(() => jobs.id, {
+      onDelete: "set null",
+    }),
     roleId: integer("role_id").references(() => roles.id, {
       onDelete: "set null",
     }),

@@ -49,6 +49,7 @@ import * as schemas from "./schemas";
 
 const sqliteTableRegistry = {
   [getTableName(schemas.jobs)]: schemas.jobs,
+  [getTableName(schemas.tracked_jobs)]: schemas.tracked_jobs,
   [getTableName(schemas.categories)]: schemas.categories,
   [getTableName(schemas.roles)]: schemas.roles,
   [getTableName(schemas.topics)]: schemas.topics,

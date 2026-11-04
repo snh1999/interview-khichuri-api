@@ -274,7 +274,11 @@ export class InterviewService {
   ): Promise<TPrepSessionWithQuestions> {
     return this.db.findById("prep_session", sessionId, {
       filter: { ...(userId ? { userId } : {}) },
-      relation: { questions: true, sessionTopics: true, job: true },
+      relation: {
+        questions: true,
+        sessionTopics: true,
+        job: true,
+      },
     }) as Promise<TPrepSessionWithQuestions>;
   }
 

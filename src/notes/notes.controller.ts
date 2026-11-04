@@ -18,11 +18,7 @@ import { Observable } from "rxjs";
 import { Pagination } from "@/src/config/guards/pagination.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import { SkipEnvelope } from "@/src/config/interceptors/skip-envelope.decorator";
-import type {
-  TPagination,
-  TNote,
-  TNoteWithJobTitle,
-} from "@/src/database/database.types";
+import type { TPagination, TNote } from "@/src/database/database.types";
 
 import {
   CreateNoteDto,
@@ -80,7 +76,7 @@ export class NotesController {
   findOne(
     @Param("id", ParseUUIDPipe) id: string,
     @UserId() userId?: string,
-  ): Promise<TNoteWithJobTitle> {
+  ): Promise<TNote> {
     return this.notesService.findById(id, userId);
   }
 

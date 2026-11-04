@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -34,6 +38,14 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<TPrepSession> {
     const { topicIds, ...data } = dto;
+    if (dto.jobId) {
+      const tracks = await this.db.findAllByColumn("tracked_jobs", {
+        filter: { userId, jobId: dto.jobId },
+      });
+      if (tracks.length === 0) {
+        throw new NotFoundException("Tracked job not found");
+      }
+    }
 
     return this.db.withTransaction(async (transaction) => {
       const session = await this.db.create(
@@ -90,13 +102,14 @@ export class PrepSessionService {
     userId?: string,
   ): Promise<TPrepSessionWithQuestions> {
     const { topicIds, ...sessionFields } = dto;
+    await this.findOne(id, userId);
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(sessionFields).length > 0) {
         await this.db.update(
           "prep_session",
           sessionFields,
-          userId ? { id, userId } : { id },
+          { id },
           transaction,
         );
       }

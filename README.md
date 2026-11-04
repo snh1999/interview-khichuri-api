@@ -273,7 +273,7 @@ Other behaviour worth knowing:
 - Account linking allows different emails.
 - Sessions: 30-day expiry, 5-minute cookie cache.
 - Production cookies are `SameSite=None; Secure` (the frontend and API are on different sites).
-- IP resolution trusts `x-forwarded-for` and `cf-connecting-ip`.
+- better-auth IP resolution uses `cf-connecting-ip` on Render and `x-forwarded-for` elsewhere.
 - better-auth's **own** rate limits are separate from the global throttler: 10 requests per 10
   minutes by default, tightened to 5 for `/sign-in/email` and 3 for `/sign-up/email` and
   `/two-factor/*`.

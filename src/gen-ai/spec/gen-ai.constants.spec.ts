@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aiCommonSchema, MAX_INSTRUCTION_LENGTH } from "./gen-ai.constants";
+import { aiCommonSchema, MAX_INSTRUCTION_LENGTH } from "../gen-ai.constants";
 
 const base = { provider: "google" } as const;
 

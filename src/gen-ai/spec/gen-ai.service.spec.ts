@@ -18,7 +18,7 @@ import {
   GOOGLE_TTS_MODEL,
 } from "@/src/gen-ai/gen-ai.constants";
 
-import { GenAiService } from "./gen-ai.service";
+import { GenAiService } from "../gen-ai.service";
 
 vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof Ai>();
@@ -69,8 +69,8 @@ const capturedModel = (): unknown => {
 
 // `Output.object` hides the schema behind a resolved `responseFormat`, so the
 // only way to see what actually goes on the wire is to await it.
-const resolvedWireSchema = async (fn: typeof streamText): Promise<string> => {
-  const output = fn.mock.calls[0]?.[0]?.output as unknown as {
+const resolvedWireSchema = async (fn: unknown): Promise<string> => {
+  const output = (fn as Mock).mock.calls[0]?.[0]?.output as unknown as {
     responseFormat: Promise<{ type: string; schema: unknown }>;
   };
   return JSON.stringify((await output.responseFormat).schema);
@@ -183,7 +183,7 @@ describe("GenAiService", () => {
 
     // The whole point is what leaves the process, so assert on that rather than
     // on the Zod schema the caller handed in.
-    it("strips the keywords Gemini rejects from the schema it sends", async () => {
+    it("sends the schema's size constraints through to Gemini", async () => {
       const constrained = z.object({
         name: z.string().min(1).max(5).default("x"),
       });
@@ -195,7 +195,8 @@ describe("GenAiService", () => {
       });
 
       const sent = await resolvedWireSchema(generateText);
-      expect(sent).not.toMatch(/"\$schema"|"default"|"minLength"|"maxLength"/);
+      expect(sent).toMatch(/"minLength"/);
+      expect(sent).toMatch(/"maxLength"/);
       expect(sent).toMatch(/"name"/);
     });
 
@@ -466,7 +467,7 @@ describe("GenAiService", () => {
       const prompt = vi.mocked(generateText).mock.calls[0]?.[0]
         ?.prompt as string;
       expect(prompt.startsWith("SYSTEM\n\nCONTEXT")).toBe(true);
-      expect(prompt).toContain("<instruction>\nbe terse</instruction>");
+      expect(prompt).toContain("<instruction>\nbe terse\n</instruction>");
     });
 
     // The appended block has to be closed exactly once, or a model reading it
@@ -719,7 +720,39 @@ describe("GenAiService", () => {
       expect(vi.mocked(streamText).mock.calls[0]?.[0]?.abortSignal).toBe(
         controller.signal,
       );
-      expect(result).toBe(textStream);
+      const chunks: string[] = [];
+      for await (const chunk of result) chunks.push(chunk);
+      expect(chunks).toEqual(["hi"]);
+    });
+
+    it("maps a stream error the text stream hides", async () => {
+      const quota = new APICallError({
+        message: "quota",
+        url: "https://provider.example",
+        requestBodyValues: {},
+        statusCode: 429,
+        isRetryable: true,
+      });
+      vi.mocked(streamText).mockImplementation(((options: {
+        onError?: (args: { error: unknown }) => void;
+      }) => {
+        options.onError?.({ error: quota });
+        return { textStream: (async function* () {})() };
+      }) as never);
+
+      const result = await service.streamMarkdown({
+        provider: "google",
+        prompt: "p",
+      });
+
+      const consume = async () => {
+        for await (const _chunk of result) {
+          // drain
+        }
+      };
+      const error = (await consume().catch((e: unknown) => e)) as HttpException;
+      expect(error).toBeInstanceOf(HttpException);
+      expect(error.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
     });
   });
 
@@ -740,12 +773,14 @@ describe("GenAiService", () => {
       expect(vi.mocked(streamText).mock.calls[0]?.[0]?.abortSignal).toBe(
         controller.signal,
       );
-      expect(result).toBe(partialOutputStream);
+      const chunks: unknown[] = [];
+      for await (const chunk of result) chunks.push(chunk);
+      expect(chunks).toEqual([]);
     });
 
     // A stream cannot be retried once it has started, so the schema Gemini gets
     // has to be acceptable on the first attempt.
-    it("sends Gemini a schema without the keywords it rejects", async () => {
+    it("sends the real schema to Gemini", async () => {
       const partialOutputStream = (async function* () {})();
       vi.mocked(streamText).mockReturnValue({ partialOutputStream } as never);
 
@@ -755,9 +790,8 @@ describe("GenAiService", () => {
       });
 
       const sent = await resolvedWireSchema(streamText);
-      expect(sent).not.toMatch(/"\$schema"|"default"|"minLength"|"maxLength"/);
-      // The shape itself has to survive, or the stream is useless.
       expect(sent).toMatch(/"questions"/);
+      expect(sent).toMatch(/"maxLength"/);
     });
 
     it("leaves the OpenAI stream on the schema it already accepts", async () => {
@@ -813,6 +847,23 @@ describe("GenAiService", () => {
         config.config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName,
       ).toBe(GOOGLE_TTS_DEFAULT_VOICE);
       expect(generateContent.mock.calls[0]?.[0]?.model).toBe(GOOGLE_TTS_MODEL);
+    });
+
+    it("uses the default voice when the voice is blank", async () => {
+      const generateContent = mockGoogle(async () => audioResponse("AA=="));
+
+      await service.synthesizeSpeech("hello", "   ", "user-1");
+
+      const config = generateContent.mock.calls[0]?.[0] as {
+        config: {
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: string } };
+          };
+        };
+      };
+      expect(
+        config.config.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName,
+      ).toBe(GOOGLE_TTS_DEFAULT_VOICE);
     });
 
     // The cache is process-wide and not keyed by user, so the key check has to

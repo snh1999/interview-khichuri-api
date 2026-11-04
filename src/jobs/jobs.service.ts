@@ -2,9 +2,12 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from "@nestjs/common";
 
+import { normalizeJobUrl } from "@/src/common/url";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import { LOCAL_USER_ID } from "@/src/database/database.constants";
 import { IDatabaseService } from "@/src/database/database.service";
 import {
   COVER_LETTER_DEFAULT_SHAPE,
@@ -25,19 +28,22 @@ import {
   GenerateFromTemplateDto,
   UpdateJobDto,
   ExtractJobDto,
+  UpdateTrackedJobDto,
   TJobExtractionResult,
-  TJobWithTopicIds,
+  TJobPopulated,
   deadlineBeforeInterview,
 } from "./jobs.dto";
-import type { TDateFilter, TJobsQuery } from "./jobs.dto";
+import type { TJobsQuery, TTrackedJobFields } from "./jobs.dto";
 import type {
+  TColumnFilter,
   TDatabase,
   TJob,
   TJobPreference,
   TJobWithTopics,
   TPagination,
   TSortBy,
-  TDateRangeOption,
+  TTrackedJob,
+  TTrackedJobWithJob,
 } from "../database/database.types";
 
 type TLetterTemplateColumn =
@@ -53,9 +59,17 @@ type TJobPreferenceWithTitles = TJobPreference & {
   titles?: ({ role?: { name?: string | null } | null } | undefined)[];
 };
 
-const MAX_JOBS_PER_USER = 200;
+type TUserJob = TJob & { track: TTrackedJob };
+
+const MAX_TRACKED_JOBS = 200;
 
 const JOB_TITLE_SEPARATOR = " - ";
+
+const JOB_DISCOVERY_FILTER: TColumnFilter<"jobs"> = {
+  state: "ok",
+  userId: null,
+  closedAt: null,
+};
 
 const composeJobTitle = (
   companyName?: string | null,
@@ -63,15 +77,6 @@ const composeJobTitle = (
 ): string | undefined =>
   [companyName, roleName].filter(Boolean).join(JOB_TITLE_SEPARATOR) ||
   undefined;
-
-const DATE_TYPE_COLUMN: Record<
-  TDateFilter["type"],
-  "deadline" | "interviewDate" | "appliedAt"
-> = {
-  deadline: "deadline",
-  interview: "interviewDate",
-  applied: "appliedAt",
-};
 
 @Injectable()
 export class JobsService {
@@ -82,29 +87,54 @@ export class JobsService {
     private readonly resumeService: ResumeService,
   ) {}
 
-  public async create(dto: CreateJobDto, userId?: string): Promise<TJob> {
-    if (userId) {
-      const existing = await this.db.findAllByColumn("jobs", {
-        filter: { userId },
-      });
-      if (existing.length >= MAX_JOBS_PER_USER) {
-        throw new ConflictException(
-          `You can only have up to ${MAX_JOBS_PER_USER} jobs`,
-        );
-      }
-    }
+  /** Private job creation: the job and its first track are owned by the actor. */
+  public async create(
+    dto: CreateJobDto,
+    userId: string = LOCAL_USER_ID,
+  ): Promise<TJobPopulated> {
+    await this._assertTrackedJobCapacity(userId);
+    const {
+      topicIds,
+      status,
+      isFavorite,
+      notes,
+      appliedAt,
+      interviewDate,
+      ...jobData
+    } = dto;
 
-    const { topicIds, ...data } = dto;
-
-    return this.db.withTransaction(async (transaction) => {
-      const job = await this.db.create(
+    const job = await this.db.withTransaction(async (transaction) => {
+      const created = await this.db.create(
         "jobs",
-        { ...data, userId },
+        {
+          ...jobData,
+          provider: "manual",
+          state: "ok",
+          stateChangedAt: new Date(),
+          userId,
+        },
         transaction,
       );
-      await this._createJobTopics(job.id, transaction, topicIds);
-      return job;
+      await this.db.create(
+        "tracked_jobs",
+        {
+          userId,
+          jobId: created.id,
+          ...this._trackedJobFields({
+            status,
+            isFavorite,
+            notes,
+            appliedAt,
+            interviewDate,
+          }),
+        },
+        transaction,
+      );
+      await this._createJobTopics(created.id, transaction, topicIds);
+      return created;
     });
+
+    return this.findOne(job.id, userId);
   }
 
   public async extractJob(
@@ -112,6 +142,7 @@ export class JobsService {
     userId?: string,
   ): Promise<TJobExtractionResult> {
     const extracted = await this.genAiService.extractJob(dto, userId);
+    const url = extracted.url ? normalizeJobUrl(extracted.url) : undefined;
 
     const roleId = await this.lookupsService.resolveOrCreateName(
       "roles",
@@ -121,9 +152,25 @@ export class JobsService {
     return {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
       ...extracted,
+      url,
       title: composeJobTitle(extracted.companyName, extracted.roleName),
       roleId,
     };
+  }
+
+  /** Paste-match lookup: open system jobs whose normalized URL matches. */
+  public async findFromUrl(url: string): Promise<TJob[]> {
+    const normalized = normalizeJobUrl(url);
+    if (!normalized) {
+      throw new BadRequestException("Invalid job URL");
+    }
+
+    return this.db.findAllByColumn("jobs", {
+      filter: {
+        ...JOB_DISCOVERY_FILTER,
+        url: normalized,
+      },
+    });
   }
 
   public generateCoverLetter(
@@ -183,7 +230,7 @@ export class JobsService {
     const profileId = userId ?? "";
 
     const job = await this.db.findById("jobs", id, {
-      filter: { ...(userId ? { userId } : {}) },
+      filter: { ...(userId ? { userId: [null, userId] } : {}) },
     });
 
     const [preferences] = (await this.db.findAllByColumn("job_preference", {
@@ -207,7 +254,7 @@ export class JobsService {
         : "",
       `<job_title>\n${job.title}\n</job_title>`,
       `<company_name>\n${job.companyName}\n</company_name>`,
-      `<job_description>\n${job.description}\n</job_description>`,
+      `<job_description>\n${job.description ?? ""}\n</job_description>`,
       this._formatPreferences(preferences),
       `<candidate_resume>\n${resume}\n</candidate_resume>`,
     ].filter(Boolean);
@@ -253,8 +300,9 @@ export class JobsService {
       : "";
   }
 
+  /** My jobs: at most MAX_TRACKED_JOBS rows, filtered/sorted/paged in memory. */
   public async findAll({
-    userId,
+    userId = LOCAL_USER_ID,
     query,
     pagination,
     sort,
@@ -263,93 +311,204 @@ export class JobsService {
     query?: TJobsQuery;
     pagination?: TPagination;
     sort?: TSortEntry[];
+  }): Promise<TJobPopulated[]> {
+    const rows = (await this.db.findAllByColumn("tracked_jobs", {
+      filter: { userId },
+      relation: { job: true },
+    })) as unknown as TTrackedJobWithJob[];
+
+    const items: TUserJob[] = rows.flatMap(({ job, ...trackedJob }) =>
+      job ? [{ ...job, track: trackedJob }] : [],
+    );
+
+    return this._filterSortPage(items, query, pagination, sort);
+  }
+
+  public async discover({
+    query,
+    pagination,
+    sort,
+    companyId,
+  }: {
+    query?: TJobsQuery;
+    pagination?: TPagination;
+    sort?: TSortEntry[];
+    companyId?: number;
   }): Promise<TJob[]> {
-    const { search, status, dateFilter: dateFilters } = query ?? {};
+    // App mode has no crawler and no system jobs; discovery stays empty until app clients get a real identity (magic-link auth).
+    if (process.env.IS_APP_MODE) {
+      return [];
+    }
 
-    const sortBy = [
-      ...(sort?.length
-        ? sort
-        : [{ column: "isFavorite", order: "desc" as const }]),
-      // trailing tiebreaker for stable pagination; a client-requested
-      // `createdAt` sort stays first and wins, mirroring prep-session.findAll
-      { column: "createdAt", order: "desc" as const },
-    ] as TSortBy<"jobs">[];
+    const { search } = query ?? {};
+    const filter: TColumnFilter<"jobs"> = companyId
+      ? { ...JOB_DISCOVERY_FILTER, companyId }
+      : JOB_DISCOVERY_FILTER;
 
-    const dateRanges: TDateRangeOption<"jobs">[] = dateFilters
-      ? dateFilters.map(({ type, from, to }) => ({
-          column: DATE_TYPE_COLUMN[type],
-          range: { from, to },
-        }))
-      : [];
-    const filter = {
-      ...(userId ? { userId } : {}),
-      ...(status ? { status } : {}),
-    };
+    const sortBy = (
+      sort?.length ? sort : [{ column: "createdAt", order: "desc" as const }]
+    ) as TSortBy<"jobs">[];
 
     if (search) {
-      // TODO: combined search + dateFilter breaks pagination, low priority for now as we are not using pagination in FE yet
-      //  Fix: add an optional `search` option to findAllByColumn and fold FTS/LIKE into a single query with sortBy + dateRanges + pagination;
       const result = await this.db.search(
         "jobs",
         ["title", "description"],
         search,
         { filter, pagination },
       );
-
-      if (dateRanges.length === 0) {
-        return result.data;
-      }
-
-      const allJobs = await this.db.findAllByColumn("jobs", {
-        filter,
-        sortBy,
-        dateRanges,
-      });
-
-      const searchIds = new Set(result.data.map((j: TJob) => j.id));
-      return allJobs.filter((j: TJob) => searchIds.has(j.id));
+      return result.data;
     }
 
     return this.db.findAllByColumn("jobs", {
       filter,
       sortBy,
       pagination,
-      ...(dateRanges.length > 0 && { dateRanges }),
     });
   }
 
   public async findOne(
     id: string,
-    userId?: string,
+    userId: string = LOCAL_USER_ID,
     populate = true,
-  ): Promise<TJobWithTopicIds> {
+  ): Promise<TJobPopulated> {
     const job = (await this.db.findById("jobs", id, {
-      filter: { ...(userId ? { userId } : {}) },
       relation: populate ? { jobTopics: true } : undefined,
     })) as TJobWithTopics;
+
+    const trackedJobs = await this.db.findAllByColumn("tracked_jobs", {
+      filter: { userId, jobId: id },
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const topicIds = (job.jobTopics ?? []).map((jt) => jt.topicId);
 
+    if (job.userId && job.userId !== userId) {
+      throw new NotFoundException("Job not found");
+    }
+
+    const { jobTopics: _jobTopics, ...rest } = job;
+
     return {
-      ...job,
+      ...rest,
       topicIds,
+      track: trackedJobs.length === 1 ? trackedJobs[0] : null,
     };
+  }
+
+  public async trackJob(
+    jobId: string,
+    userId: string = LOCAL_USER_ID,
+  ): Promise<TJobPopulated> {
+    const job = await this.findOne(jobId, userId);
+
+    if (job.track) {
+      return job;
+    }
+
+    if (job.userId) {
+      throw new BadRequestException("Only system jobs can be tracked");
+    }
+    if (job.state !== "ok" || job.closedAt) {
+      throw new BadRequestException("This job is closed");
+    }
+
+    await this._assertTrackedJobCapacity(userId);
+    await this.db.create("tracked_jobs", { userId, jobId });
+    return this.findOne(jobId, userId);
+  }
+
+  public async updateTrackedJob(
+    jobId: string,
+    dto: UpdateTrackedJobDto,
+    userId: string = LOCAL_USER_ID,
+  ): Promise<TJobPopulated> {
+    const job = await this.findOne(jobId, userId);
+    const trackedJob = job.track;
+    if (!trackedJob) {
+      throw new NotFoundException("Tracked job not found");
+    }
+
+    if (
+      !deadlineBeforeInterview({
+        deadline: job.deadline,
+        interviewDate: dto.interviewDate ?? trackedJob.interviewDate,
+      })
+    ) {
+      throw new BadRequestException(
+        "Deadline must be before the interview date",
+      );
+    }
+
+    const data = this._trackedJobFields(dto);
+    if (Object.keys(data).length > 0) {
+      await this.db.update("tracked_jobs", data, {
+        id: trackedJob.id,
+        userId,
+      });
+    }
+
+    return this.findOne(jobId, userId);
+  }
+
+  /** Removes the job from the caller's list; private jobs are deleted with it. */
+  public async delete(
+    id: string,
+    userId: string = LOCAL_USER_ID,
+    force = false,
+  ): Promise<void> {
+    const job = await this.findOne(id, userId);
+    const trackedJob = job.track;
+
+    if (!trackedJob && !job.userId) {
+      throw new NotFoundException("Tracked job not found");
+    }
+
+    if (trackedJob) {
+      const sessions = await this.db.findAllByColumn("prep_session", {
+        filter: { jobId: job.id, userId },
+      });
+      if (sessions.length > 0 && !force) {
+        throw new ConflictException("This job has associated prep sessions");
+      }
+    }
+
+    await this.db.withTransaction(async (transaction) => {
+      if (trackedJob) {
+        await this.db.delete(
+          "tracked_jobs",
+          { id: trackedJob.id, userId },
+          false,
+          transaction,
+        );
+      }
+      if (job.userId) {
+        await this.db.delete(
+          "jobs",
+          { id: job.id, userId },
+          false,
+          transaction,
+        );
+      }
+    });
   }
 
   public async update(
     id: string,
     dto: UpdateJobDto,
-    userId?: string,
-  ): Promise<TJob> {
-    const { topicIds, ...data } = dto;
-
+    userId: string = LOCAL_USER_ID,
+  ): Promise<TJobPopulated> {
     const existing = await this.findOne(id, userId);
+
+    if (!existing.userId) {
+      throw new BadRequestException("System jobs are read-only");
+    }
+
+    const { topicIds, ...data } = dto;
 
     if (
       !deadlineBeforeInterview({
         deadline: data.deadline ?? existing.deadline,
-        interviewDate: data.interviewDate ?? existing.interviewDate,
+        interviewDate: existing.track?.interviewDate,
       })
     ) {
       throw new BadRequestException(
@@ -359,12 +518,7 @@ export class JobsService {
 
     await this.db.withTransaction(async (transaction) => {
       if (Object.keys(data).length > 0) {
-        await this.db.update(
-          "jobs",
-          data,
-          userId ? { id, userId } : { id },
-          transaction,
-        );
+        await this.db.update("jobs", data, { id, userId }, transaction);
       }
       await this._createJobTopics(id, transaction, topicIds);
     });
@@ -372,11 +526,105 @@ export class JobsService {
     return this.findOne(id, userId);
   }
 
-  public async delete(id: string, userId?: string): Promise<void> {
-    return this.db.delete("jobs", {
-      id,
-      ...(userId ? { userId } : {}),
+  private async _assertTrackedJobCapacity(userId: string): Promise<void> {
+    const count = await this.db.count("tracked_jobs", { userId });
+    if (count >= MAX_TRACKED_JOBS) {
+      throw new ConflictException(
+        `You can only track up to ${MAX_TRACKED_JOBS} jobs`,
+      );
+    }
+  }
+
+  private _trackedJobFields(
+    dto: TTrackedJobFields,
+  ): Partial<TTrackedJobFields> {
+    const { status, isFavorite, notes, appliedAt, interviewDate } = dto;
+    return {
+      ...(status !== undefined && { status }),
+      ...(isFavorite !== undefined && { isFavorite }),
+      ...(notes !== undefined && { notes }),
+      ...(appliedAt !== undefined && { appliedAt }),
+      ...(interviewDate !== undefined && { interviewDate }),
+    };
+  }
+
+  private _filterSortPage(
+    items: TUserJob[],
+    query?: TJobsQuery,
+    pagination?: TPagination,
+    sort?: TSortEntry[],
+  ): TUserJob[] {
+    const { search } = query ?? {};
+    let result = items;
+
+    if (search) {
+      const needle = search.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.title.toLowerCase().includes(needle) ||
+          (item.description?.toLowerCase().includes(needle) ?? false),
+      );
+    }
+
+    const sortEntries: TSortEntry[] = sort?.length
+      ? sort
+      : [
+          { column: "isFavorite", order: "desc" },
+          { column: "createdAt", order: "desc" },
+        ];
+
+    result = [...result].sort((a, b) => {
+      for (const { column, order = "asc" } of sortEntries) {
+        const av = this._sortValue(a, column);
+        const bv = this._sortValue(b, column);
+        const aMissing = av === null || av === undefined;
+        const bMissing = bv === null || bv === undefined;
+        // missing values sort last in both directions, so "appliedAt:desc" leads with real applications instead of nulls
+        if (aMissing || bMissing) {
+          if (aMissing && bMissing) continue;
+          return aMissing ? 1 : -1;
+        }
+        const comparison = this._compare(av, bv);
+        if (comparison !== 0) {
+          return order === "desc" ? -comparison : comparison;
+        }
+      }
+      return 0;
     });
+
+    if (pagination) {
+      result = result.slice(
+        pagination.offset,
+        pagination.offset + pagination.limit,
+      );
+    }
+
+    return result;
+  }
+
+  private _sortValue(item: TUserJob, column: string): unknown {
+    if (column in item) {
+      return (item as unknown as Record<string, unknown>)[column];
+    }
+    return (item.track as unknown as Record<string, unknown>)[column];
+  }
+
+  private _compare(a: unknown, b: unknown): number {
+    if (a === null || a === undefined) {
+      return b === null || b === undefined ? 0 : 1;
+    }
+    if (b === null || b === undefined) return -1;
+    if (a instanceof Date && b instanceof Date) {
+      return a.getTime() - b.getTime();
+    }
+    if (typeof a === "number" && typeof b === "number") return a - b;
+    if (typeof a === "boolean" && typeof b === "boolean") {
+      return Number(a) - Number(b);
+    }
+    if (typeof a === "string" && typeof b === "string") {
+      return a.localeCompare(b);
+    }
+    return 0;
   }
 
   private async _createJobTopics(

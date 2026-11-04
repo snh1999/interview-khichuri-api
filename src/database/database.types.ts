@@ -35,6 +35,7 @@ import type {
   roles,
   api_key,
   topics,
+  tracked_jobs,
   user_default_prompts,
   work_experience,
   work_industries,
@@ -59,6 +60,10 @@ export type TJob = InferSelectModel<typeof jobs>;
 export type TJobInsert = InferInsertModel<typeof jobs>;
 export type TJobWithCompany = TJob & { company?: TCompany };
 
+export type TTrackedJob = InferSelectModel<typeof tracked_jobs>;
+export type TTrackedJobInsert = InferInsertModel<typeof tracked_jobs>;
+export type TTrackedJobWithJob = TTrackedJob & { job?: TJob };
+
 export type TRole = InferSelectModel<typeof roles>;
 export type TRoleInsert = InferInsertModel<typeof roles>;
 
@@ -72,7 +77,6 @@ export type TQuestionInsert = InferInsertModel<typeof questions>;
 
 export type TNote = InferSelectModel<typeof notes>;
 export type TNoteInsert = InferInsertModel<typeof notes>;
-export type TNoteWithJobTitle = TNote & { jobTitle?: string };
 
 export type TInterview = InferSelectModel<typeof interviews>;
 export type TInterviewInsert = InferInsertModel<typeof interviews>;

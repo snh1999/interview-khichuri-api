@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -43,6 +43,12 @@ export class CompanyService {
   }
 
   public async delete(id: number): Promise<void> {
+    const systemJobs = await this.db.findAllByColumn("jobs", {
+      filter: { companyId: id, userId: null },
+    });
+    if (systemJobs.length > 0) {
+      throw new BadRequestException("Cannot delete company with system jobs");
+    }
     await this.db.delete("companies", { id });
   }
 }
