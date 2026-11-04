@@ -18,6 +18,7 @@ import {
   LINKEDIN_DM_DEFAULT_SHAPE,
   OUTREACH_EMAIL_DEFAULT_SHAPE,
   TEMPLATE_MODE_RULES,
+  sanitizeForTag,
 } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { normalizeName } from "@/src/lookups/lookups.helpers";
@@ -261,13 +262,16 @@ export class JobsService {
 
     const contextParts = [
       template
-        ? `<template_${templateTag}>\n${template}\n</template_${templateTag}>`
+        ? `<template_${templateTag}>\n${sanitizeForTag(template, `template_${templateTag}`)}\n</template_${templateTag}>`
         : "",
-      `<job_title>\n${job.title}\n</job_title>`,
-      `<company_name>\n${job.companyName}\n</company_name>`,
-      `<job_description>\n${job.description ?? ""}\n</job_description>`,
+      `<job_title>\n${sanitizeForTag(job.title, "job_title")}\n</job_title>`,
+      `<company_name>\n${sanitizeForTag(job.companyName, "company_name")}\n</company_name>`,
+      `<job_description>\n${sanitizeForTag(
+        job.description ?? "",
+        "job_description",
+      )}\n</job_description>`,
       this._formatPreferences(preferences),
-      `<candidate_resume>\n${resume}\n</candidate_resume>`,
+      `<candidate_resume>\n${sanitizeForTag(resume, "candidate_resume")}\n</candidate_resume>`,
     ].filter(Boolean);
 
     const modeRules = template ? TEMPLATE_MODE_RULES : defaultShape;
@@ -347,7 +351,7 @@ export class JobsService {
     sort?: TSortEntry[];
     companyId?: number;
   }): Promise<TJob[]> {
-    // App mode has no crawler and no system jobs; discovery stays empty until app clients get a real identity (magic-link auth).
+    // App mode has no crawler/system jobs setup; discovery stays empty until app clients get a real identity (magic-link auth).
     if (process.env.IS_APP_MODE) {
       return [];
     }
