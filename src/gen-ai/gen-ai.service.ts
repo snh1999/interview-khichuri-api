@@ -12,7 +12,6 @@ import {
   TPrepSessionWithQuestions,
   TTopics,
 } from "@/src/database/database.types";
-import { toAiOutputException } from "@/src/gen-ai/ai-output-error";
 import { ApiKeyService } from "@/src/gen-ai/api-key/api-key.service";
 import { pcm16ToWav } from "@/src/gen-ai/dto/synthesize-speech.dto";
 import {
@@ -37,12 +36,8 @@ import {
   TAiCommon,
   sanitizeForTag,
 } from "@/src/gen-ai/gen-ai.constants";
-import {
-  describeProviderError,
-  toAiHttpException,
-  toAiTimeoutException,
-  toQuotaExceededHttpException,
-} from "@/src/gen-ai/gen-ai.errors";
+import { toQuotaExceededHttpException } from "@/src/gen-ai/gen-ai.errors";
+import { mapAiError, MapAiErrors } from "@/src/gen-ai/map-ai-errors";
 import { safeProviderFetch } from "@/src/gen-ai/provider-url";
 import {
   ExtractedJob,
@@ -150,13 +145,12 @@ export class GenAiService {
     modelName: string,
     operation: string,
   ): unknown {
-    return (
-      toQuotaExceededHttpException(err, provider) ??
-      toAiTimeoutException(err) ??
-      toAiOutputException(err, operation, this.logger) ??
-      toAiHttpException(err, provider, modelName) ??
-      err
-    );
+    return mapAiError(err, {
+      provider,
+      model: modelName,
+      operation,
+      logger: this.logger,
+    });
   }
 
   private async *withMappedErrors<T>(
@@ -182,10 +176,10 @@ export class GenAiService {
     }
   }
 
+  @MapAiErrors()
   async generateStructured<T>({
     prompt: basePrompt,
     schema,
-    operation = "this request",
     userId,
     provider,
     model,
@@ -205,132 +199,89 @@ export class GenAiService {
           model,
         );
 
-        try {
-          const shape =
-            config.sdk === "google" ? jsonSchemaSkeleton(schema) : null;
-          // The prompt is part of the key because a 400 can come from the prompt
-          // rather than the schema, and one bad prompt must not disable
-          // structured output for every other prompt using this schema.
-          const cacheKey =
-            shape === null
-              ? null
-              : `${modelName}:${createHash("sha256")
-                  .update(`${shape}\n\n${prompt}`)
-                  .digest("hex")}`;
-          const sendSchema =
-            cacheKey === null || !this.rejectedSchemas.has(cacheKey);
+        const shape =
+          config.sdk === "google" ? jsonSchemaSkeleton(schema) : null;
+        // The prompt is part of the key because a 400 can come from the prompt
+        // rather than the schema, and one bad prompt must not disable
+        // structured output for every other prompt using this schema.
+        const cacheKey =
+          shape === null
+            ? null
+            : `${modelName}:${createHash("sha256")
+                .update(`${shape}\n\n${prompt}`)
+                .digest("hex")}`;
+        const sendSchema =
+          cacheKey === null || !this.rejectedSchemas.has(cacheKey);
 
-          const run = (withSchema: boolean) =>
-            generateText({
-              model: providerInstance(modelName),
-              output: Output.object({
-                // Gemini ignores keywords outside its JSON Schema subset
-                // (maxLength, pattern, ...), so the schema is sent as-is and the
-                // validate hook still enforces it client-side. Silent calls let
-                // size-only violations through because the result is never saved.
-                schema: silent
-                  ? toLenientSchema(schema)
-                  : config.sdk === "google"
-                    ? toResponseSchema(schema)
-                    : schema,
-              }),
-              prompt:
-                withSchema || shape === null
-                  ? prompt
-                  : withJsonShape(prompt, shape),
-              maxOutputTokens: maxOutputTokens ?? MAX_OUTPUT_TOKENS_DEFAULT,
-              maxRetries: PROVIDER_MAX_RETRIES,
-              abortSignal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
-              // Tells @ai-sdk/google to send `responseMimeType: application/json`
-              // without `responseJsonSchema`. The Zod schema still validates the
-              // response, so the parsed result stays type-safe.
-              ...(withSchema
-                ? {}
-                : {
-                    providerOptions: { google: { structuredOutputs: false } },
-                  }),
-            });
-
-          try {
-            const result = await run(sendSchema);
-            return result.output;
-          } catch (err) {
-            if (!sendSchema || cacheKey === null || !isBadRequest(err)) {
-              throw err;
-            }
-            // Same prompt, same schema, no schema this time. If that succeeds the
-            // schema was the cause, so remember it -- but only then, and only for
-            // this prompt. Recording it up front would let a 400 that had nothing
-            // to do with the schema disable it for the rest of the process.
-            try {
-              const result = await run(false);
-              this.rejectedSchemas.set(cacheKey, Date.now());
-              if (this.rejectedSchemas.size > this.rejectedSchemasMaxSize) {
-                const firstKey = this.rejectedSchemas.keys().next().value;
-                if (firstKey !== undefined) {
-                  this.rejectedSchemas.delete(firstKey);
-                }
-              }
-              this.logger.warn(
-                "Gemini rejected the response schema; retrying without it",
-                {
-                  model: modelName,
-                  promptLength: prompt.length,
-                  reason: err instanceof Error ? err.message : String(err),
-                },
-              );
-              return result.output;
-            } catch (fallbackErr) {
-              const originalMsg =
-                err instanceof Error ? err.message : String(err);
-              this.logger.warn("Schema fallback failed", {
-                model: modelName,
-                originalError: originalMsg,
-              });
-              throw fallbackErr;
-            }
-          }
-        } catch (err) {
-          const details = describeProviderError(err);
-          const quotaException = toQuotaExceededHttpException(err, provider);
-          if (quotaException) {
-            this.logger.warn("AI provider quota or rate limit exceeded", {
-              provider,
-              model: modelName,
-              ...details,
-            });
-            throw quotaException;
-          }
-          const timeoutException = toAiTimeoutException(err);
-          if (timeoutException) {
-            throw timeoutException;
-          }
-          const outputException = toAiOutputException(
-            err,
-            operation,
-            this.logger,
-          );
-          if (outputException) {
-            throw outputException;
-          }
-          const aiException = toAiHttpException(err, provider, modelName);
-          if (aiException) {
-            this.logger.warn("AI provider request failed", {
-              provider,
-              model: modelName,
-              ...details,
-            });
-            throw aiException;
-          }
-          this.logger.error("AI request failed", {
-            operation,
-            errorName: err instanceof Error ? err.name : typeof err,
+        const run = (withSchema: boolean) =>
+          generateText({
+            model: providerInstance(modelName),
+            output: Output.object({
+              // Gemini ignores keywords outside its JSON Schema subset
+              // (maxLength, pattern, ...), so the schema is sent as-is and the
+              // validate hook still enforces it client-side. Silent calls let
+              // size-only violations through because the result is never saved.
+              schema: silent
+                ? toLenientSchema(schema)
+                : config.sdk === "google"
+                  ? toResponseSchema(schema)
+                  : schema,
+            }),
+            prompt:
+              withSchema || shape === null
+                ? prompt
+                : withJsonShape(prompt, shape),
+            maxOutputTokens: maxOutputTokens ?? MAX_OUTPUT_TOKENS_DEFAULT,
+            maxRetries: PROVIDER_MAX_RETRIES,
+            abortSignal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
+            // Tells @ai-sdk/google to send `responseMimeType: application/json`
+            // without `responseJsonSchema`. The Zod schema still validates the
+            // response, so the parsed result stays type-safe.
+            ...(withSchema
+              ? {}
+              : {
+                  providerOptions: { google: { structuredOutputs: false } },
+                }),
           });
-          throw new BadRequestException(
-            `The AI ${
-              operation === "this request" ? "" : `${operation} `
-            }request failed. Please try again.`,
-          );
+
+        try {
+          const result = await run(sendSchema);
+          return result.output;
+        } catch (err) {
+          if (!sendSchema || cacheKey === null || !isBadRequest(err)) {
+            throw err;
+          }
+          // Same prompt, same schema, no schema this time. If that succeeds the
+          // schema was the cause, so remember it -- but only then, and only for
+          // this prompt. Recording it up front would let a 400 that had nothing
+          // to do with the schema disable it for the rest of the process.
+          try {
+            const result = await run(false);
+            this.rejectedSchemas.set(cacheKey, Date.now());
+            if (this.rejectedSchemas.size > this.rejectedSchemasMaxSize) {
+              const firstKey = this.rejectedSchemas.keys().next().value;
+              if (firstKey !== undefined) {
+                this.rejectedSchemas.delete(firstKey);
+              }
+            }
+            this.logger.warn(
+              "Gemini rejected the response schema; retrying without it",
+              {
+                model: modelName,
+                promptLength: prompt.length,
+                reason: err instanceof Error ? err.message : String(err),
+              },
+            );
+            return result.output;
+          } catch (fallbackErr) {
+            const originalMsg =
+              err instanceof Error ? err.message : String(err);
+            this.logger.warn("Schema fallback failed", {
+              model: modelName,
+              originalError: originalMsg,
+            });
+            throw fallbackErr;
+          }
         }
       },
       userId,

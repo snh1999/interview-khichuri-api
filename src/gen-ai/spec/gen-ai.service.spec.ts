@@ -605,14 +605,13 @@ describe("GenAiService", () => {
       );
     });
 
-    it("wraps any other failure in a user-facing BadRequestException", async () => {
-      vi.mocked(generateText).mockRejectedValue(new Error("network down"));
+    it("rethrows unknown failures instead of disguising them", async () => {
+      const error = new Error("network down");
+      vi.mocked(generateText).mockRejectedValue(error);
 
       await expect(
         service.extractResume("resume", { provider: "google" }),
-      ).rejects.toThrow(
-        "The AI resume extraction request failed. Please try again.",
-      );
+      ).rejects.toBe(error);
     });
   });
 
