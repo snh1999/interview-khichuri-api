@@ -14,6 +14,7 @@ import { DatabaseExceptionFilter } from "./config/filters/database-exception.fil
 import { ResponseTransformInterceptor } from "./config/interceptors/response.interceptor";
 import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
 import { basicSchema, envSchema } from "./config/utils/env.schema";
+import { CrawlModule } from "./crawl/crawl.module";
 import { DatabaseModule } from "./database/database.module";
 import { EmailModule } from "./email/email.module";
 import { GenAiModule } from "./gen-ai/gen-ai.module";
@@ -56,6 +57,7 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     NotesModule,
     ProfileModule,
     CompanyModule,
+    CrawlModule,
     UtilitiesModule,
     ResumeModule,
     PortfolioModule,
