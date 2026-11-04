@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import type { Request } from "express";
 
@@ -10,6 +10,7 @@ import { UtilitiesModule } from "@/src/utilities/utilities.module";
 import { BetterAuthModule } from "./better-auth/better-auth.module";
 import { CalendarModule } from "./calendar/calendar.module";
 import { CompanyModule } from "./company/company.module";
+import { DatabaseExceptionFilter } from "./config/filters/database-exception.filter";
 import { ResponseTransformInterceptor } from "./config/interceptors/response.interceptor";
 import { CustomZodValidationPipe } from "./config/pipes/zod.pipe";
 import { basicSchema, envSchema } from "./config/utils/env.schema";
@@ -60,6 +61,10 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
     PortfolioModule,
   ],
   providers: [
+    {
+      provide: APP_FILTER,
+      useClass: DatabaseExceptionFilter,
+    },
     {
       provide: APP_PIPE,
       useClass: CustomZodValidationPipe,
