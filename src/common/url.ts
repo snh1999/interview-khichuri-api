@@ -7,8 +7,26 @@ const TRACKING_PARAMS = new Set([
 ]);
 
 /**
+ * Validates and normalizes any URL the app stores and later renders.
+ * Only absolute HTTPS URLs are accepted; relative, credential-bearing and non-HTTPS URLs are rejected.
+ */
+export function normalizeToHttpsUrl(raw: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw.trim());
+  } catch {
+    return undefined;
+  }
+
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+    return undefined;
+  }
+  return parsed.toString();
+}
+
+/**
  * Normalizes a job posting URL for identity matching.
- * Returns undefined for anything that is not a plain http(s) URL.
+ * Returns undefined for anything that is not a plain HTTPS URL.
  */
 export function normalizeJobUrl(raw: string): string | undefined {
   let parsed: URL;
@@ -18,7 +36,7 @@ export function normalizeJobUrl(raw: string): string | undefined {
     return undefined;
   }
 
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (parsed.protocol !== "https:") {
     return undefined;
   }
 

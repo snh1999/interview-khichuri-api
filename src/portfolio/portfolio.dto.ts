@@ -4,6 +4,7 @@ import {
   DEFAULT_MAX_STRING_LENGTH,
   MID_LENGTH,
   SHORT_LENGTH,
+  untrimmedStr,
   str,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
@@ -53,17 +54,21 @@ export const designContentSchema = z.object({
     .record(z.string(), z.string())
     .refine((files) => Object.keys(files).length <= 20, {
       message: "At most 20 files per design",
-    }),
+    })
+    .describe("At most 20 files; keys are paths and values are file source."),
 });
 
 // What the model produces for a builder turn: a minimal list of file edits instead of whole rewritten files.
 // The service applies them to the files the client sent and returns the resulting project.
 export const fileOpSchema = z.object({
   op: z.enum(["create", "update", "delete"]),
-  path: z.string().min(1).max(200),
-  content: z.string().max(100_000).nullish(),
-  search: z.string().max(100_000).nullish(),
-  replace: z.string().max(100_000).nullish(),
+  path: str(200, "File path (non-empty).").min(1),
+  content: untrimmedStr(100_000, "Full file contents.").nullish(),
+  search: untrimmedStr(
+    100_000,
+    "Exact snippet to find, copied verbatim.",
+  ).nullish(),
+  replace: untrimmedStr(100_000, "Replacement snippet.").nullish(),
 });
 
 export type TFileOp = z.infer<typeof fileOpSchema>;
@@ -99,24 +104,27 @@ export type TBuilderResult = z.infer<typeof builderResultSchema>;
 // Genesis flow: the model first returns a plan of the files to create
 // each file's code is generated one at a time (bounded concurrency), streamed to the client as it completes.
 export const filePlanEntrySchema = z.object({
-  path: z.string().min(1).max(200),
-  description: z.string().max(MID_LENGTH),
-  exports: z.array(z.string().max(SHORT_LENGTH)).max(20).optional(),
-  imports: z.array(z.string().max(SHORT_LENGTH)).max(20).optional(),
+  path: str(200, "File path (non-empty).").min(1),
+  description: str(MID_LENGTH, "What the file contains."),
+  exports: z.array(str(SHORT_LENGTH, "Exported name.")).max(20).optional(),
+  imports: z
+    .array(str(SHORT_LENGTH, "Imported module or name."))
+    .max(20)
+    .optional(),
 });
 
 export type TFilePlanEntry = z.infer<typeof filePlanEntrySchema>;
 
 export const filePlanSchema = z.object({
   files: z.array(filePlanEntrySchema).min(1).max(30),
-  projectName: z.string().max(MID_LENGTH),
-  projectDescription: z.string().max(DEFAULT_MAX_STRING_LENGTH),
+  projectName: str(MID_LENGTH, "Project name."),
+  projectDescription: str(DEFAULT_MAX_STRING_LENGTH, "Project description."),
 });
 
 export type TFilePlan = z.infer<typeof filePlanSchema>;
 
 export const fileCodeSchema = z.object({
-  code: z.string().max(100_000),
+  code: untrimmedStr(100_000, "Complete file source code."),
 });
 
 export const generateProjectSchema = aiCommonSchema.extend({
