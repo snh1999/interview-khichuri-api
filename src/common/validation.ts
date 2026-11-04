@@ -46,7 +46,7 @@ export const httpsUrlStr = (max = URL_LENGTH): z.ZodType<string> =>
       `Absolute HTTPS URL, e.g. https://example.com. At most ${max} characters.`,
     );
 
-/** Absolute HTTPS job-posting URL, normalized for identity matching. */
+/** Absolute HTTP(S) job-posting URL, normalized for identity matching. */
 export const jobUrlStr = (max = URL_LENGTH): z.ZodType<string> =>
   urlStr(normalizeJobUrl, max);
 
@@ -101,6 +101,15 @@ export const queryBool = (): z.ZodType<
     .optional();
 
 export const emailStr = z
+  .email()
+  .describe("Email address, e.g. name@example.com.")
+  .nullish();
+
+/**
+ * Relaxed email for AI extraction: the model may return a malformed address that
+ * the user fixes before saving. Write paths must use `emailStr`.
+ */
+export const extractedEmailStr = z
   .string()
   .describe("Email address, e.g. name@example.com.")
   .nullish();

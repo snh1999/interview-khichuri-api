@@ -7,7 +7,7 @@ import {
   TINY_LENGTH,
   str,
   dateStr,
-  emailStr,
+  extractedEmailStr,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import { aiCommonSchema } from "@/src/gen-ai/gen-ai.constants";
@@ -39,13 +39,13 @@ const projectExtractionSchema = projectSchema
 
 const referenceExtractionSchema = referenceSchema
   .omit({ id: true })
-  .extend({ email: emailStr })
+  .extend({ email: extractedEmailStr })
   .partial();
 
 const activityExtractionSchema = activitySchema.omit({ id: true }).partial();
 
 export const extractedProfileSchema = z.object({
-  personal: updateProfileSchema.partial(),
+  personal: updateProfileSchema.extend({ email: extractedEmailStr }).partial(),
   professional: workOverviewSchema
     .omit({ skills: true, industries: true })
     .extend({

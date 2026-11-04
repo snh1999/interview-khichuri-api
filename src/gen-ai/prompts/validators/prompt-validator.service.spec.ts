@@ -243,7 +243,6 @@ describe("PromptValidatorService", () => {
     // problems, and sending someone to Settings for one wastes their time.
     it("does not blame the key for failures that are not auth", async () => {
       for (const status of [
-        HttpStatus.BAD_REQUEST,
         HttpStatus.TOO_MANY_REQUESTS,
         HttpStatus.SERVICE_UNAVAILABLE,
       ]) {

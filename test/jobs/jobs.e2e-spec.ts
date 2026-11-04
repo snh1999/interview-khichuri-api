@@ -202,7 +202,9 @@ describe("Jobs (e2e)", () => {
         .send(payload)
         .expect(201);
 
-      expect(body.data.links).toBe(payload.links);
+      expect(JSON.parse(body.data.links as string)).toEqual([
+        { url: payload.links, label: null },
+      ]);
       expect(body.data.track.notes).toBe(payload.notes);
     });
 
@@ -889,7 +891,9 @@ describe("Jobs (e2e)", () => {
         .send({ notes })
         .expect(200);
 
-      expect(body.data.links).toBe(links);
+      expect(JSON.parse(body.data.links as string)).toEqual([
+        { url: links, label: null },
+      ]);
       expect(body.data.track.notes).toBe(notes);
     });
 

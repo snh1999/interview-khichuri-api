@@ -84,6 +84,13 @@ export function toAiHttpException(
     );
   }
 
+  if (status === 408) {
+    return new HttpException(
+      `The AI provider${providerLabel} timed out. Please try again.`,
+      HttpStatus.GATEWAY_TIMEOUT,
+    );
+  }
+
   if (status !== undefined && status >= 400 && status < 500) {
     return new HttpException(
       `The AI provider${providerLabel} rejected the request. Try a different model or shorten the input.`,
@@ -148,13 +155,29 @@ export function toQuotaExceededHttpException(
   return new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
 }
 
-export function toAiTimeoutException(error: unknown): HttpException | null {
-  const name =
-    typeof error === "object" && error !== null
-      ? (error as { name?: unknown }).name
-      : undefined;
+const MAX_ERROR_DEPTH = 5;
+const TIMEOUT_ERROR_NAMES = new Set(["AbortError", "TimeoutError"]);
 
-  if (name !== "AbortError" && name !== "TimeoutError") {
+function isTimeoutError(error: unknown, depth = 0): boolean {
+  if (typeof error !== "object" || error === null || depth > MAX_ERROR_DEPTH) {
+    return false;
+  }
+
+  const name = (error as { name?: unknown }).name;
+  if (typeof name === "string" && TIMEOUT_ERROR_NAMES.has(name)) {
+    return true;
+  }
+
+  if (RetryError.isInstance(error)) {
+    return error.errors.some((child) => isTimeoutError(child, depth + 1));
+  }
+
+  const cause = (error as { cause?: unknown }).cause;
+  return cause !== undefined && isTimeoutError(cause, depth + 1);
+}
+
+export function toAiTimeoutException(error: unknown): HttpException | null {
+  if (!isTimeoutError(error)) {
     return null;
   }
 

@@ -52,10 +52,22 @@ const judgeFailureReason = (error: unknown, provider: TApiKeyProvider) => {
     [HttpStatus.FORBIDDEN]: `AI validation failed — your ${provider} API key was rejected. Check it in Settings.`,
   };
 
-  return (
-    credentialProblems[error.getStatus()] ??
-    "AI validation could not be completed. Please try again."
-  );
+  const status = error.getStatus();
+  const badRequestStatus: number = HttpStatus.BAD_REQUEST;
+
+  const credentialProblem = credentialProblems[status];
+  if (credentialProblem) {
+    return credentialProblem;
+  }
+
+  // toAiHttpException maps rejected provider keys to 400 but keeps a message
+  // telling the user the key was rejected, so surface that instead of generic
+  // retry advice.
+  if (status === badRequestStatus) {
+    return error.message;
+  }
+
+  return "AI validation could not be completed. Please try again.";
 };
 
 const judgeSchema = z.object({

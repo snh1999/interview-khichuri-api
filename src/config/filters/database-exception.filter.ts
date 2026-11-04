@@ -2,6 +2,7 @@ import {
   Catch,
   HttpException,
   HttpStatus,
+  Logger,
   type ArgumentsHost,
 } from "@nestjs/common";
 import { BaseExceptionFilter, HttpAdapterHost } from "@nestjs/core";
@@ -246,11 +247,26 @@ export function toHttpException(error: unknown): HttpException | null {
 
 @Catch()
 export class DatabaseExceptionFilter extends BaseExceptionFilter {
+  private readonly logger = new Logger(DatabaseExceptionFilter.name);
+
   public constructor(applicationRef: HttpAdapterHost) {
     super(applicationRef.httpAdapter);
   }
 
   public override catch(exception: unknown, host: ArgumentsHost): void {
-    super.catch(toHttpException(exception) ?? exception, host);
+    const mapped = toHttpException(exception);
+
+    // Recognized constraint errors are converted to HttpExceptions, which
+    // BaseExceptionFilter treats as expected client errors and does not log.
+    // Log the original failure so recurring database errors stay visible.
+    if (mapped && mapped !== exception) {
+      const info = findDatabaseError(exception);
+      this.logger.error(
+        `Database error ${info?.code ?? "unknown"}${info?.message ? `: ${info.message}` : ""}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    }
+
+    super.catch(mapped ?? exception, host);
   }
 }

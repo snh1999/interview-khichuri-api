@@ -26,7 +26,7 @@ export function normalizeToHttpsUrl(raw: string): string | undefined {
 
 /**
  * Normalizes a job posting URL for identity matching.
- * Returns undefined for anything that is not a plain HTTPS URL.
+ * Returns undefined for anything that is not a plain HTTP(S) URL.
  */
 export function normalizeJobUrl(raw: string): string | undefined {
   let parsed: URL;
@@ -36,7 +36,7 @@ export function normalizeJobUrl(raw: string): string | undefined {
     return undefined;
   }
 
-  if (parsed.protocol !== "https:") {
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     return undefined;
   }
 
