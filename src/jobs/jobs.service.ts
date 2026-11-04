@@ -312,7 +312,10 @@ export class JobsService {
     ].filter(Boolean);
 
     return lines.length > 0
-      ? `<candidate_preferences>\n${lines.join("\n")}\n</candidate_preferences>`
+      ? `<candidate_preferences>\n${sanitizeForTag(
+          lines.join("\n"),
+          "candidate_preferences",
+        )}\n</candidate_preferences>`
       : "";
   }
 

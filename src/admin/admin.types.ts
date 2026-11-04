@@ -44,7 +44,7 @@ export interface IAdminUsersResponse {
 
 export interface IAdminJobsResponse {
   items: TJob[];
-  total: number;
+  total?: number;
 }
 
 export interface IAdminUserProfile {

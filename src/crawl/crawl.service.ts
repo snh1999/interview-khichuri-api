@@ -127,6 +127,8 @@ export class CrawlService {
     companyId: number,
     options: { force?: boolean; rethrow?: boolean } = {},
   ): Promise<void> {
+    // TODO: in app mode this makes the manual crawl route return HTTP 204
+    // without doing any work; report crawling as unavailable or hide the route.
     if (process.env.IS_APP_MODE) return;
     if (this.running.has(companyId)) {
       if (options.rethrow) {

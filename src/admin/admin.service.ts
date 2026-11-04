@@ -284,7 +284,7 @@ export class AdminService {
         query.q,
         { filter, pagination: page },
       );
-      return { items: result.data, total: result.total ?? result.data.length };
+      return { items: result.data, total: result.total };
     }
 
     const sortBy = (
@@ -312,6 +312,8 @@ export class AdminService {
       "jobs",
       { state: "none", stateChangedAt: new Date() },
       { userId: null, state: "failed" },
+      undefined,
+      true,
     );
     return { count: jobs.length };
   }
