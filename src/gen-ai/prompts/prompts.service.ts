@@ -5,6 +5,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { IDatabaseService } from "@/src/database/database.service";
 import {
   TPrompt,
@@ -17,6 +18,7 @@ import {
 
 import {
   CreatePromptDto,
+  FindAdminPromptsQuery,
   FindPromptsQuery,
   SetDefaultPromptDto,
   UpdatePromptDto,
@@ -73,6 +75,38 @@ export class PromptsService {
       pagination,
       sortBy: [{ column: "createdAt", order: "desc" }] as TSortBy<"prompts">[],
     });
+  }
+
+  async findAllForAdmin(
+    query: FindAdminPromptsQuery,
+    pagination?: TPagination,
+    sort?: TSortEntry[],
+  ): Promise<{ prompts: TPrompt[]; total: number }> {
+    if (query.search) {
+      // ponytail: FTS path loads all matches so every page has a total; switch
+      // to a windowed count query if the prompt table grows large.
+      const { data } = await this.db.search(
+        "prompts",
+        ["title", "prompt"],
+        query.search,
+      );
+      const start = pagination?.offset ?? 0;
+      return {
+        prompts: data.slice(start, start + (pagination?.limit ?? data.length)),
+        total: data.length,
+      };
+    }
+
+    const sortBy = (
+      sort?.length ? sort : [{ column: "createdAt", order: "desc" }]
+    ) as TSortBy<"prompts">[];
+
+    const [prompts, total] = await Promise.all([
+      this.db.findAllByColumn("prompts", { sortBy, pagination }),
+      this.db.count("prompts"),
+    ]);
+
+    return { prompts, total };
   }
 
   async findById(id: number, userId?: string): Promise<TPrompt> {

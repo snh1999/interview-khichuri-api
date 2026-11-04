@@ -60,6 +60,21 @@ const findPromptsQuerySchema = z.object({
 
 export class FindPromptsQuery extends createZodDto(findPromptsQuerySchema) {}
 
+const findAdminPromptsQuerySchema = z.object({
+  search: str(MID_LENGTH).optional(),
+});
+
+export class FindAdminPromptsQuery extends createZodDto(
+  findAdminPromptsQuerySchema,
+) {}
+
+export const ADMIN_PROMPT_SORTABLE = [
+  "title",
+  "type",
+  "createdAt",
+  "likeCount",
+] as const;
+
 const setDefaultPromptSchema = z.object({
   type: z.enum(PROMPT_TYPES),
   promptId: z.number().int().positive(),
