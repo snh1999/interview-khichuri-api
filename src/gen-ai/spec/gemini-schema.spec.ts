@@ -98,6 +98,22 @@ describe("toLenientSchema", () => {
     });
   });
 
+  it("keeps numeric bounds enforced", async () => {
+    const schema = z.object({ score: z.number().min(0).max(100) });
+
+    const { validate } = asSchema(toLenientSchema(schema));
+
+    await expect(validate?.({ score: 120 })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(validate?.({ score: -1 })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(validate?.({ score: 100 })).resolves.toMatchObject({
+      success: true,
+    });
+  });
+
   it("still rejects structural violations", async () => {
     const schema = z.object({
       title: z.string().max(5),

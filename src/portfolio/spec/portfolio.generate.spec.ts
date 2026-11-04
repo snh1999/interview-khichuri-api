@@ -1,6 +1,7 @@
 import { BadRequestException, HttpException } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import type { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import type { ProfileService } from "@/src/profile/profile.service";
 
@@ -232,7 +233,7 @@ describe("PortfolioService.generateProject", () => {
     ).toBe(true);
   });
 
-  it("retries a malformed-response error (non-quota HttpException)", async () => {
+  it("retries a retryable AiOutputException", async () => {
     let heroAttempts = 0;
     generateStructured.mockImplementation(
       ({ schema, prompt }: IStructuredCall) => {
@@ -242,8 +243,9 @@ describe("PortfolioService.generateProject", () => {
         if (prompt.includes('path="/Hero.jsx"')) {
           heroAttempts += 1;
           if (heroAttempts === 1) {
-            throw new BadRequestException(
-              "The AI returned a response that could not be parsed.",
+            throw new AiOutputException(
+              "The AI portfolio project file result was invalid. Please try again.",
+              true,
             );
           }
           return { code: "export default function Hero() { return null; }" };
@@ -258,6 +260,29 @@ describe("PortfolioService.generateProject", () => {
     expect(
       chunks.some((c) => c.type === "file-complete" && c.path === "/Hero.jsx"),
     ).toBe(true);
+  });
+
+  it("does not retry a non-retryable AiOutputException", async () => {
+    let heroAttempts = 0;
+    generateStructured.mockImplementation(
+      ({ schema, prompt }: IStructuredCall) => {
+        if (schema === filePlanSchema) {
+          return plan([{ path: "/Hero.jsx", description: "hero" }]);
+        }
+        if (prompt.includes('path="/Hero.jsx"')) {
+          heroAttempts += 1;
+          throw new AiOutputException(
+            "The AI response for portfolio project file was cut off at the output limit.",
+            false,
+          );
+        }
+        return { code: "export default function X() { return null; }" };
+      },
+    );
+
+    await collect(service.generateProject(dto, "u1"));
+
+    expect(heroAttempts).toBe(1);
   });
 
   it("includes the failure reason of a failed file in the finish message", async () => {

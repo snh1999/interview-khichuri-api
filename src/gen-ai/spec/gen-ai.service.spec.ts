@@ -12,6 +12,7 @@ import type * as Ai from "ai";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { z } from "zod";
 
+import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import { ApiKeyService } from "@/src/gen-ai/api-key/api-key.service";
 import {
   GOOGLE_TTS_DEFAULT_VOICE,
@@ -225,10 +226,15 @@ describe("GenAiService", () => {
       expect((error as HttpException).getStatus()).toBe(
         HttpStatus.SERVICE_UNAVAILABLE,
       );
-      expect((error as HttpException).message).toContain("Model is overloaded");
+      expect((error as HttpException).message).toContain(
+        "temporarily unavailable",
+      );
+      expect((error as HttpException).message).not.toContain(
+        "Model is overloaded",
+      );
     });
 
-    it("maps an unparseable response to a BadRequestException", async () => {
+    it("maps an unparseable response to a retryable AiOutputException", async () => {
       vi.mocked(generateText).mockRejectedValue(
         new NoObjectGeneratedError({
           text: "not json",
@@ -238,13 +244,18 @@ describe("GenAiService", () => {
         }),
       );
 
-      await expect(
-        service.generateStructured({
+      const error = await service
+        .generateStructured({
           prompt: "p",
           schema: stubSchema,
+          operation: "job extraction",
           provider: "google",
-        }),
-      ).rejects.toThrow(BadRequestException);
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(AiOutputException);
+      expect((error as AiOutputException).retryable).toBe(true);
+      expect((error as AiOutputException).message).toContain("job extraction");
     });
 
     // Gemini accepts only a subset of JSON Schema and answers anything outside
@@ -528,6 +539,35 @@ describe("GenAiService", () => {
       );
     });
 
+    // Resume extraction is persisted, so size-only violations must fail
+    // instead of falling back to the raw, default-less model response.
+    it("rejects size-only violations", async () => {
+      await service.extractResume("resume", { provider: "google" });
+
+      const output = vi.mocked(generateText).mock.calls[0]?.[0]?.output as {
+        parseCompleteOutput: (
+          input: { text: string },
+          context: unknown,
+        ) => Promise<unknown>;
+      };
+
+      await expect(
+        output.parseCompleteOutput(
+          {
+            text: JSON.stringify({
+              personal: { firstName: "x".repeat(100) },
+              professional: {},
+            }),
+          },
+          {
+            response: { id: "r", timestamp: new Date(), modelId: "m" },
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            finishReason: "stop",
+          },
+        ),
+      ).rejects.toThrow();
+    });
+
     it("forwards the model and userId to the structured call", async () => {
       await service.extractResume("resume", {
         provider: "google",
@@ -570,7 +610,9 @@ describe("GenAiService", () => {
 
       await expect(
         service.extractResume("resume", { provider: "google" }),
-      ).rejects.toThrow("Failed to extract resume data. Please try again.");
+      ).rejects.toThrow(
+        "The AI resume extraction request failed. Please try again.",
+      );
     });
   });
 

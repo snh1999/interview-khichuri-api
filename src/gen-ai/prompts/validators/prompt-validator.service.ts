@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 
 import { TApiKeyProvider } from "@/src/database/database.types";
+import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
 import { ValidatePromptDto } from "../dto/validate-prompt.dto";
@@ -37,6 +38,10 @@ export interface IValidationResult {
 // and a refused one (401/403) needs replacing, so the two get different advice.
 // Retrying fixes neither.
 const judgeFailureReason = (error: unknown, provider: TApiKeyProvider) => {
+  if (error instanceof AiOutputException) {
+    return error.message;
+  }
+
   if (!(error instanceof HttpException)) {
     return "AI validation could not be completed. Please try again.";
   }
@@ -140,6 +145,7 @@ export class PromptValidatorService {
       .generateStructured<TJudgeResult>({
         prompt: classifierPrompt,
         schema: judgeSchema,
+        operation: "prompt validation",
         userId,
         provider,
         model,

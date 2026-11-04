@@ -7,6 +7,7 @@ import {
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
 import { PromptValidatorService } from "./prompt-validator.service";
@@ -184,6 +185,25 @@ describe("PromptValidatorService", () => {
           "AI validation failed — your openai API key was rejected. Check it in Settings.",
         suggestion: "",
       });
+    });
+
+    it("returns the AI output error message instead of blaming the key", async () => {
+      mockGenAiService.generateStructured.mockRejectedValue(
+        new AiOutputException(
+          "The AI prompt validation result was invalid at reason. Please try again.",
+          true,
+        ),
+      );
+
+      const result = await validate({
+        prompt: VALID_PROMPT,
+        type: "resume",
+        provider: "openai",
+      });
+
+      expect(result.llmJudge?.reason).toBe(
+        "The AI prompt validation result was invalid at reason. Please try again.",
+      );
     });
 
     // ApiKeyService throws 404 when no active key is configured. Nothing was

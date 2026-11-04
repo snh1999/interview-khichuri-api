@@ -6,6 +6,7 @@ import {
 import { Test } from "@nestjs/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SHORT_LENGTH } from "@/src/common/validation";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import { LookupsService } from "@/src/lookups/lookups.service";
 import { ResumeService } from "@/src/resume/resume.service";
@@ -494,7 +495,7 @@ describe("JobsService", () => {
   });
 
   describe("extractJob", () => {
-    it("normalizes the URL and composes the title without a lookup", async () => {
+    it("normalizes the URL and composes the title", async () => {
       mockGenAiService.extractJob.mockResolvedValue({
         companyName: "Acme",
         roleName: "Engineer",
@@ -510,6 +511,42 @@ describe("JobsService", () => {
       expect(result.title).toBe("Acme - Engineer");
       expect(result).not.toHaveProperty("existingJobId");
       expect(mockDb.findAllByColumn).not.toHaveBeenCalled();
+    });
+
+    it("resolves a role name that fits the lookup limit", async () => {
+      mockGenAiService.extractJob.mockResolvedValue({
+        companyName: "Acme",
+        roleName: "Senior Engineer",
+      });
+      mockLookupsService.resolveOrCreateName.mockResolvedValue(42);
+
+      const result = await service.extractJob(
+        { description: "desc", provider: "google" },
+        "user-1",
+      );
+
+      expect(mockLookupsService.resolveOrCreateName).toHaveBeenCalledWith(
+        "roles",
+        "senior engineer",
+      );
+      expect(result.roleId).toBe(42);
+    });
+
+    it("skips role persistence when the normalized role name is too long", async () => {
+      const roleName = "x".repeat(SHORT_LENGTH + 1);
+      mockGenAiService.extractJob.mockResolvedValue({
+        companyName: "Acme",
+        roleName,
+      });
+
+      const result = await service.extractJob(
+        { description: "desc", provider: "google" },
+        "user-1",
+      );
+
+      expect(mockLookupsService.resolveOrCreateName).not.toHaveBeenCalled();
+      expect(result.roleId).toBeNull();
+      expect(result.title).toBe(`Acme - ${roleName}`);
     });
   });
 

@@ -47,7 +47,7 @@ function findProviderError(error: unknown): APICallError | null {
 
 export function toAiHttpException(
   error: unknown,
-  provider: string,
+  provider?: string | null,
   model?: string | null,
 ): HttpException | null {
   const apiError = findProviderError(error);
@@ -55,18 +55,46 @@ export function toAiHttpException(
     return null;
   }
 
-  const detail = providerErrorMessage(apiError);
-  const violations = providerErrorDetails(apiError);
+  const status = apiError.statusCode;
+  const providerLabel = provider ? ` (${provider})` : "";
   const modelLabel = model ? ` (${model})` : "";
-  const status = apiError.statusCode ?? HttpStatus.SERVICE_UNAVAILABLE;
 
-  const prefix = `AI request to "${provider}"${modelLabel} failed`;
-  const message = [
-    detail ? `${prefix}: ${detail}` : `${prefix}. Please try again later.`,
-    ...violations,
-  ].join(" | ");
+  if (status === 429) {
+    return toQuotaExceededHttpException(error, provider, model);
+  }
 
-  return new HttpException(message, status);
+  if (status === 401 || status === 403) {
+    return new HttpException(
+      `The API key for ${provider ?? "the AI provider"}${modelLabel} was rejected. Update it in Settings and try again.`,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  if (status === 404) {
+    return new HttpException(
+      `The selected AI model${modelLabel} is not available${provider ? ` for ${provider}` : ""}. Choose another model.`,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  if (status === 413) {
+    return new HttpException(
+      `The AI request is too large${provider ? ` for ${provider}` : ""}. Shorten the input and try again.`,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  if (status !== undefined && status >= 400 && status < 500) {
+    return new HttpException(
+      `The AI provider${providerLabel} rejected the request. Try a different model or shorten the input.`,
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  return new HttpException(
+    `The AI provider${providerLabel} is temporarily unavailable. Please try again later.`,
+    HttpStatus.SERVICE_UNAVAILABLE,
+  );
 }
 
 function providerErrorMessage(error?: APICallError): string | null {
@@ -105,7 +133,7 @@ export function providerErrorDetails(error?: APICallError): string[] {
 
 export function toQuotaExceededHttpException(
   error: unknown,
-  provider: string,
+  provider?: string | null,
   model?: string | null,
 ): HttpException | null {
   const quotaError = findQuotaError(error) ?? rawQuotaError(error);
@@ -113,11 +141,39 @@ export function toQuotaExceededHttpException(
     return null;
   }
 
-  const detail = providerErrorMessage(quotaError);
+  const providerLabel = provider ? ` for ${provider}` : "";
   const modelLabel = model ? ` (${model})` : "";
-  const message = `AI quota or rate limit exceeded for ${provider}${modelLabel}. ${
-    detail ? `${detail} ` : ""
-  }Please wait for the limit to reset, or check your plan and billing details, then try again.`;
+  const message = `AI quota or rate limit exceeded${providerLabel}${modelLabel}. Please wait for the limit to reset, or check your plan and billing details, then try again.`;
 
   return new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
+}
+
+export function toAiTimeoutException(error: unknown): HttpException | null {
+  const name =
+    typeof error === "object" && error !== null
+      ? (error as { name?: unknown }).name
+      : undefined;
+
+  if (name !== "AbortError" && name !== "TimeoutError") {
+    return null;
+  }
+
+  return new HttpException(
+    "The AI request timed out. Please try again.",
+    HttpStatus.GATEWAY_TIMEOUT,
+  );
+}
+
+export function describeProviderError(error: unknown): {
+  reason: string;
+  violations: string[];
+} {
+  const apiError = findProviderError(error) ?? undefined;
+
+  return {
+    reason:
+      providerErrorMessage(apiError) ??
+      (error instanceof Error ? error.message : String(error)),
+    violations: providerErrorDetails(apiError),
+  };
 }
