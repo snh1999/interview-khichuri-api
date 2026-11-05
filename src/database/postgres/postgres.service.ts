@@ -312,6 +312,7 @@ export class PostgresService implements IDatabaseService {
     data: Partial<InferInsertModel<TpgTableRegistry[K]>>,
     columns: TColumnFilter<K>,
     db: TdbPostgres = this.db,
+    silent = false,
   ): Promise<InferSelectModel<TpgTableRegistry[K]>[]> {
     const schema = postgresTableRegistry[schemaName] as TpgTableRegistry[K] &
       PgTableWithId;
@@ -324,6 +325,7 @@ export class PostgresService implements IDatabaseService {
       .returning();
 
     if (result.length === 0) {
+      if (silent) return [];
       throw new NotFoundException(`Could not update ${getTableName(schema)}`);
     }
     return result as InferSelectModel<TpgTableRegistry[K]>[];

@@ -306,6 +306,7 @@ export class SqliteService implements IDatabaseService {
     data: Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
     columns: TColumnFilter<K>,
     db: TdbSqlite = this.db,
+    silent = false,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName];
     const conditions = buildConditions(schema, columns);
@@ -318,6 +319,7 @@ export class SqliteService implements IDatabaseService {
       .all() as InferSelectModel<TsqliteTableRegistry[K]>[] | undefined;
 
     if (!result || result.length === 0) {
+      if (silent) return [];
       throw new NotFoundException(`Failed to update ${getTableName(schema)}`);
     }
     return result;

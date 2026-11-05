@@ -93,6 +93,7 @@ export abstract class IDatabaseService {
     data: Partial<TInsert<K>>,
     columns: TColumnFilter<K>,
     db?: TDatabase,
+    silent?: boolean,
   ): TReturn<TSelect<K>[]>;
 
   public abstract delete<K extends TpgTableKey>(

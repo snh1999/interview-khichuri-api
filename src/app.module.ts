@@ -7,6 +7,7 @@ import type { Request } from "express";
 import { resolveClientIp } from "@/src/common/client-ip";
 import { UtilitiesModule } from "@/src/utilities/utilities.module";
 
+import { AdminModule } from "./admin/admin.module";
 import { BetterAuthModule } from "./better-auth/better-auth.module";
 import { CalendarModule } from "./calendar/calendar.module";
 import { CompanyModule } from "./company/company.module";
@@ -17,6 +18,7 @@ import { basicSchema, envSchema } from "./config/utils/env.schema";
 import { CrawlModule } from "./crawl/crawl.module";
 import { DatabaseModule } from "./database/database.module";
 import { EmailModule } from "./email/email.module";
+import { FeedbackModule } from "./feedback/feedback.module";
 import { GenAiModule } from "./gen-ai/gen-ai.module";
 import { HealthModule } from "./health/health.module";
 import { JobsModule } from "./jobs/jobs.module";
@@ -47,7 +49,9 @@ const isApplicationMode = Boolean(process.env.IS_APP_MODE);
       getTracker: (req) => resolveClientIp(req as Request),
     }),
     DatabaseModule,
-    ...(isApplicationMode ? [] : [BetterAuthModule, EmailModule]),
+    ...(isApplicationMode
+      ? []
+      : [BetterAuthModule, EmailModule, AdminModule, FeedbackModule]),
     HealthModule,
     JobsModule,
     CalendarModule,

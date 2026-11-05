@@ -208,7 +208,9 @@ export class CrawlDrainService {
         state: "ok",
         stateChangedAt: new Date(),
       },
-      { id: jobId },
+      { id: jobId, state: "none" },
+      undefined,
+      true,
     );
   }
 
@@ -216,7 +218,9 @@ export class CrawlDrainService {
     await this.db.update(
       "jobs",
       { state: "failed", stateChangedAt: new Date() },
-      { id: jobId },
+      { id: jobId, state: "none" },
+      undefined,
+      true,
     );
   }
 }
