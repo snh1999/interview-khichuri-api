@@ -72,7 +72,7 @@ const resolvePublicHost = async (url: URL): Promise<IPinnedHost> => {
 
   let addresses: { address: string; family: number }[];
   try {
-    addresses = await lookup(hostname, { all: true, verbatim: true });
+    addresses = await lookup(hostname, { all: true, order: "verbatim" });
   } catch {
     throw new CrawlFetchError("Host could not be resolved");
   }
