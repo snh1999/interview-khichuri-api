@@ -19,6 +19,6 @@ import { GenAiService } from "./gen-ai.service";
     PromptsService,
     PromptValidatorService,
   ],
-  exports: [GenAiService],
+  exports: [GenAiService, ApiKeyService],
 })
 export class GenAiModule {}

@@ -222,7 +222,7 @@ export class SqliteService implements IDatabaseService {
     options?: TSearchOptions<K>,
   ): TSearchResult<K> {
     if (!value.trim()) return { data: [], total: 0 };
-    const { filter, pagination } = options ?? {};
+    const { filter, pagination, sortBy } = options ?? {};
     const schema = sqliteTableRegistry[schemaName];
     const schemaColumns = getTableColumns(schema);
     const tableName = getTableName(schema);
@@ -244,7 +244,16 @@ export class SqliteService implements IDatabaseService {
       ...exactConditions,
     );
 
-    const query = this.db.select().from(schema).where(whereClause);
+    const orderBy = sortBy?.map((sort) => {
+      const column = schema[sort.column as keyof typeof schema] as SQLiteColumn;
+      return sort.order === "desc" ? desc(column) : asc(column);
+    });
+
+    const query = this.db
+      .select()
+      .from(schema)
+      .where(whereClause)
+      .orderBy(...(orderBy ?? []));
 
     if (pagination) {
       query.limit(pagination.limit).offset(pagination.offset);
@@ -306,6 +315,7 @@ export class SqliteService implements IDatabaseService {
     data: Partial<InferInsertModel<TsqliteTableRegistry[K]>>,
     columns: TColumnFilter<K>,
     db: TdbSqlite = this.db,
+    silent = false,
   ): InferSelectModel<TsqliteTableRegistry[K]>[] {
     const schema = sqliteTableRegistry[schemaName];
     const conditions = buildConditions(schema, columns);
@@ -318,6 +328,7 @@ export class SqliteService implements IDatabaseService {
       .all() as InferSelectModel<TsqliteTableRegistry[K]>[] | undefined;
 
     if (!result || result.length === 0) {
+      if (silent) return [];
       throw new NotFoundException(`Failed to update ${getTableName(schema)}`);
     }
     return result;
