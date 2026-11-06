@@ -21,6 +21,9 @@ import {
   CRAWL_CADENCE_MS,
   CRAWL_FAILURE_BACKOFF_MS,
   CRAWL_TICK_MS,
+  MAX_AI_ANCHORS,
+  MAX_AI_INPUT_LENGTH,
+  MAX_AI_LISTING_JOBS,
   MAX_CRAWL_ERROR_LENGTH,
   MAX_EXTERNAL_ID_LENGTH,
   MAX_LINKS,
@@ -40,6 +43,7 @@ import { extractAnchors, htmlToText, scrapeListing } from "./crawl.scrape";
 interface ILoadedListing {
   items: TListingItem[];
   hash: string;
+  complete: boolean;
 }
 
 interface IUpsertPlan {
@@ -248,7 +252,10 @@ export class CrawlService {
     return this._toListing(items);
   }
 
-  private _toListing(rawItems: TListingItem[]): ILoadedListing {
+  private _toListing(
+    rawItems: TListingItem[],
+    complete = true,
+  ): ILoadedListing {
     // Postgres text and jsonb both reject a NUL byte, and the feed, the hash
     // and the inserts share these values: clean once, at the boundary. Identity
     // fields are re-validated here because ATS, scrape and AI all feed this.
@@ -280,7 +287,7 @@ export class CrawlService {
       );
     }
 
-    return { items, hash: hashListing(items) };
+    return { items, hash: hashListing(items), complete };
   }
 
   private async _loadScrapedListing(
@@ -301,10 +308,9 @@ export class CrawlService {
         throw new CrawlFetchError("AI unavailable");
       }
 
-      const aiItems = await this.ai.extractListing(
-        htmlToText(page.text),
-        extractAnchors(page.text, page.url, true),
-      );
+      const pageText = htmlToText(page.text);
+      const anchors = extractAnchors(page.text, page.url, true);
+      const aiItems = await this.ai.extractListing(pageText, anchors);
       if (!aiItems.ok) {
         throw new CrawlFetchError(
           aiItems.retryable
@@ -315,7 +321,11 @@ export class CrawlService {
       if (aiItems.value.length === 0) {
         throw new CrawlFetchError("No job listings found on the career page");
       }
-      return this._toListing(aiItems.value);
+      const complete =
+        pageText.length <= MAX_AI_INPUT_LENGTH &&
+        anchors.length <= MAX_AI_ANCHORS &&
+        aiItems.value.length < MAX_AI_LISTING_JOBS;
+      return this._toListing(aiItems.value, complete);
     }
 
     return this._toListing(items);
@@ -349,9 +359,13 @@ export class CrawlService {
     }
 
     const openCount = existing.filter((job) => !job.closedAt).length;
-    const misses = existing
-      .filter((job) => !job.closedAt && !matchedIds.has(job.id))
-      .map((job) => ({ id: job.id, missedCrawls: job.missedCrawls + 1 }));
+    // A capped AI listing is partial: an absent job may still be on the page,
+    // so never count a miss or close anything from an incomplete listing.
+    const misses = listing.complete
+      ? existing
+          .filter((job) => !job.closedAt && !matchedIds.has(job.id))
+          .map((job) => ({ id: job.id, missedCrawls: job.missedCrawls + 1 }))
+      : [];
     const closeCount = misses.filter(
       (miss) => miss.missedCrawls >= MISSED_CRAWLS_BEFORE_CLOSE,
     ).length;
@@ -413,7 +427,9 @@ export class CrawlService {
     const byUrl = new Map<string, TJob>();
 
     for (const job of existing) {
-      if (job.externalId) byExternalId.set(job.externalId, job);
+      if (job.externalId && job.provider === company.provider) {
+        byExternalId.set(job.externalId, job);
+      }
       if (job.url) byUrl.set(job.url, job);
     }
 
@@ -464,6 +480,7 @@ export class CrawlService {
         // row instead and keep its tracks.
         const leaving =
           collision.externalId === null ||
+          collision.provider !== company.provider ||
           !feedExternalIds.has(collision.externalId);
         if (!isScrape && !match && leaving) {
           matchedIds.add(collision.id);

@@ -172,6 +172,21 @@ describe("GenAiService", () => {
       });
     });
 
+    it("omits the output-token cap when null is passed", async () => {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      vi.mocked(createOpenAI).mockReturnValue(vi.fn() as never);
+
+      await service.generateStructured({
+        prompt: "p",
+        schema: stubSchema,
+        provider: "openai",
+        maxOutputTokens: null,
+      });
+      expect(vi.mocked(generateText).mock.calls[0]?.[0]).not.toHaveProperty(
+        "maxOutputTokens",
+      );
+    });
+
     it("returns the structured output from the provider", async () => {
       const result = await service.generateStructured({
         prompt: "p",

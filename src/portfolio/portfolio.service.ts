@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { BadRequestException, HttpException, Injectable } from "@nestjs/common";
 
 import { omitArrayKeys, omitKeys } from "@/src/common/helpers";
+import type { TApiKeyProvider } from "@/src/database/database.types";
 import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import {
   PORTFOLIO_BUILDER_PROMPT,
@@ -37,6 +38,13 @@ const ENTRY_FILE = "/App.js";
 const STYLES_FILE = "/styles.css";
 const FILE_CONCURRENCY = 5;
 const MAX_FILE_ATTEMPTS = 2;
+// Code generation needs far more output budget than the shared 8k default,
+// especially since models count reasoning tokens against the same limit.
+// Other providers have lower model-specific caps, so let them apply their own.
+const MAX_PORTFOLIO_OUTPUT_TOKENS = 32_768;
+
+const portfolioOutputTokens = (provider: TApiKeyProvider): number | null =>
+  provider === "google" ? MAX_PORTFOLIO_OUTPUT_TOKENS : null;
 
 const isPermanentFileError = (err: unknown): boolean =>
   err instanceof AiOutputException
@@ -253,6 +261,7 @@ export class PortfolioService {
       provider,
       model,
       instruction,
+      maxOutputTokens: portfolioOutputTokens(provider),
       userId,
     });
 
@@ -292,6 +301,7 @@ export class PortfolioService {
       provider,
       model,
       instruction,
+      maxOutputTokens: portfolioOutputTokens(provider),
       userId,
     });
 
@@ -343,6 +353,7 @@ export class PortfolioService {
       provider,
       model,
       instruction,
+      maxOutputTokens: portfolioOutputTokens(provider),
       userId,
     });
 
@@ -488,6 +499,7 @@ export class PortfolioService {
           provider: dto.provider,
           model: dto.model,
           instruction: dto.instruction,
+          maxOutputTokens: portfolioOutputTokens(dto.provider),
           userId,
         });
         return { code: validateAndFixCode({ [entry.path]: code })[entry.path] };

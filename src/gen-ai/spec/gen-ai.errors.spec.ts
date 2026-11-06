@@ -278,5 +278,8 @@ describe("toAiHttpException with field violations", () => {
     expect(exception?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
     expect(exception?.message).toContain("rejected the request");
     expect(exception?.message).not.toContain("contents: must not be empty");
+    expect(exception?.message).not.toContain(
+      "generationConfig.maxOutputTokens: too big",
+    );
   });
 });

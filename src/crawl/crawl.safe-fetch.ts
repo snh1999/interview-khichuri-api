@@ -15,6 +15,8 @@ import {
   MAX_REDIRECTS,
 } from "./crawl.constants";
 
+const TIMEOUT_MESSAGE = "Fetch timed out";
+
 export class CrawlFetchError extends Error {
   public constructor(message: string) {
     super(message);
@@ -87,6 +89,28 @@ const resolvePublicHost = async (url: URL): Promise<IPinnedHost> => {
   return { ip: addresses[0].address, family: addresses[0].family };
 };
 
+/** DNS lookup cannot be cancelled, so stop waiting for it at the deadline. */
+const withDeadline = async <T>(
+  work: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> => {
+  if (signal.aborted) throw new CrawlFetchError(TIMEOUT_MESSAGE);
+
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      reject(new CrawlFetchError(TIMEOUT_MESSAGE));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+
+  try {
+    return await Promise.race([work, aborted]);
+  } finally {
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
+};
+
 const pinnedAgent = ({ ip, family }: IPinnedHost): Agent =>
   new Agent({
     connect: {
@@ -122,7 +146,7 @@ const readCappedBody = async (
 
   for await (const chunk of body) {
     if (signal.aborted) {
-      throw new CrawlFetchError("Fetch timed out");
+      throw new CrawlFetchError(TIMEOUT_MESSAGE);
     }
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += buffer.length;
@@ -173,7 +197,9 @@ export const safeFetch = async (
   let url = parseHttpsUrl(rawUrl);
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const agent = pinnedAgent(await resolvePublicHost(url));
+    const agent = pinnedAgent(
+      await withDeadline(resolvePublicHost(url), deadline),
+    );
 
     try {
       const response = await request(url, {
@@ -244,7 +270,7 @@ export const safeFetch = async (
     } catch (error) {
       if (error instanceof CrawlFetchError) throw error;
       if (error instanceof Error && error.name === "TimeoutError") {
-        throw new CrawlFetchError("Fetch timed out");
+        throw new CrawlFetchError(TIMEOUT_MESSAGE);
       }
       throw new CrawlFetchError(
         error instanceof Error ? error.message : String(error),

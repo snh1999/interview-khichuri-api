@@ -66,7 +66,8 @@ interface IGenerateStructureOptions<T> {
   userId?: string;
   provider: TApiKeyProvider;
   model?: string | null;
-  maxOutputTokens?: number;
+  /** `null` omits the cap so the provider uses the model's own default. */
+  maxOutputTokens?: number | null;
   instruction?: string | null;
   /** Let size-only violations through; only for results that are never stored. */
   silent?: boolean;
@@ -231,7 +232,11 @@ export class GenAiService {
               withSchema || shape === null
                 ? prompt
                 : withJsonShape(prompt, shape),
-            maxOutputTokens: maxOutputTokens ?? MAX_OUTPUT_TOKENS_DEFAULT,
+            ...(maxOutputTokens === null
+              ? {}
+              : {
+                  maxOutputTokens: maxOutputTokens ?? MAX_OUTPUT_TOKENS_DEFAULT,
+                }),
             maxRetries: PROVIDER_MAX_RETRIES,
             abortSignal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
             // Tells @ai-sdk/google to send `responseMimeType: application/json`
