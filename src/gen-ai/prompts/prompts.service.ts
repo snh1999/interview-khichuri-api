@@ -89,6 +89,9 @@ export class PromptsService {
         "prompts",
         ["title", "prompt"],
         query.search,
+        {
+          sortBy: sort?.length ? (sort as TSortBy<"prompts">[]) : undefined,
+        },
       );
       const start = pagination?.offset ?? 0;
       return {

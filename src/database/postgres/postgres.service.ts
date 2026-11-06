@@ -253,7 +253,7 @@ export class PostgresService implements IDatabaseService {
   ): Promise<TSearchResult<K>> {
     if (!value.trim()) return { data: [], total: 0 };
 
-    const { filter, pagination } = options ?? {};
+    const { filter, pagination, sortBy } = options ?? {};
     const schema = postgresTableRegistry[schemaName];
 
     const cols = columnNames.map((colName) => {
@@ -279,12 +279,21 @@ export class PostgresService implements IDatabaseService {
       ? and(ftsWhere, ...conditions)
       : ftsWhere;
 
+    const orderBy = sortBy?.length
+      ? sortBy.map((sort) => {
+          const column = schema[
+            sort.column as keyof typeof schema
+          ] as AnyPgColumn;
+          return sort.order === "desc" ? desc(column) : asc(column);
+        })
+      : [sql`${rankExpr} DESC`];
+
     const baseQuery = this.db
       .select()
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
       .from(schema as AnyPgTable)
       .where(whereClause)
-      .orderBy(sql`${rankExpr} DESC`);
+      .orderBy(...orderBy);
 
     if (pagination) {
       baseQuery.limit(pagination.limit).offset(pagination.offset);
