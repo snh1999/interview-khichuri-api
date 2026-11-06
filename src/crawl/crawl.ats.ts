@@ -86,8 +86,10 @@ const toItem = ({
 };
 
 const parseGreenhouse = (payload: unknown): IParsedPage => {
-  const jobs = isRecord(payload) ? asArray(payload.jobs) : [];
-  const items = jobs.filter(isRecord).map((job) => {
+  if (!isRecord(payload) || !Array.isArray(payload.jobs)) {
+    throw new CrawlFetchError("ATS board returned an invalid payload");
+  }
+  const items = payload.jobs.filter(isRecord).map((job) => {
     const location = isRecord(job.location)
       ? firstString(job.location.name)
       : job.location;
@@ -132,8 +134,10 @@ const leverDescription = (job: Record<string, unknown>): string | null => {
 };
 
 const parseLever = (payload: unknown): IParsedPage => {
-  const jobs = asArray(payload);
-  const items = jobs.filter(isRecord).map((job) => {
+  if (!Array.isArray(payload)) {
+    throw new CrawlFetchError("ATS board returned an invalid payload");
+  }
+  const items = payload.filter(isRecord).map((job) => {
     const categories = isRecord(job.categories) ? job.categories : {};
 
     return toItem({
@@ -149,9 +153,11 @@ const parseLever = (payload: unknown): IParsedPage => {
 };
 
 const parseAshby = (payload: unknown): IParsedPage => {
-  const jobs = isRecord(payload) ? asArray(payload.jobs) : [];
+  if (!isRecord(payload) || !Array.isArray(payload.jobs)) {
+    throw new CrawlFetchError("ATS board returned an invalid payload");
+  }
   // `isListed: false` is a hidden posting; discovery must not show it.
-  const items = jobs
+  const items = payload.jobs
     .filter(isRecord)
     .filter((job) => job.isListed !== false)
     .map((job) => {

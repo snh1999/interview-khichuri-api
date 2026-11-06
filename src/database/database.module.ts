@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import Database from "better-sqlite3";
 import { drizzle as sqliteDrizzle } from "drizzle-orm/better-sqlite3";
 import { drizzle as pgDrizzle } from "drizzle-orm/postgres-js";
-import postgres, { Sql } from "postgres";
+import postgres from "postgres";
 
 import {
   DatabaseLifecycleService,
@@ -54,7 +54,7 @@ import { SqliteService, TdbSqlite } from "./sqlite/sqlite.service";
         if (raw instanceof Database) {
           return sqliteDrizzle({ client: raw, schema: sqliteSchema });
         }
-        return pgDrizzle({ client: raw as Sql, schema: pgSchema });
+        return pgDrizzle({ client: raw, schema: pgSchema });
       },
       inject: [RAW_DATABASE_CLIENT],
     },

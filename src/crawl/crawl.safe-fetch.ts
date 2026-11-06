@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { Readable } from "node:stream";
+import { PassThrough, Readable, pipeline } from "node:stream";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
 import { Agent, request } from "undici";
@@ -151,7 +151,13 @@ const decodeBody = (
   if (!encoding || encoding === "identity") return body;
 
   const decoder = DECODERS[encoding as keyof typeof DECODERS];
-  return Readable.from(body).pipe(decoder());
+  const output = new PassThrough();
+  // `pipeline` forwards source and decoder errors to the consumer;
+  // `pipe` alone leaves a source-stream error unhandled and can crash the process.
+  pipeline(Readable.from(body), decoder(), output, () => {
+    // Errors are delivered through `output`; this only swallows teardown.
+  });
+  return output;
 };
 
 /**

@@ -13,7 +13,8 @@ import {
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 
-export const FEEDBACK_TYPES = ["bug", "visit"] as const;
+export const FEEDBACK_TYPES = ["bug", "feedback", "visit"] as const;
+export const FEEDBACK_REPORT_TYPES = ["bug", "feedback"] as const;
 export const FEEDBACK_STATUSES = ["new", "triaged", "resolved"] as const;
 export const ADMIN_FEEDBACK_SORTABLE = [
   "createdAt",
@@ -23,6 +24,7 @@ export const ADMIN_FEEDBACK_SORTABLE = [
 ] as const;
 
 const createFeedbackSchema = z.object({
+  type: z.enum(FEEDBACK_REPORT_TYPES).default("bug"),
   message: z
     .string()
     .min(1)

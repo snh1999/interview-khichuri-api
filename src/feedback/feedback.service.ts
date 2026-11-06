@@ -18,7 +18,7 @@ import type { TPagination } from "@/src/database/database.types";
 import type { TdbPostgres } from "@/src/database/postgres/postgres.service";
 import { feedback } from "@/src/database/postgres/schemas";
 
-import type { TAdminFeedbackQuery } from "./feedback.dto";
+import { CreateFeedbackDto, TAdminFeedbackQuery } from "./feedback.dto";
 import type { IAdminFeedback, IAdminFeedbackResponse } from "./feedback.types";
 
 const DEFAULT_PAGE_LIMIT = 20;
@@ -39,15 +39,15 @@ export class FeedbackService {
     private readonly config: ConfigService,
   ) {}
 
-  public async createBugReport(
-    dto: { message: string; route: string },
+  public async createReport(
+    dto: CreateFeedbackDto,
     userId?: string,
     userAgent?: string,
   ): Promise<IAdminFeedback> {
     const [row] = await this.pg
       .insert(feedback)
       .values({
-        type: "bug",
+        type: dto.type,
         message: dto.message,
         route: dto.route,
         userAgent: userAgent ?? null,

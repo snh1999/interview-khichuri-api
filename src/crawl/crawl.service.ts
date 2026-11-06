@@ -40,7 +40,6 @@ import { extractAnchors, htmlToText, scrapeListing } from "./crawl.scrape";
 interface ILoadedListing {
   items: TListingItem[];
   hash: string;
-  hashMatched: boolean;
 }
 
 interface IUpsertPlan {
@@ -69,7 +68,15 @@ export class CrawlService {
     if (process.env.IS_APP_MODE) return;
 
     for (const company of await this._dueCompanies()) {
-      await this.crawlCompany(company.id);
+      try {
+        await this.crawlCompany(company.id);
+      } catch (error) {
+        // One company's failure must not stop the rest of the tick.
+        this.logger.warn("Crawl failed", {
+          companyId: company.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -237,18 +244,11 @@ export class CrawlService {
     }
 
     const items = await fetchAtsListing(company);
-    if (items.length === 0) {
-      throw new CrawlFetchError("ATS board returned no jobs");
-    }
 
-    return this._toListing(company, items);
+    return this._toListing(items);
   }
 
-  private _toListing(
-    company: TCompany,
-    rawItems: TListingItem[],
-    allowHashSkip = true,
-  ): ILoadedListing {
+  private _toListing(rawItems: TListingItem[]): ILoadedListing {
     // Postgres text and jsonb both reject a NUL byte, and the feed, the hash
     // and the inserts share these values: clean once, at the boundary. Identity
     // fields are re-validated here because ATS, scrape and AI all feed this.
@@ -280,13 +280,7 @@ export class CrawlService {
       );
     }
 
-    const hash = hashListing(items);
-    return {
-      items,
-      hash,
-      hashMatched:
-        allowHashSkip && company.hash === hash && Array.isArray(company.feed),
-    };
+    return { items, hash: hashListing(items) };
   }
 
   private async _loadScrapedListing(
@@ -321,10 +315,10 @@ export class CrawlService {
       if (aiItems.value.length === 0) {
         throw new CrawlFetchError("No job listings found on the career page");
       }
-      return this._toListing(company, aiItems.value, false);
+      return this._toListing(aiItems.value);
     }
 
-    return this._toListing(company, items);
+    return this._toListing(items);
   }
 
   /**
@@ -335,12 +329,8 @@ export class CrawlService {
     listing: ILoadedListing,
     force: boolean,
   ): Promise<void> {
-    // A hash match still diffs, against the stored feed: it skips the fetch and
-    // the AI, not the diff. Skipping the diff would reset `missedCrawls` and
-    // jobs could never close.
-    const items = listing.hashMatched
-      ? (company.feed as TListingItem[])
-      : listing.items;
+    // Always diff the freshly fetched items: the stored feed omits descriptions, so using it on a hash match would discard them.
+    const items = listing.items;
 
     const existing = await this.db.findAllByColumn("jobs", {
       filter: { companyId: company.id, userId: null },
@@ -484,6 +474,9 @@ export class CrawlService {
               provider: company.provider,
               title: item.title,
               location: item.location,
+              description: item.description,
+              state: item.description ? "ok" : "none",
+              stateChangedAt: now,
               missedCrawls: 0,
               closedAt: null,
             },
@@ -563,10 +556,13 @@ export class CrawlService {
       .slice(0, MAX_CRAWL_ERROR_LENGTH);
 
     this.logger.warn("Crawl failed", { companyId, message });
+    // Silent: the company may have been deleted mid-crawl, and a failed recording must not escape and abort the scheduled loop.
     await this.db.update(
       "companies",
       { crawlError: message },
       { id: companyId },
+      undefined,
+      true,
     );
   }
 }

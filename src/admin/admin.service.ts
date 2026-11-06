@@ -282,7 +282,11 @@ export class AdminService {
         "jobs",
         ["title", "companyName"],
         query.q,
-        { filter, pagination: page },
+        {
+          filter,
+          pagination: page,
+          sortBy: sort?.length ? (sort as TSortBy<"jobs">[]) : undefined,
+        },
       );
       return { items: result.data, total: result.total };
     }

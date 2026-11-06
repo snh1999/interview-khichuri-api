@@ -40,7 +40,7 @@ export class FeedbackController {
     @UserId() userId?: string,
     @Headers("user-agent") userAgent?: string,
   ): Promise<IAdminFeedback> {
-    return this.feedbackService.createBugReport(dto, userId, userAgent);
+    return this.feedbackService.createReport(dto, userId, userAgent);
   }
 }
 
