@@ -118,6 +118,7 @@ export class NotesService {
     return this.genAiService.generateStructured({
       prompt,
       schema: markdownSchema,
+      operation: "question explanation",
       userId,
       ...options,
     });
@@ -134,6 +135,7 @@ export class NotesService {
       getSource: (signal) =>
         this.genAiService.streamMarkdown({
           prompt,
+          operation: "question explanation",
           provider,
           model,
           instruction,

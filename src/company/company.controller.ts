@@ -16,6 +16,7 @@ import { Roles } from "@thallesp/nestjs-better-auth";
 import { Pagination } from "@/src/config/guards/pagination.decorator";
 import { JOB_SORTABLE, SortBy } from "@/src/config/guards/sort-by.decorator";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
+import { CrawlService } from "@/src/crawl/crawl.service";
 import type {
   TPagination,
   TCompany,
@@ -31,6 +32,7 @@ export class CompanyController {
   public constructor(
     private readonly companyService: CompanyService,
     private readonly jobsService: JobsService,
+    private readonly crawlService: CrawlService,
   ) {}
 
   @Post()
@@ -74,6 +76,19 @@ export class CompanyController {
     @Body() dto: UpdateCompanyDto,
   ): Promise<TCompany> {
     return this.companyService.update(id, dto);
+  }
+
+  @Post(":id/crawl")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles(["admin"])
+  public async crawl(
+    @Param("id", ParseIntPipe) id: number,
+    @Query("force") force?: string,
+  ): Promise<void> {
+    await this.crawlService.crawlCompany(id, {
+      force: force === "1" || force === "true",
+      rethrow: true,
+    });
   }
 
   @Delete(":id")

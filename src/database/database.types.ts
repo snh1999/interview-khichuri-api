@@ -281,4 +281,5 @@ export interface TFindByIdOptions<K extends TpgTableKey> {
 export interface TSearchOptions<K extends TpgTableKey> {
   filter?: TColumnFilter<K>;
   pagination?: TPagination;
+  sortBy?: TSortBy<K>[];
 }

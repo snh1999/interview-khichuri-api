@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-import { normalizeJobUrl } from "@/src/common/url";
+import { normalizeToHttpsUrl } from "@/src/common/url";
 import {
+  DEFAULT_MAX_STRING_LENGTH,
   SHORT_LENGTH,
   TINY_LENGTH,
   URL_LENGTH,
@@ -9,6 +10,8 @@ import {
   requiredStr,
   str,
   dateStr,
+  jobUrlStr,
+  currencyStr,
 } from "@/src/common/validation";
 import { createZodDto } from "@/src/config/utils/zod-dto";
 import { JOB_STATUS } from "@/src/database/database.constants";
@@ -22,6 +25,50 @@ export const jobsQuerySchema = z.object({
 
 export type TJobsQuery = z.infer<typeof jobsQuerySchema>;
 
+const linkItemSchema = z.object({
+  url: z.string().trim().min(1).max(URL_LENGTH),
+  label: z.string().trim().max(SHORT_LENGTH).nullish(),
+});
+
+const jobLinksSchema = z
+  .string()
+  .trim()
+  .max(DEFAULT_MAX_STRING_LENGTH)
+  .nullish()
+  .transform((value, ctx) => {
+    if (!value) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      parsed = [{ url: value, label: null }];
+    }
+
+    if (!Array.isArray(parsed)) {
+      ctx.addIssue({ code: "custom", message: "Links must be an array" });
+      return z.NEVER;
+    }
+
+    const links: { url: string; label: string | null }[] = [];
+    for (const item of parsed) {
+      const result = linkItemSchema.safeParse(item);
+      if (!result.success) {
+        ctx.addIssue({ code: "custom", message: "Invalid link" });
+        return z.NEVER;
+      }
+      const url = normalizeToHttpsUrl(result.data.url);
+      if (!url || url.length > URL_LENGTH) {
+        ctx.addIssue({ code: "custom", message: "Invalid link URL" });
+        return z.NEVER;
+      }
+      links.push({ url, label: result.data.label ?? null });
+    }
+
+    return links.length > 0 ? JSON.stringify(links) : null;
+  })
+  .optional();
+
 const baseJobSchema = z.object({
   title: requiredStr(SHORT_LENGTH),
   companyName: requiredStr(SHORT_LENGTH),
@@ -29,14 +76,14 @@ const baseJobSchema = z.object({
   description: requiredStr(),
   roleId: z.number().int().positive().nullish(),
   topicIds: z.array(z.number().int().positive()).optional(),
-  links: nullishStr(),
+  links: jobLinksSchema,
   deadline: z.coerce.date().nullish(),
   location: nullishStr(SHORT_LENGTH),
-  url: nullishStr(),
+  url: jobUrlStr(URL_LENGTH).nullish().optional(),
   workType: z.enum(PROFILE_WORK_TYPES).nullish(),
   salaryLower: z.number().int().positive().nullish(),
   salaryUpper: z.number().int().positive().nullish(),
-  currency: z.string().length(3).nullish(),
+  currency: currencyStr.nullish(),
   experienceRequired: z.number().int().nonnegative().nullish(),
 });
 
@@ -115,12 +162,13 @@ export const extractedJobSchema = baseJobSchema
     deadline: true,
     description: true,
     links: true,
+    companyId: true,
   })
   .partial()
   .extend({
     companyName: str(SHORT_LENGTH).nullish(),
     location: str(SHORT_LENGTH).nullish(),
-    url: str().nullish(),
+    url: str(URL_LENGTH, "Absolute HTTPS job posting URL.").nullish(),
     topicNames: z.array(str(TINY_LENGTH)).max(40).nullish(),
     roleName: str(SHORT_LENGTH).nullish(),
     deadline: dateStr,
@@ -138,10 +186,7 @@ export type TJobExtractionResult = Omit<ExtractedJob, "roleName"> & {
 
 export class FindJobByUrlDto extends createZodDto(
   z.object({
-    url: requiredStr(URL_LENGTH).refine(
-      (value) => normalizeJobUrl(value) !== undefined,
-      { message: "Invalid job URL" },
-    ),
+    url: jobUrlStr(URL_LENGTH),
   }),
 ) {}
 

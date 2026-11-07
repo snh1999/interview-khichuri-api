@@ -189,6 +189,7 @@ export class InterviewService {
     const evaluation = await this.genAiService.generateStructured({
       prompt,
       schema: interviewEvaluationSchema,
+      operation: "interview evaluation",
       provider: dto.provider,
       model: dto.model,
       instruction: dto.instruction,

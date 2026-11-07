@@ -15,7 +15,7 @@ export class DatabaseLifecycleService implements OnModuleDestroy {
 
   public async onModuleDestroy(): Promise<void> {
     if ("close" in this.raw) {
-      this.raw.close();
+      await this.raw.close();
     } else {
       await (this.raw as Sql).end();
     }

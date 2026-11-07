@@ -127,6 +127,41 @@ export const isBlockedHostname = (hostname: string): boolean => {
   );
 };
 
+export const isLoopbackHostname = (hostname: string): boolean => {
+  const normalized = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/gu, "")
+    .replace(/\.$/u, "");
+
+  return (
+    normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1"
+  );
+};
+
+const allowsLocalProvider = (): boolean => Boolean(process.env.IS_APP_MODE);
+
+/**
+ * Local AI (Ollama/llama.cpp) runs on loopback in the desktop app only.
+ * Returns the normalized URL for an allowed loopback base URL, null otherwise.
+ */
+const localBaseUrl = (url: URL, hostname: string): string | null => {
+  if (!isLoopbackHostname(hostname)) {
+    return null;
+  }
+  if (!allowsLocalProvider()) {
+    throw new BadRequestException(HOST_NOT_ALLOWED);
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new BadRequestException("Base URL must use HTTPS");
+  }
+  if (url.username || url.password) {
+    throw new BadRequestException("Base URL must not include credentials");
+  }
+  return url.toString().replace(/\/+$/u, "");
+};
+
 export const assertSafeProviderBaseUrl = async (
   value: string,
 ): Promise<string> => {
@@ -137,6 +172,17 @@ export const assertSafeProviderBaseUrl = async (
     throw new BadRequestException("Base URL is not a valid URL");
   }
 
+  const hostname = url.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/gu, "")
+    .replace(/\.$/u, "");
+
+  // Web deployments keep the SSRF protections below; loopback bypasses them.
+  const local = localBaseUrl(url, hostname);
+  if (local !== null) {
+    return local;
+  }
+
   if (url.protocol !== "https:") {
     throw new BadRequestException("Base URL must use HTTPS");
   }
@@ -144,10 +190,6 @@ export const assertSafeProviderBaseUrl = async (
     throw new BadRequestException("Base URL must not include credentials");
   }
 
-  const hostname = url.hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/gu, "")
-    .replace(/\.$/u, "");
   if (isBlockedHostname(hostname)) {
     throw new BadRequestException(HOST_NOT_ALLOWED);
   }
@@ -179,8 +221,7 @@ const PROVIDER_CONNECT_TIMEOUT_MS = 10_000;
 const PROVIDER_HEADERS_TIMEOUT_MS = 60_000;
 const PROVIDER_BODY_IDLE_TIMEOUT_MS = 60_000;
 
-// Checks the IP that is actually connected to, so validation and connect
-// cannot disagree (closes the DNS rebinding window).
+// Checks the IP that is actually connected to, so validation and connect cannot disagree (closes the DNS rebinding window).
 const guardedLookup: LookupFunction = (hostname, options, callback) => {
   dnsLookup(hostname, options, (err, address, family) => {
     if (err) {
@@ -202,7 +243,7 @@ const guardedAgent = new Agent({
   bodyTimeout: PROVIDER_BODY_IDLE_TIMEOUT_MS,
 });
 
-// Validates on every request: the host can rebind DNS after saving, and
+// Validates on every request: the host can rebind DNS after saving,
 // manual redirects stop a public host from bouncing into the private network.
 export const safeProviderFetch: typeof globalThis.fetch = async (
   input,
@@ -210,10 +251,12 @@ export const safeProviderFetch: typeof globalThis.fetch = async (
 ) => {
   const url = input instanceof Request ? input.url : input.toString();
   await assertSafeProviderBaseUrl(url);
-  const response = await undiciFetch(input, {
+  const local =
+    allowsLocalProvider() && isLoopbackHostname(new URL(url).hostname);
+
+  return undiciFetch(input, {
     ...init,
     redirect: "manual",
-    dispatcher: guardedAgent,
+    ...(local ? {} : { dispatcher: guardedAgent }),
   });
-  return response;
 };

@@ -62,6 +62,18 @@ describe("Company (e2e)", () => {
       .send(payload)
       .expect(201);
 
+  const createSystemJob = (companyId: number, companyName: string) =>
+    dbService.create("jobs", {
+      userId: null,
+      title: "Crawled Engineer",
+      companyName,
+      companyId,
+      url: `https://example.com/jobs/${crypto.randomUUID()}`,
+      description: "desc",
+      provider: "manual",
+      state: "ok",
+    });
+
   describe("POST /company", () => {
     it("should create a company", async () => {
       const payload = getCompanyPayload();
@@ -85,6 +97,28 @@ describe("Company (e2e)", () => {
     it("should return 400 when name is whitespace only", async () =>
       auth(httpServer.post(routePath), adminAuthCookie)
         .send({ name: "   " })
+        .expect(400));
+
+    it("should create a company with crawl settings", async () => {
+      const { body } = await create({
+        ...getCompanyPayload(),
+        provider: "greenhouse",
+        enabled: true,
+        atsBoardId: "acme",
+      });
+
+      expect(body.data).toMatchObject({
+        provider: "greenhouse",
+        enabled: true,
+        atsBoardId: "acme",
+        feed: null,
+        crawlError: null,
+      });
+    });
+
+    it("should reject an invalid ATS board id", async () =>
+      auth(httpServer.post(routePath), adminAuthCookie)
+        .send({ ...getCompanyPayload(), atsBoardId: "../evil" })
         .expect(400));
 
     it("should return 401 without auth cookie in web mode", async () => {
@@ -351,6 +385,91 @@ describe("Company (e2e)", () => {
       const id: number = created.id;
 
       await httpServer.delete(`${routePath}/${id}`).expect(401);
+    });
+
+    it("should delete the company's untracked system jobs", async () => {
+      const {
+        body: { data: created },
+      }: { body: { data: { id: number; name: string } } } = await create();
+      const job = await createSystemJob(created.id, created.name);
+
+      await auth(
+        httpServer.delete(`${routePath}/${created.id}`),
+        adminAuthCookie,
+      ).expect(204);
+
+      await expect(dbService.findById("jobs", job.id)).rejects.toThrow();
+    });
+
+    it("should return 409 when the company's jobs are tracked", async () => {
+      if (isAppMode) return;
+
+      const {
+        body: { data: created },
+      }: { body: { data: { id: number; name: string } } } = await create();
+      const job = await createSystemJob(created.id, created.name);
+      await auth(httpServer.post(`/jobs/${job.id}/track`)).expect(201);
+
+      const { body } = await auth(
+        httpServer.delete(`${routePath}/${created.id}`),
+        adminAuthCookie,
+      ).expect(409);
+
+      expect(body).toMatchObject({
+        code: "COMPANY_HAS_TRACKED_JOBS",
+        trackedJobCount: 1,
+        trackedUserCount: 1,
+      });
+    });
+
+    it("keeps a job when a track is added before the delete commits", async () => {
+      if (isAppMode) return;
+
+      const {
+        body: { data: created },
+      }: { body: { data: { id: number; name: string } } } = await create();
+      const job = await createSystemJob(created.id, created.name);
+      await auth(httpServer.post(`/jobs/${job.id}/track`)).expect(201);
+
+      await expect(
+        dbService.withTransaction(async (transaction) => {
+          await dbService.delete("jobs", { id: job.id }, true, transaction);
+        }),
+      ).rejects.toThrow();
+
+      await expect(dbService.findById("jobs", job.id)).resolves.toMatchObject({
+        id: job.id,
+      });
+      await expect(
+        dbService.findById("companies", created.id),
+      ).resolves.toMatchObject({
+        id: created.id,
+      });
+    });
+  });
+
+  describe("POST /company/:id/crawl", () => {
+    it("should reject a manual crawl for an unconfigured company", async () => {
+      const {
+        body: { data: created },
+      } = await create();
+
+      await auth(
+        httpServer.post(`${routePath}/${created.id}/crawl`),
+        adminAuthCookie,
+      ).expect(isAppMode ? 204 : 400);
+    });
+
+    it("should return 403 for non-admin users in web mode", async () => {
+      if (isAppMode) return;
+
+      const {
+        body: { data: created },
+      } = await create();
+
+      await auth(httpServer.post(`${routePath}/${created.id}/crawl`)).expect(
+        403,
+      );
     });
   });
 });

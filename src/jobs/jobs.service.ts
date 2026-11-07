@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 
 import { normalizeJobUrl } from "@/src/common/url";
+import { SHORT_LENGTH } from "@/src/common/validation";
 import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { LOCAL_USER_ID } from "@/src/database/database.constants";
 import { IDatabaseService } from "@/src/database/database.service";
@@ -17,8 +18,10 @@ import {
   LINKEDIN_DM_DEFAULT_SHAPE,
   OUTREACH_EMAIL_DEFAULT_SHAPE,
   TEMPLATE_MODE_RULES,
+  sanitizeForTag,
 } from "@/src/gen-ai/gen-ai.constants";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
+import { normalizeName } from "@/src/lookups/lookups.helpers";
 import { LookupsService } from "@/src/lookups/lookups.service";
 import { markdownSchema } from "@/src/notes/notes.dto";
 import { ResumeService } from "@/src/resume/resume.service";
@@ -144,10 +147,15 @@ export class JobsService {
     const extracted = await this.genAiService.extractJob(dto, userId);
     const url = extracted.url ? normalizeJobUrl(extracted.url) : undefined;
 
-    const roleId = await this.lookupsService.resolveOrCreateName(
-      "roles",
-      extracted.roleName,
-    );
+    const roleName = extracted.roleName?.trim() ?? null;
+    const normalizedRoleName = roleName ? normalizeName(roleName) : "";
+    const roleId =
+      normalizedRoleName && normalizedRoleName.length <= SHORT_LENGTH
+        ? await this.lookupsService.resolveOrCreateName(
+            "roles",
+            normalizedRoleName,
+          )
+        : null;
 
     return {
       // eslint-disable-next-line @typescript-eslint/no-misused-spread
@@ -180,6 +188,7 @@ export class JobsService {
   ): Promise<{ markdown: string }> {
     return this._generate(
       id,
+      "cover letter",
       "coverLetterTemplate",
       GENERATE_COVER_LETTER_PROMPT,
       COVER_LETTER_DEFAULT_SHAPE,
@@ -195,6 +204,7 @@ export class JobsService {
   ): Promise<{ markdown: string }> {
     return this._generate(
       id,
+      "outreach email",
       "outreachEmailTemplate",
       GENERATE_OUTREACH_EMAIL_PROMPT,
       OUTREACH_EMAIL_DEFAULT_SHAPE,
@@ -210,6 +220,7 @@ export class JobsService {
   ): Promise<{ markdown: string }> {
     return this._generate(
       id,
+      "LinkedIn DM",
       "linkedinDmTemplate",
       GENERATE_LINKEDIN_DM_PROMPT,
       LINKEDIN_DM_DEFAULT_SHAPE,
@@ -220,6 +231,7 @@ export class JobsService {
 
   private async _generate(
     id: string,
+    operation: string,
     templateColumn: TLetterTemplateColumn,
     prompt: string,
     defaultShape: string,
@@ -250,13 +262,16 @@ export class JobsService {
 
     const contextParts = [
       template
-        ? `<template_${templateTag}>\n${template}\n</template_${templateTag}>`
+        ? `<template_${templateTag}>\n${sanitizeForTag(template, `template_${templateTag}`)}\n</template_${templateTag}>`
         : "",
-      `<job_title>\n${job.title}\n</job_title>`,
-      `<company_name>\n${job.companyName}\n</company_name>`,
-      `<job_description>\n${job.description ?? ""}\n</job_description>`,
+      `<job_title>\n${sanitizeForTag(job.title, "job_title")}\n</job_title>`,
+      `<company_name>\n${sanitizeForTag(job.companyName, "company_name")}\n</company_name>`,
+      `<job_description>\n${sanitizeForTag(
+        job.description ?? "",
+        "job_description",
+      )}\n</job_description>`,
       this._formatPreferences(preferences),
-      `<candidate_resume>\n${resume}\n</candidate_resume>`,
+      `<candidate_resume>\n${sanitizeForTag(resume, "candidate_resume")}\n</candidate_resume>`,
     ].filter(Boolean);
 
     const modeRules = template ? TEMPLATE_MODE_RULES : defaultShape;
@@ -268,6 +283,7 @@ export class JobsService {
           : ""
       }`,
       schema: markdownSchema,
+      operation,
       provider,
       model,
       instruction,
@@ -296,7 +312,10 @@ export class JobsService {
     ].filter(Boolean);
 
     return lines.length > 0
-      ? `<candidate_preferences>\n${lines.join("\n")}\n</candidate_preferences>`
+      ? `<candidate_preferences>\n${sanitizeForTag(
+          lines.join("\n"),
+          "candidate_preferences",
+        )}\n</candidate_preferences>`
       : "";
   }
 
@@ -335,7 +354,7 @@ export class JobsService {
     sort?: TSortEntry[];
     companyId?: number;
   }): Promise<TJob[]> {
-    // App mode has no crawler and no system jobs; discovery stays empty until app clients get a real identity (magic-link auth).
+    // App mode has no crawler/system jobs setup; discovery stays empty until app clients get a real identity (magic-link auth).
     if (process.env.IS_APP_MODE) {
       return [];
     }

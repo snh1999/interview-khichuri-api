@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 
 import { TApiKeyProvider } from "@/src/database/database.types";
+import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
 import { ValidatePromptDto } from "../dto/validate-prompt.dto";
@@ -37,6 +38,10 @@ export interface IValidationResult {
 // and a refused one (401/403) needs replacing, so the two get different advice.
 // Retrying fixes neither.
 const judgeFailureReason = (error: unknown, provider: TApiKeyProvider) => {
+  if (error instanceof AiOutputException) {
+    return error.message;
+  }
+
   if (!(error instanceof HttpException)) {
     return "AI validation could not be completed. Please try again.";
   }
@@ -47,10 +52,22 @@ const judgeFailureReason = (error: unknown, provider: TApiKeyProvider) => {
     [HttpStatus.FORBIDDEN]: `AI validation failed — your ${provider} API key was rejected. Check it in Settings.`,
   };
 
-  return (
-    credentialProblems[error.getStatus()] ??
-    "AI validation could not be completed. Please try again."
-  );
+  const status = error.getStatus();
+  const badRequestStatus: number = HttpStatus.BAD_REQUEST;
+
+  const credentialProblem = credentialProblems[status];
+  if (credentialProblem) {
+    return credentialProblem;
+  }
+
+  // toAiHttpException maps rejected provider keys to 400 but keeps a message
+  // telling the user the key was rejected, so surface that instead of generic
+  // retry advice.
+  if (status === badRequestStatus) {
+    return error.message;
+  }
+
+  return "AI validation could not be completed. Please try again.";
 };
 
 const judgeSchema = z.object({
@@ -140,6 +157,7 @@ export class PromptValidatorService {
       .generateStructured<TJudgeResult>({
         prompt: classifierPrompt,
         schema: judgeSchema,
+        operation: "prompt validation",
         userId,
         provider,
         model,

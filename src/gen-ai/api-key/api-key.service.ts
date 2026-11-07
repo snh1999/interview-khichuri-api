@@ -3,10 +3,11 @@ import { createOpenAI } from "@ai-sdk/openai";
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { APICallError, generateText } from "ai";
+import { generateText } from "ai";
 
 import { IDatabaseService } from "@/src/database/database.service";
 import {
@@ -22,7 +23,10 @@ import {
   PROVIDER_CONFIG,
   providerBaseUrl,
 } from "@/src/gen-ai/gen-ai.constants";
-import { toQuotaExceededHttpException } from "@/src/gen-ai/gen-ai.errors";
+import {
+  describeProviderError,
+  toQuotaExceededHttpException,
+} from "@/src/gen-ai/gen-ai.errors";
 import {
   assertSafeProviderBaseUrl,
   safeProviderFetch,
@@ -32,6 +36,8 @@ import { EncryptionService } from "./encryption.service";
 
 @Injectable()
 export class ApiKeyService {
+  private readonly logger = new Logger(ApiKeyService.name);
+
   constructor(
     private readonly encryptionService: EncryptionService,
     private readonly db: IDatabaseService,
@@ -167,6 +173,8 @@ export class ApiKeyService {
       key: string;
       model: string | null;
       baseUrl: string | null;
+      id: string;
+      updatedAt: Date;
     }) => Promise<T> | T,
     userId?: string,
   ): Promise<T> {
@@ -176,6 +184,8 @@ export class ApiKeyService {
       key: decryptedKey,
       model: apiKey.model ?? null,
       baseUrl: apiKey.baseUrl ?? null,
+      id: apiKey.id,
+      updatedAt: apiKey.updatedAt,
     });
   }
 
@@ -190,7 +200,6 @@ export class ApiKeyService {
     return result[0];
   }
 
-  // eslint-disable-next-line sonarjs/cognitive-complexity
   private async _verifyKey(
     provider: TApiKeyProvider,
     key: string,
@@ -232,21 +241,22 @@ export class ApiKeyService {
         model ?? config.defaultModel,
       );
       if (quotaException) {
+        this.logger.warn("API key verification hit a quota or rate limit", {
+          provider,
+          model,
+          ...describeProviderError(error),
+        });
         throw quotaException;
       }
 
-      // wraps the 403: to preserve project api conventions
-      if (error instanceof APICallError) {
-        throw new BadRequestException(error.message);
-      }
-
-      const errorMessage =
-        error && typeof error === "object" && "data" in error
-          ? (error as { data?: { error?: string } }).data?.error
-          : "";
+      this.logger.warn("API key verification failed", {
+        provider,
+        model,
+        ...describeProviderError(error),
+      });
 
       throw new BadRequestException(
-        `Invalid API key ${model ? "or model" : ""} for ${provider}. Check the ${model ? "name of model or" : ""} key and try again. ${errorMessage ?? ""}`,
+        `Invalid API key${model ? " or model" : ""} for ${provider}. Check the ${model ? "model name or " : ""}key and try again.`,
       );
     }
   }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
 
@@ -72,6 +72,49 @@ describe("assertSafeProviderBaseUrl", () => {
     "https://user:pass@1.1.1.1/v1",
   ])("rejects %s", async (url) => {
     await expect(assertSafeProviderBaseUrl(url)).rejects.toThrow();
+  });
+});
+
+describe("assertSafeProviderBaseUrl in app mode", () => {
+  const original = process.env.IS_APP_MODE;
+
+  beforeEach(() => {
+    process.env.IS_APP_MODE = "true";
+  });
+
+  afterEach(() => {
+    if (original === undefined) {
+      delete process.env.IS_APP_MODE;
+    } else {
+      process.env.IS_APP_MODE = original;
+    }
+  });
+
+  it.each([
+    ["http://localhost:11434/v1/", "http://localhost:11434/v1"],
+    ["http://127.0.0.1:8080/v1", "http://127.0.0.1:8080/v1"],
+    ["http://[::1]:1234/v1/", "http://[::1]:1234/v1"],
+    ["https://localhost:11434/v1", "https://localhost:11434/v1"],
+  ])("allows local base URL %s", async (input, expected) => {
+    await expect(assertSafeProviderBaseUrl(input)).resolves.toBe(expected);
+  });
+
+  it.each([
+    "http://1.1.1.1/v1",
+    "http://api.localhost/v1",
+    "http://192.168.1.1/v1",
+  ])("still rejects %s", async (url) => {
+    await expect(assertSafeProviderBaseUrl(url)).rejects.toThrow();
+  });
+
+  it("fetches local base URLs without the guarded dispatcher", async () => {
+    mocks.fetch.mockClear();
+    mocks.fetch.mockResolvedValue(new Response(null, { status: 200 }));
+
+    await safeProviderFetch("http://localhost:11434/v1/chat/completions");
+
+    const [, options] = mocks.fetch.mock.calls[0];
+    expect(options).not.toHaveProperty("dispatcher");
   });
 });
 

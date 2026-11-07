@@ -4,6 +4,7 @@ import type { GenAiService } from "@/src/gen-ai/gen-ai.service";
 import type { ProfileService } from "@/src/profile/profile.service";
 
 import {
+  builderOperationsSchema,
   designContentSchema,
   filePlanSchema,
   type GenerateSketchDto,
@@ -14,6 +15,7 @@ import { PortfolioService } from "../portfolio.service";
 interface IStructuredCall {
   prompt: string;
   schema: unknown;
+  maxOutputTokens?: number | null;
 }
 
 interface IPromptPage {
@@ -91,6 +93,12 @@ const sketchDto = {
   theme: {},
 } as unknown as GenerateSketchDto;
 
+const openAiSketchDto = {
+  // eslint-disable-next-line @typescript-eslint/no-misused-spread
+  ...sketchDto,
+  provider: "openai",
+} as unknown as GenerateSketchDto;
+
 const projectDto = { prompt: "genesis", provider: "google" } as const;
 
 const collect = async (
@@ -134,6 +142,9 @@ describe("PortfolioService profile injection", () => {
           projectName: "Studio",
           projectDescription: "A studio portfolio",
         };
+      }
+      if (schema === builderOperationsSchema) {
+        return { operations: [], message: "ok" };
       }
       return { code: "export default function X() { return <div />; }" };
     });
@@ -201,6 +212,26 @@ describe("PortfolioService profile injection", () => {
       /<pages>(\[[\s\S]*?\])<\/pages>/.exec(prompt)?.[1] ?? "[]",
     ) as IPromptPage[];
     expect(pages.map((p) => p.route)).toEqual(["/", "/about"]);
+  });
+
+  it("raises the output budget for every code-generation call", async () => {
+    await service.generateSketch(sketchDto, "u1");
+    await service.generateBuilder(
+      { prompt: "add a navbar", files: {}, provider: "google" } as never,
+      "u1",
+    );
+    await collect(service.generateProject(projectDto, "u1"));
+
+    const calls = generateStructured.mock.calls.map(
+      ([call]) => call as IStructuredCall,
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((call) => call.maxOutputTokens === 32_768)).toBe(true);
+
+    await service.generateSketch(openAiSketchDto, "u1");
+    const openAiCall = generateStructured.mock.calls.at(-1)?.[0] as
+      IStructuredCall | undefined;
+    expect(openAiCall?.maxOutputTokens).toBeNull();
   });
 
   it("embeds the profile in the plan and in every file prompt", async () => {

@@ -7,6 +7,9 @@ import {
   SHORT_LENGTH,
   TINY_LENGTH,
   URL_LENGTH,
+  currencyStr,
+  emailStr,
+  httpsUrlStr,
   nullishStr,
   requiredStr,
   str,
@@ -47,7 +50,7 @@ export const updateProfileSchema = z.object({
   firstName: requiredStr(SHORT_LENGTH),
   lastName: str(SHORT_LENGTH),
   phone: nullishStr(TINY_LENGTH),
-  email: z.email().nullish(),
+  email: emailStr,
   location: nullishStr(SHORT_LENGTH),
   country: nullishStr(SHORT_LENGTH),
 });
@@ -119,7 +122,7 @@ export const jobPreferenceSchema = z.object({
   workType: workTypeSchema.nullish(),
   salaryLower: z.number().int().min(0).nullish(),
   salaryExpected: z.number().int().min(0).nullish(),
-  currency: z.string().length(3).nullish(),
+  currency: currencyStr.nullish(),
   preferredLocation: nullishStr(SHORT_LENGTH),
   titles: z.array(z.number().int().positive()).nullish(),
   coverLetterTemplate: nullishStr(MAX_TEMPLATE_LENGTH),
@@ -135,7 +138,7 @@ export class UpdateJobPreferenceDto extends createZodDto(
 
 export const profileLinkSchema = z.object({
   type: linkTypeSchema,
-  url: z.url().max(URL_LENGTH),
+  url: httpsUrlStr(URL_LENGTH),
 });
 
 export class ProfileLinksDto extends createZodDto(
@@ -147,7 +150,7 @@ export const publicationSchema = z.object({
   title: requiredStr(MID_LENGTH),
   authors: z.array(requiredStr(MID_LENGTH)).optional(),
   notes: nullishStr(LARGE_LENGTH),
-  link: z.url().max(URL_LENGTH).nullish(),
+  link: httpsUrlStr(URL_LENGTH).nullish(),
   year: z.number().int().nullish(),
   publicationType: nullishStr(MID_LENGTH),
 });
@@ -161,7 +164,7 @@ export const projectSchema = z.object({
   name: requiredStr(SHORT_LENGTH),
   type: projectTypeSchema.optional(),
   description: nullishStr(),
-  link: z.url().max(URL_LENGTH).nullish(),
+  link: httpsUrlStr(URL_LENGTH).nullish(),
   skills: z.array(z.number().int().positive()).optional(),
 });
 
@@ -174,7 +177,7 @@ export const referenceSchema = z.object({
   name: requiredStr(SHORT_LENGTH),
   title: nullishStr(SHORT_LENGTH),
   company: nullishStr(SHORT_LENGTH),
-  email: z.email().nullish(),
+  email: emailStr,
   phone: nullishStr(TINY_LENGTH),
   relationType: nullishStr(),
   notes: nullishStr(LARGE_LENGTH),

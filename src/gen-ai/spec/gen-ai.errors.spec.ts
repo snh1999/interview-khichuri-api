@@ -7,6 +7,7 @@ import {
   providerErrorDetails,
   toQuotaExceededHttpException,
   toAiHttpException,
+  toAiTimeoutException,
 } from "../gen-ai.errors";
 
 const quotaApiError = new APICallError({
@@ -126,14 +127,60 @@ describe("toAiHttpException", () => {
     expect(exception).toBeInstanceOf(HttpException);
     expect(exception?.getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
     expect(exception?.message).toContain("google");
-    expect(exception?.message).toContain("gemini-3.8-flash");
-    expect(exception?.message).toContain(
+    expect(exception?.message).toContain("temporarily unavailable");
+    expect(exception?.message).not.toContain(
       "This model is currently experiencing high demand",
     );
   });
 
   it("returns null for unrelated errors", () => {
     expect(toAiHttpException(new Error("boom"), "google")).toBeNull();
+  });
+
+  it("maps a provider 408 to a retryable gateway timeout", () => {
+    const providerTimeout = new APICallError({
+      message: "Request Timeout",
+      url: "https://provider.example/completion",
+      requestBodyValues: {},
+      statusCode: 408,
+      isRetryable: true,
+    });
+
+    const exception = toAiHttpException(providerTimeout, "google");
+
+    expect(exception?.getStatus()).toBe(HttpStatus.GATEWAY_TIMEOUT);
+  });
+});
+
+describe("toAiTimeoutException", () => {
+  it("finds a timeout nested in a RetryError", () => {
+    const timeout = Object.assign(new Error("timed out"), {
+      name: "TimeoutError",
+    });
+    const wrapped = new RetryError({
+      message: "Failed after 3 attempts",
+      reason: "maxRetriesExceeded",
+      errors: [serverApiError, timeout],
+    });
+
+    expect(toAiTimeoutException(wrapped)?.getStatus()).toBe(
+      HttpStatus.GATEWAY_TIMEOUT,
+    );
+  });
+
+  it("finds a timeout nested in an error cause", () => {
+    const timeout = Object.assign(new Error("aborted"), {
+      name: "AbortError",
+    });
+    const wrapped = new Error("AI call failed", { cause: timeout });
+
+    expect(toAiTimeoutException(wrapped)?.getStatus()).toBe(
+      HttpStatus.GATEWAY_TIMEOUT,
+    );
+  });
+
+  it("returns null for unrelated errors", () => {
+    expect(toAiTimeoutException(serverApiError)).toBeNull();
   });
 });
 
@@ -221,7 +268,7 @@ describe("providerErrorDetails", () => {
 });
 
 describe("toAiHttpException with field violations", () => {
-  it("appends the violations to the message so the bad field is named", () => {
+  it("returns a safe message instead of the provider's field violations", () => {
     const exception = toAiHttpException(
       fieldViolationError,
       "google",
@@ -229,9 +276,10 @@ describe("toAiHttpException with field violations", () => {
     );
 
     expect(exception?.getStatus()).toBe(HttpStatus.BAD_REQUEST);
-    expect(exception?.message).toContain(
-      "Request contains an invalid argument.",
+    expect(exception?.message).toContain("rejected the request");
+    expect(exception?.message).not.toContain("contents: must not be empty");
+    expect(exception?.message).not.toContain(
+      "generationConfig.maxOutputTokens: too big",
     );
-    expect(exception?.message).toContain("contents: must not be empty");
   });
 });

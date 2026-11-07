@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { BadRequestException, HttpException, Injectable } from "@nestjs/common";
 
 import { omitArrayKeys, omitKeys } from "@/src/common/helpers";
+import type { TApiKeyProvider } from "@/src/database/database.types";
+import { AiOutputException } from "@/src/gen-ai/ai-output-error";
 import {
   PORTFOLIO_BUILDER_PROMPT,
   PORTFOLIO_FILE_CODE_PROMPT,
@@ -36,6 +38,18 @@ const ENTRY_FILE = "/App.js";
 const STYLES_FILE = "/styles.css";
 const FILE_CONCURRENCY = 5;
 const MAX_FILE_ATTEMPTS = 2;
+// Code generation needs far more output budget than the shared 8k default,
+// especially since models count reasoning tokens against the same limit.
+// Other providers have lower model-specific caps, so let them apply their own.
+const MAX_PORTFOLIO_OUTPUT_TOKENS = 32_768;
+
+const portfolioOutputTokens = (provider: TApiKeyProvider): number | null =>
+  provider === "google" ? MAX_PORTFOLIO_OUTPUT_TOKENS : null;
+
+const isPermanentFileError = (err: unknown): boolean =>
+  err instanceof AiOutputException
+    ? !err.retryable
+    : err instanceof HttpException && err.getStatus() < 500;
 
 // Bounded-concurrency map that reports each item as it starts and finishes, so the genesis stream can show live per-file progress.
 type TConcurrentEvent<T, R> =
@@ -243,9 +257,11 @@ export class PortfolioService {
         <pages>${JSON.stringify(pages)}</pages>
         <theme>${JSON.stringify(theme)}</theme>`,
       schema: designContentSchema,
+      operation: "portfolio sketch",
       provider,
       model,
       instruction,
+      maxOutputTokens: portfolioOutputTokens(provider),
       userId,
     });
 
@@ -281,9 +297,11 @@ export class PortfolioService {
         <manifest>${manifestText}</manifest>
         <files>${JSON.stringify(files)}</files>`,
       schema: builderOperationsSchema,
+      operation: "portfolio builder",
       provider,
       model,
       instruction,
+      maxOutputTokens: portfolioOutputTokens(provider),
       userId,
     });
 
@@ -331,9 +349,11 @@ export class PortfolioService {
     const plan = await this.genAiService.generateStructured({
       prompt: `${PORTFOLIO_FILE_PLAN_PROMPT}\n${profileTag}\n<user_prompt>\n${prompt}\n</user_prompt>`,
       schema: filePlanSchema,
+      operation: "portfolio project plan",
       provider,
       model,
       instruction,
+      maxOutputTokens: portfolioOutputTokens(provider),
       userId,
     });
 
@@ -475,20 +495,18 @@ export class PortfolioService {
         const { code } = await this.genAiService.generateStructured({
           prompt,
           schema: fileCodeSchema,
+          operation: "portfolio project file",
           provider: dto.provider,
           model: dto.model,
           instruction: dto.instruction,
+          maxOutputTokens: portfolioOutputTokens(dto.provider),
           userId,
         });
         return { code: validateAndFixCode({ [entry.path]: code })[entry.path] };
       } catch (err) {
-        // Retryable: malformed output (BadRequestException), transient 5xx provider errors (incl. the default-503 unknown provider errors),
-        // and non-HTTP errors. 4xx credential/config/quota HttpExceptions are permanent — stop and report.
-        const permanent =
-          err instanceof HttpException &&
-          !(err instanceof BadRequestException) &&
-          err.getStatus() < 500;
-        if (attempt === MAX_FILE_ATTEMPTS - 1 || permanent) {
+        // Retryable: output errors marked retryable, transient 5xx provider
+        // errors, and non-HTTP errors. Other 4xx responses are permanent.
+        if (attempt === MAX_FILE_ATTEMPTS - 1 || isPermanentFileError(err)) {
           return {
             code: null,
             error: err instanceof HttpException ? err.message : undefined,

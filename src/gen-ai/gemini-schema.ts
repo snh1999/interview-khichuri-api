@@ -186,9 +186,10 @@ export function toResponseSchema<T>(schema: z.ZodType<T>): Schema<T> {
 }
 
 /**
- * Like `toResponseSchema`, but size violations (`too_big`/`too_small` on
- * strings, arrays and numbers) pass through. Used where the generated JSON is
- * shown to the user but never written to the database.
+ * Like `toResponseSchema`, but string and array size violations
+ * (`too_big`/`too_small`) pass through. Numeric bounds stay enforced. Used
+ * where the generated JSON is shown to the user but never written to the
+ * database.
  */
 export function toLenientSchema<T>(schema: z.ZodType<T>): Schema<T> {
   return jsonSchema<T>(() => toJsonSchema(schema), {
@@ -197,9 +198,12 @@ export function toLenientSchema<T>(schema: z.ZodType<T>): Schema<T> {
       if (result.success) {
         return { success: true as const, value: result.data };
       }
-      const onlySize = result.error.issues.every(
-        (issue) => issue.code === "too_big" || issue.code === "too_small",
-      );
+      const onlySize = result.error.issues.every((issue) => {
+        if (issue.code !== "too_big" && issue.code !== "too_small") {
+          return false;
+        }
+        return issue.origin === "string" || issue.origin === "array";
+      });
       return onlySize
         ? { success: true as const, value: value as T }
         : { success: false as const, error: result.error };

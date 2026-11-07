@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-misused-spread */
 import type { INestApplication } from "@nestjs/common";
+import { is, sql } from "drizzle-orm";
+import { PgDatabase } from "drizzle-orm/pg-core";
 import type supertest from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -61,6 +63,25 @@ describe("Jobs (e2e)", () => {
     userCookie?: string,
   ) => auth(httpServer.post("/jobs"), userCookie).send(payload).expect(201);
 
+  const createSystemJob = async (
+    company: { id: number; name: string },
+    overrides: Partial<{ closedAt: Date | null; state: "none" | "ok" }> = {},
+  ) => {
+    const state = overrides.state ?? "ok";
+    return dbService.create("jobs", {
+      userId: null,
+      title: `System ${crypto.randomUUID()}`,
+      companyName: company.name,
+      companyId: company.id,
+      url: `https://example.test/jobs/${crypto.randomUUID()}`,
+      description: state === "ok" ? "System job" : null,
+      provider: "greenhouse",
+      state,
+      stateChangedAt: new Date(),
+      closedAt: overrides.closedAt ?? null,
+    });
+  };
+
   describe("POST /jobs", () => {
     it("should create a job with defaults", async () => {
       const jobPayload = getJobPayload();
@@ -77,6 +98,20 @@ describe("Jobs (e2e)", () => {
       expect(body.data.id).toEqual(expect.any(String));
       expect(body.data.roleId).toBeNull();
       if (!isAppMode) expect(body.data.userId).toEqual(expect.any(String));
+    });
+
+    it("stores app-mode private jobs as the local user", async () => {
+      if (!isAppMode) return;
+
+      const { body } = await createJob(getJobPayload());
+      const jobId: string = body.data.id;
+
+      expect(body.data.userId).toBe("local");
+      await expect(dbService.findById("jobs", jobId)).resolves.toMatchObject({
+        userId: "local",
+        companyId: null,
+        url: null,
+      });
     });
 
     it("should create a job with work type, salary and currency", async () => {
@@ -202,7 +237,9 @@ describe("Jobs (e2e)", () => {
         .send(payload)
         .expect(201);
 
-      expect(body.data.links).toBe(payload.links);
+      expect(JSON.parse(body.data.links as string)).toEqual([
+        { url: payload.links, label: null },
+      ]);
       expect(body.data.track.notes).toBe(payload.notes);
     });
 
@@ -782,6 +819,140 @@ describe("Jobs (e2e)", () => {
     });
   });
 
+  describe("GET /jobs/discover", () => {
+    it("returns nothing in app mode", async () => {
+      if (!isAppMode) return;
+
+      const company = await dbService.create("companies", {
+        name: `Acme ${crypto.randomUUID()}`,
+      });
+      await createSystemJob({ id: company.id, name: company.name });
+
+      const { body } = await auth(httpServer.get("/jobs/discover")).expect(200);
+      expect(body.data).toEqual([]);
+    });
+
+    it("returns open system jobs, including disabled companies", async () => {
+      if (isAppMode) return;
+
+      const enabled = await dbService.create("companies", {
+        name: `Enabled ${crypto.randomUUID()}`,
+        enabled: true,
+      });
+      const disabled = await dbService.create("companies", {
+        name: `Disabled ${crypto.randomUUID()}`,
+        enabled: false,
+      });
+      const open = await createSystemJob({
+        id: enabled.id,
+        name: enabled.name,
+      });
+      const disabledOpen = await createSystemJob({
+        id: disabled.id,
+        name: disabled.name,
+      });
+      const closed = await createSystemJob(
+        { id: enabled.id, name: enabled.name },
+        { closedAt: new Date() },
+      );
+      const privateJob = await createJob();
+
+      const { body } = await auth(httpServer.get("/jobs/discover")).expect(200);
+      const ids = (body.data as { id: string }[]).map((job) => job.id);
+
+      expect(new Set(ids)).toEqual(new Set([open.id, disabledOpen.id]));
+      expect(ids).not.toContain(closed.id);
+      expect(ids).not.toContain(privateJob.body.data.id);
+    });
+
+    it("paste-matches an open system URL and ignores closed and private jobs", async () => {
+      if (isAppMode) return;
+
+      const company = await dbService.create("companies", {
+        name: `Acme ${crypto.randomUUID()}`,
+        enabled: true,
+      });
+      const open = await dbService.create("jobs", {
+        userId: null,
+        title: "Open",
+        companyName: company.name,
+        companyId: company.id,
+        url: "https://example.test/jobs/open",
+        description: "Body",
+        provider: "greenhouse",
+        state: "ok",
+        stateChangedAt: new Date(),
+      });
+      await dbService.create("jobs", {
+        userId: null,
+        title: "Closed",
+        companyName: company.name,
+        companyId: company.id,
+        url: "https://example.test/jobs/closed",
+        description: "Body",
+        provider: "greenhouse",
+        state: "ok",
+        stateChangedAt: new Date(),
+        closedAt: new Date(),
+      });
+      await createJob({
+        ...getJobPayload(),
+        url: "https://example.test/jobs/private",
+      });
+
+      const { body } = await auth(
+        httpServer.get(
+          "/jobs/from-url?url=https%3A%2F%2Fexample.test%2Fjobs%2Fopen%3Futm_source%3Dx",
+        ),
+      ).expect(200);
+
+      const jobs = body.data as { id: string; url: string }[];
+      expect(jobs.map((job) => job.id)).toEqual([open.id]);
+      expect(jobs[0].url).toBe("https://example.test/jobs/open");
+    });
+
+    it("tracks and untracks a discovered system job", async () => {
+      if (isAppMode) return;
+
+      const company = await dbService.create("companies", {
+        name: `Acme ${crypto.randomUUID()}`,
+        enabled: true,
+      });
+      const job = await createSystemJob({
+        id: company.id,
+        name: company.name,
+      });
+
+      const tracked = await auth(
+        httpServer.post(`/jobs/${job.id}/track`),
+      ).expect(201);
+      expect(tracked.body.data.track).toMatchObject({ status: "saved" });
+
+      const { body: discoverTracked } = await auth(
+        httpServer.get("/jobs/discover"),
+      ).expect(200);
+      const trackedJob = (
+        discoverTracked.data as { id: string; track?: unknown }[]
+      ).find((item) => item.id === job.id);
+      expect(trackedJob).not.toHaveProperty("track");
+
+      await auth(httpServer.delete(`/jobs/${job.id}`)).expect(204);
+
+      const { body } = await auth(httpServer.get(`/jobs/${job.id}`)).expect(
+        200,
+      );
+      expect(body.data.track ?? null).toBeNull();
+
+      const { body: discover } = await auth(
+        httpServer.get("/jobs/discover"),
+      ).expect(200);
+      const discovered = (
+        discover.data as { id: string; track?: unknown }[]
+      ).find((item) => item.id === job.id);
+      expect(discovered).not.toHaveProperty("track");
+    });
+  });
+
   describe("PATCH /jobs/:id", () => {
     it("should update title", async () => {
       const jobDto = getJobPayload();
@@ -889,7 +1060,9 @@ describe("Jobs (e2e)", () => {
         .send({ notes })
         .expect(200);
 
-      expect(body.data.links).toBe(links);
+      expect(JSON.parse(body.data.links as string)).toEqual([
+        { url: links, label: null },
+      ]);
       expect(body.data.track.notes).toBe(notes);
     });
 
@@ -1127,6 +1300,48 @@ describe("Jobs (e2e)", () => {
         .set("Cookie", otherCookie)
         .send({ title: "Hacked" })
         .expect(isAppMode ? 200 : 404);
+    });
+  });
+
+  describe("user deletion", () => {
+    it("cascades private jobs and tracks, but keeps system jobs", async () => {
+      if (isAppMode) return;
+
+      const session = await getTestAuthHeader(app, dbService.database());
+      if (!session.userId) throw new Error("missing test user id");
+
+      const { body: privateJob } = await createJob(
+        getJobPayload(),
+        session.cookie,
+      );
+      const privateJobId: string = privateJob.data.id;
+      const company = await dbService.create("companies", {
+        name: `Acme ${crypto.randomUUID()}`,
+        enabled: true,
+      });
+      const systemJob = await createSystemJob({
+        id: company.id,
+        name: company.name,
+      });
+      await httpServer
+        .post(`/jobs/${systemJob.id}/track`)
+        .set("Cookie", session.cookie)
+        .expect(201);
+
+      const database = dbService.database();
+      if (!is(database, PgDatabase)) throw new Error("expected Postgres");
+
+      await database.execute(
+        sql`delete from "user" where id = ${session.userId}`,
+      );
+
+      await expect(dbService.findById("jobs", privateJobId)).rejects.toThrow();
+      await expect(
+        dbService.findById("jobs", systemJob.id),
+      ).resolves.toMatchObject({ id: systemJob.id });
+      expect(
+        await dbService.count("tracked_jobs", { userId: session.userId }),
+      ).toBe(0);
     });
   });
 

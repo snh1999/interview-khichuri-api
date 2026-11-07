@@ -34,6 +34,8 @@ export const normalizePath = (path: string): string =>
 // A `..` segment is rejected rather than normalized: the sandbox must not escape its own root.
 const hasTraversal = (path: string): boolean => path.split("/").includes("..");
 
+// Known issue: WHITESPACE also collapses runs inside string literals, so a search can silently match text that differs only inside a string (e.g. "A B" vs "A  B").
+// Fix: use `line.trim()` to tolerate indentation only without touching inner whitespace.
 const normalizeLine = (line: string): string =>
   line.replace(WHITESPACE, " ").trim();
 

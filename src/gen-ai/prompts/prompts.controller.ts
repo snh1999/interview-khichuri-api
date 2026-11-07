@@ -15,6 +15,8 @@ import {
 import { Roles } from "@thallesp/nestjs-better-auth";
 
 import { Pagination } from "@/src/config/guards/pagination.decorator";
+import { SortBy } from "@/src/config/guards/sort-by.decorator";
+import type { TSortEntry } from "@/src/config/guards/sort-by.decorator";
 import { UserId } from "@/src/config/guards/user-id.decorator";
 import type {
   TPagination,
@@ -24,7 +26,9 @@ import type {
 
 import { ValidatePromptDto } from "./dto/validate-prompt.dto";
 import {
+  ADMIN_PROMPT_SORTABLE,
   CreatePromptDto,
+  FindAdminPromptsQuery,
   FindPromptsQuery,
   SetDefaultPromptDto,
   UpdatePromptDto,
@@ -87,6 +91,16 @@ export class PromptsController {
     @UserId() userId?: string,
   ): Promise<void> {
     return this.promptsService.setDefault(dto, userId);
+  }
+
+  @Get("admin")
+  @Roles(["admin"])
+  findAllForAdmin(
+    @Query() query: FindAdminPromptsQuery,
+    @Pagination() pagination?: TPagination,
+    @SortBy(ADMIN_PROMPT_SORTABLE) sort?: TSortEntry[],
+  ): Promise<{ prompts: TPrompt[]; total: number }> {
+    return this.promptsService.findAllForAdmin(query, pagination, sort);
   }
 
   @Get(":id")

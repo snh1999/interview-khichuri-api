@@ -2,6 +2,12 @@ import { asSchema } from "ai";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { extractedJobSchema } from "@/src/jobs/jobs.dto";
+import {
+  designContentSchema,
+  fileCodeSchema,
+  fileOpSchema,
+} from "@/src/portfolio/portfolio.dto";
 import { extractedProfileSchema } from "@/src/resume/resume.dto";
 
 import {
@@ -40,6 +46,26 @@ describe("toResponseSchema", () => {
 
     expect(sent).toContain('"title":"Job title"');
     expect(sent).toContain('"description":"At most 80"');
+  });
+
+  it("carries hints for constraints Gemini ignores", () => {
+    const profile = JSON.stringify(wire(extractedProfileSchema));
+    expect(profile).toContain("Absolute HTTPS URL");
+    expect(profile).toContain("ISO 8601 date");
+
+    const job = JSON.stringify(wire(extractedJobSchema));
+    expect(job).toContain("ISO 4217");
+    expect(job).toContain("Absolute HTTPS job posting URL");
+
+    const design = JSON.stringify(wire(designContentSchema));
+    expect(design).toContain("At most 20 files");
+
+    expect(JSON.stringify(wire(fileOpSchema))).toContain(
+      "At most 200 characters",
+    );
+    expect(JSON.stringify(wire(fileCodeSchema))).toContain(
+      "At most 100000 characters",
+    );
   });
 
   it("keeps the shape, the enums and the null unions", () => {
@@ -94,6 +120,22 @@ describe("toLenientSchema", () => {
     const { validate } = asSchema(toLenientSchema(schema));
 
     await expect(validate?.({ title: "too long" })).resolves.toMatchObject({
+      success: true,
+    });
+  });
+
+  it("keeps numeric bounds enforced", async () => {
+    const schema = z.object({ score: z.number().min(0).max(100) });
+
+    const { validate } = asSchema(toLenientSchema(schema));
+
+    await expect(validate?.({ score: 120 })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(validate?.({ score: -1 })).resolves.toMatchObject({
+      success: false,
+    });
+    await expect(validate?.({ score: 100 })).resolves.toMatchObject({
       success: true,
     });
   });

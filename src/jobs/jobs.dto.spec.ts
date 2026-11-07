@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { extractedJobSchema } from "./jobs.dto";
+import { CreateJobDto, extractedJobSchema } from "./jobs.dto";
 
 describe("extractedJobSchema", () => {
   it("does not expose description, so extraction cannot overwrite the paste", () => {
@@ -67,5 +67,80 @@ describe("extractedJobSchema", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe("CreateJobDto URLs", () => {
+  const base = {
+    title: "Engineer",
+    companyName: "Acme",
+    description: "Build things",
+    status: "saved",
+    isFavorite: false,
+  };
+
+  it("normalizes a job URL before it reaches the service", () => {
+    const parsed = CreateJobDto.schema.parse({
+      ...base,
+      url: "https://Example.com/job/?utm_source=x#frag",
+    });
+
+    expect(parsed.url).toBe("https://example.com/job");
+  });
+
+  it("rejects non-http job URLs", () => {
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,x",
+      "file:///etc/passwd",
+      "/jobs/1",
+    ]) {
+      expect(CreateJobDto.schema.safeParse({ ...base, url }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it("canonicalizes a legacy bare link into the stored JSON shape", () => {
+    const parsed = CreateJobDto.schema.parse({
+      ...base,
+      links: "https://example.com/job-posting",
+    });
+
+    expect(JSON.parse(String(parsed.links))).toEqual([
+      { url: "https://example.com/job-posting", label: null },
+    ]);
+  });
+
+  it("rejects a stored link whose URL is not http(s)", () => {
+    const links = JSON.stringify([
+      { url: "javascript:alert(1)", label: "apply" },
+    ]);
+
+    expect(CreateJobDto.schema.safeParse({ ...base, links }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects an over-long URL", () => {
+    const result = CreateJobDto.schema.safeParse({
+      ...base,
+      url: `https://acme.test/${"a".repeat(600)}`,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("does not let a link carry prototype-pollution keys", () => {
+    const parsed = CreateJobDto.schema.parse({
+      ...base,
+      links:
+        '[{"url":"https://acme.test/jobs/1","label":"apply","__proto__":{"polluted":true}}]',
+    });
+
+    expect(JSON.parse(String(parsed.links))).toEqual([
+      { url: "https://acme.test/jobs/1", label: "apply" },
+    ]);
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
   });
 });
