@@ -5,9 +5,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { APICallError } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AiOutputException } from "@/src/gen-ai/ai-output-error";
+import { toAiHttpException } from "@/src/gen-ai/gen-ai.errors";
 import { GenAiService } from "@/src/gen-ai/gen-ai.service";
 
 import { PromptValidatorService } from "./prompt-validator.service";
@@ -260,6 +262,32 @@ describe("PromptValidatorService", () => {
           "AI validation could not be completed. Please try again.",
         );
       }
+    });
+
+    // toAiHttpException maps a rejected provider key to 400, so the judge must
+    // surface that message instead of generic retry advice.
+    it("keeps the mapped key message when the provider rejects the key", async () => {
+      const rejection = toAiHttpException(
+        new APICallError({
+          message: "Unauthorized",
+          url: "https://provider.example",
+          requestBodyValues: {},
+          statusCode: 401,
+          isRetryable: false,
+        }),
+        "openai",
+      );
+      mockGenAiService.generateStructured.mockRejectedValue(rejection);
+
+      const result = await validate({
+        prompt: VALID_PROMPT,
+        type: "resume",
+        provider: "openai",
+      });
+
+      expect(result.llmJudge?.reason).toContain("API key for openai");
+      expect(result.llmJudge?.reason).toContain("was rejected");
+      expect(result.llmJudge?.reason).toContain("Settings");
     });
 
     it("does not blame the key for an error that is not an HttpException", async () => {
